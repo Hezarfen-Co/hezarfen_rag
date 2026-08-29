@@ -1,42 +1,61 @@
-"""Faz 0.3a — Native PDF parse (PyMuPDF).
+"""Faz 0.3a/b — Native PDF parse (PyMuPDF).
 
-Amaç: PDF'yi LLM'ye vermeden, deterministik olarak sayfa → **metin blokları +
-koordinat (bbox) + sayfa no** çıkarmak. Her iddia sonra sayfa/bbox'a bağlanacağı
-için koordinat baştan tutulur (atıf/provenance). Okuma sırası + blok tipi = 0.3b,
-tablo = 0.3c ayrı adımlar.
+0.3a: sayfa → metin blokları + koordinat (bbox) + sayfa no (atıf/provenance).
+0.3b: her bloğa **font boyutu** + **tip** (heading/paragraph/list/caption/header/
+      footer/label) + **sütun-farkında okuma sırası** (2 sütunlu ders kitabı).
 
-Kullanım:
-    from src.ingest import parse_pdf
-    doc = parse_pdf("data/lise/12/biyoloji/kitap.pdf")
-    print(doc.page_count, doc.pages[0].blocks[0].text)
+Tasarım gerçek 12-bio düzenine göre (2 sütun: gövde sol ~57-397, yan sağ ~405-504;
+başlık font'u gövdeden büyük; üst çalışan-başlık + alt sayfa no; diyagram etiketi
+gürültüsü). Tablo = 0.3c, görsel = Faz 5 ayrı ele alınır.
 """
 from __future__ import annotations
 import json
 import os
+import re
+import statistics
 from dataclasses import dataclass, asdict, field
 
 import fitz  # PyMuPDF
 
+# Blok tipleri
+HEADING, PARAGRAPH, LIST, CAPTION, HEADER, FOOTER, LABEL = (
+    "heading", "paragraph", "list", "caption", "header", "footer", "label")
+
+_CAPTION_KW = ("görsel", "şekil", "tablo", "grafik", "resim", "harita")
+_LIST_MARK = re.compile(r"^\s*(?:[•◦‣▪·\-–—*]|\(?\d{1,2}[\.\)]|[a-zçğıöşü]\))\s+")
+_SECTION_NO = re.compile(r"^\s*(?:\d+\.){1,3}\s|^\s*[A-ZÇĞİÖŞÜ]\)\s")
+
 
 @dataclass
 class Block:
-    """Bir sayfadaki metin bloğu + koordinatı (atıf için)."""
-    page: int                    # 1-indeksli sayfa no
-    bbox: tuple[float, float, float, float]  # (x0, y0, x1, y1)
+    """Bir sayfadaki metin bloğu + koordinatı + font + tip (atıf/yapı için)."""
+    page: int                                 # 1-indeksli sayfa no
+    bbox: tuple[float, float, float, float]   # (x0, y0, x1, y1)
     text: str
-    block_no: int                # PyMuPDF'in sayfa-içi blok sırası (kaba okuma sırası)
+    block_no: int                             # PyMuPDF sayfa-içi blok no
+    font_size: float = 0.0                    # bloğun baskın (max) font boyutu
+    kind: str = PARAGRAPH                      # yukarıdaki tiplerden
+
+    @property
+    def is_body(self) -> bool:
+        """Retrieval/özet için asıl öğretici metin mi (header/footer/label değil)."""
+        return self.kind in (HEADING, PARAGRAPH, LIST, CAPTION)
 
 
 @dataclass
 class Page:
-    number: int                  # 1-indeksli
+    number: int
     width: float
     height: float
-    blocks: list[Block] = field(default_factory=list)
+    blocks: list[Block] = field(default_factory=list)  # okuma sırasında
 
     @property
     def text(self) -> str:
         return "\n".join(b.text for b in self.blocks)
+
+    @property
+    def body_text(self) -> str:
+        return "\n".join(b.text for b in self.blocks if b.is_body)
 
 
 @dataclass
@@ -50,9 +69,89 @@ class ParsedDoc:
         return "\n\n".join(p.text for p in self.pages)
 
 
+# ------------------------------- sınıflandırma -------------------------------
+
+def _strip_marker(text: str) -> str:
+    # Kitap görsellerinde "W  Görsel 1.9: ..." gibi öncü işaret var; temizle
+    return re.sub(r"^\s*[WQ-]\s+", "", text).strip()
+
+
+def classify(text: str, font_size: float, bbox, page_h: float,
+             body_size: float) -> str:
+    """Bloğu tipe ayır. body_size = sayfanın gövde (paragraf) font medyanı."""
+    x0, y0, x1, y1 = bbox
+    t = text.strip()
+    clean = _strip_marker(t)
+    low = clean.lower()
+    # header/footer: sayfanın en üst/alt %6'sı + kısa
+    if y1 <= page_h * 0.07 and len(t) < 120:
+        return HEADER
+    if y0 >= page_h * 0.93 and len(t) < 60:
+        return FOOTER
+    # caption: "Görsel/Şekil/Tablo..." ile başlar
+    if any(low.startswith(k) for k in _CAPTION_KW):
+        return CAPTION
+    # heading: font gövdeden belirgin büyük (büyük font her şeyden önce gelir)
+    if font_size >= body_size * 1.12 and len(t) < 140:
+        return HEADING
+    # list: satırların çoğu madde-işareti ile başlıyor (section-marker başlıktan ÖNCE,
+    # yoksa "1. Adım / 2. Adım" numaralı liste başlık sanılır)
+    lines = [ln for ln in t.splitlines() if ln.strip()]
+    if lines and sum(bool(_LIST_MARK.match(ln)) for ln in lines) >= max(1, len(lines) // 2):
+        return LIST
+    # heading: bölüm-numarası deseni ("1.2.2. ..." veya "A) ...") + gövde-üstü font
+    if _SECTION_NO.match(t) and font_size >= body_size and len(t) < 140:
+        return HEADING
+    # label: çok kısa, büyük-font olmayan → diyagram etiketi gürültüsü
+    if len(clean) <= 14 and font_size < body_size * 1.12:
+        return LABEL
+    return PARAGRAPH
+
+
+# ------------------------------- okuma sırası -------------------------------
+
+def order_blocks(blocks: list[Block], page_width: float) -> list[Block]:
+    """Sütun-farkında okuma sırası: header'lar önce → sol sütun (y) → sağ sütun (y)
+    → footer'lar sonra. Tek sütunsa saf y-sıralaması."""
+    headers = [b for b in blocks if b.kind == HEADER]
+    footers = [b for b in blocks if b.kind == FOOTER]
+    body = [b for b in blocks if b.kind not in (HEADER, FOOTER)]
+
+    boundary = page_width * 0.5
+    centers = [((b.bbox[0] + b.bbox[2]) / 2) for b in body]
+    left = [b for b in body if (b.bbox[0] + b.bbox[2]) / 2 < boundary]
+    right = [b for b in body if (b.bbox[0] + b.bbox[2]) / 2 >= boundary]
+    # 2 sütun sayılması için iki taraf da anlamlı dolu olmalı (aksi halde tek sütun)
+    two_col = len(left) >= 2 and len(right) >= 2
+
+    def by_y(bs):
+        return sorted(bs, key=lambda b: (round(b.bbox[1], 1), b.bbox[0]))
+
+    ordered = by_y(headers)
+    if two_col:
+        ordered += by_y(left) + by_y(right)
+    else:
+        ordered += by_y(body)
+    ordered += by_y(footers)
+    return ordered
+
+
+# ------------------------------- parse -------------------------------
+
+def _block_font_size(block: dict) -> float:
+    sizes = [s["size"] for l in block.get("lines", []) for s in l.get("spans", [])]
+    return max(sizes) if sizes else 0.0
+
+
+def _block_text(block: dict) -> str:
+    lines = []
+    for l in block.get("lines", []):
+        lines.append("".join(s["text"] for s in l.get("spans", [])))
+    return "\n".join(lines).strip()
+
+
 def parse_pdf(path: str) -> ParsedDoc:
-    """PDF'yi sayfa → metin blokları + bbox olarak ayrıştır. Görsel bloklar atlanır
-    (tip 1); onlar Faz 5 multimodal'da ayrı ele alınır."""
+    """PDF → sayfa (metin blokları + bbox + font + tip, okuma sırasında)."""
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     doc = fitz.open(path)
@@ -60,18 +159,24 @@ def parse_pdf(path: str) -> ParsedDoc:
         pages: list[Page] = []
         for i, page in enumerate(doc):
             rect = page.rect
-            blocks: list[Block] = []
-            # get_text("blocks"): (x0,y0,x1,y1, "text", block_no, block_type)
-            # block_type 0 = metin, 1 = görsel. Sıralama kabaca yukarıdan aşağı.
-            for b in page.get_text("blocks"):
-                x0, y0, x1, y1, text, block_no, block_type = b[:7]
-                if block_type != 0:
+            raw = []  # (bbox, text, block_no, font_size)
+            for bn, b in enumerate(page.get_text("dict").get("blocks", [])):
+                if b.get("type") != 0:
                     continue
-                text = (text or "").strip()
+                text = _block_text(b)
                 if not text:
                     continue
-                blocks.append(Block(page=i + 1, bbox=(x0, y0, x1, y1),
-                                    text=text, block_no=int(block_no)))
+                raw.append((tuple(b["bbox"]), text, bn, _block_font_size(b)))
+            # gövde font medyanı (uzun bloklar = paragraf)
+            para_sizes = [fs for (_, t, _, fs) in raw if len(t) > 40] or \
+                         [fs for (_, _, _, fs) in raw] or [10.0]
+            body_size = statistics.median(para_sizes)
+            blocks = []
+            for bbox, text, bn, fs in raw:
+                kind = classify(text, fs, bbox, rect.height, body_size)
+                blocks.append(Block(page=i + 1, bbox=bbox, text=text,
+                                    block_no=bn, font_size=round(fs, 2), kind=kind))
+            blocks = order_blocks(blocks, rect.width)
             pages.append(Page(number=i + 1, width=rect.width,
                               height=rect.height, blocks=blocks))
         return ParsedDoc(source_path=path, page_count=doc.page_count, pages=pages)
@@ -80,15 +185,10 @@ def parse_pdf(path: str) -> ParsedDoc:
 
 
 def to_json(doc: ParsedDoc) -> str:
-    """Normalize JSON (Faz 0.5 kanonik şemanın çekirdeği)."""
     return json.dumps({
-        "source_path": doc.source_path,
-        "page_count": doc.page_count,
-        "pages": [
-            {"number": p.number, "width": p.width, "height": p.height,
-             "blocks": [asdict(b) for b in p.blocks]}
-            for p in doc.pages
-        ],
+        "source_path": doc.source_path, "page_count": doc.page_count,
+        "pages": [{"number": p.number, "width": p.width, "height": p.height,
+                   "blocks": [asdict(b) for b in p.blocks]} for p in doc.pages],
     }, ensure_ascii=False)
 
 
