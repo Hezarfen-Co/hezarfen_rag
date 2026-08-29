@@ -1,0 +1,8 @@
+"""Kaynak derleyici: PDF/görsel → yapılandırılmış, atıflanabilir öğeler.
+
+Faz 0 (veri hijyeni): pdf_parse (metin blokları + koordinat), sonra tablo,
+yasaklı-sayfa izolasyonu, metadata, curriculum graph. Bkz. Obsidian [[plan]].
+"""
+from .pdf_parse import Block, Page, ParsedDoc, parse_pdf
+
+__all__ = ["Block", "Page", "ParsedDoc", "parse_pdf"]

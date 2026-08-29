@@ -3,6 +3,10 @@
 # Maliyet modülü (rag/pricing, rag/providers/deepseek, rag/costlog):
 #   SIFIR harici bağımlılık — yalnız Python stdlib (urllib, json).
 #
+# Kaynak derleyici (src/ingest — Faz 0):
+pymupdf>=1.27      # native PDF parse (metin blok + koordinat)
+pdfplumber>=0.11   # tablo tespiti (Faz 0.3c)
+
 # İndirme araçları (eba_dl/, scratch scraper'lar) için:
 requests>=2.32
 gdown>=5.0
