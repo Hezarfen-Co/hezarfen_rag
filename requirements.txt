@@ -1,0 +1,13 @@
+# hezarfen_rag bağımlılıkları
+#
+# Maliyet modülü (rag/pricing, rag/providers/deepseek, rag/costlog):
+#   SIFIR harici bağımlılık — yalnız Python stdlib (urllib, json).
+#
+# İndirme araçları (eba_dl/, scratch scraper'lar) için:
+requests>=2.32
+gdown>=5.0
+#
+# Planlanan RAG boru hattı (henüz kullanılmıyor — aşamaya gelince eklenecek):
+# deepeval          # kalite metrikleri (faithfulness, contextual precision/recall)
+# qdrant-client     # vektör store
+# sentence-transformers  # embedding / reranker

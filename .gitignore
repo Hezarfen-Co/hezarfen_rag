@@ -1,0 +1,19 @@
+# Ölçüm veri kasası (büyük, telifli — repoya girmez)
+data/
+
+# İndirme araçları (scraper; RAG servisi değil) — repoya girmez
+eba_dl/
+
+# Eski mock veri (artık gerçek veri var — gerekmez)
+mockdata/
+
+# Python
+__pycache__/
+*.py[cod]
+*.egg-info/
+.venv/
+venv/
+.pytest_cache/
+
+# Üretilen makine artefaktları
+data/benchmark_results.json
