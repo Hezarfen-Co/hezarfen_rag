@@ -35,11 +35,17 @@ class Block:
     block_no: int                             # PyMuPDF sayfa-içi blok no
     font_size: float = 0.0                    # bloğun baskın (max) font boyutu
     kind: str = PARAGRAPH                      # yukarıdaki tiplerden
+    retrieval_disi: bool = False              # sızıntı: soru/cevap/meta → indekslenmez (bkz. isolate.py)
 
     @property
     def is_body(self) -> bool:
         """Retrieval/özet için asıl öğretici metin mi (header/footer/label değil)."""
         return self.kind in (HEADING, PARAGRAPH, LIST, CAPTION)
+
+    @property
+    def retrievable(self) -> bool:
+        """İndekse girer mi: öğretici gövde VE sızıntı-dışı."""
+        return self.is_body and not self.retrieval_disi
 
 
 @dataclass
