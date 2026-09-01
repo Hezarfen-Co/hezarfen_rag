@@ -17,6 +17,7 @@ yolları · gecikme/token/donanım/maliyet · nihai durum (`İNSAN İNCELEMESİ 
 | ID | Tür | Başlık | Durum |
 |---|---|---|---|
 | EXP-001 | ANALİZ (model-dışı) | Korpus görsel/tablo/diyagram yoğunluk analizi | İNSAN İNCELEMESİ BEKLİYOR |
+| RES-001 | ARAŞTIRMA (literatür+deney tasarımı) | Kaynakla konuşma, kanıtlı özetleme, Türkçe RAG model doğrulaması | Kadir incelemesi bekliyor (mimari/benchmark değişikliği ÖNERİR) |
 
 > Not: EXP-001 bir **ölçüm/analiz**tir, model deneyi değil (LLM çalıştırılmadı).
 > İlk **model deneyi** Faz 1 (text-RAG baseline) ile EXP-002 olacak.
