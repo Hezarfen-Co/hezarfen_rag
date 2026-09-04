@@ -1,5 +1,7 @@
 """Maliyet.md profesyonel iskeleti. costlog.render() AUTO bloklarını doldurur;
-manuel bölümler (ilkeler, tanımlar) korunur."""
+manuel bölümler (ilkeler, tanımlar, bütçe projeksiyonu) korunur.
+
+Not: Dosya adı İngilizce (kod dosyalarında Türkçe ad yok); içerik ürün dili Türkçe."""
 
 TEMPLATE = r"""# 💸 RAG Maliyet Defteri
 
@@ -23,6 +25,9 @@ TEMPLATE = r"""# 💸 RAG Maliyet Defteri
    modül işe yaramaz. Kalite skorları [[deney-sonuclari]]'nda; buradaki her run
    opsiyonel `quality` alanıyla oraya bağlanır.
 5. **Fiyat değişince yalnız `src/pricing.py` güncellenir**; tablo otomatik yansır.
+6. **Canlı ölçüm zorunlu**: her DeepSeek çağrısında API'nin döndürdüğü `usage`
+   (cache-hit/miss, çıkış, reasoning token) okunur ve kaydedilir — tahmin değil
+   gerçek token. (RagArt bunu yapmıyordu; bizim ayrım noktamız.)
 
 Kaydı kod otomatik yapar:
 ```python
@@ -57,6 +62,21 @@ Elle yeniden üretmek için: `python -m src.costlog render`.
 ## 🤖 Model karşılaştırması (otomatik)
 <!-- AUTO:MODELS:START -->
 <!-- AUTO:MODELS:END -->
+
+## 📈 Ürün bütçe projeksiyonu (elle — birim maliyet ölçülünce doldur)
+> Birim maliyet defterden (yukarıdaki AUTO tablo) **gerçek** değerle gelir; buraya
+> ürün varsayımlarını (kullanıcı sayısı, kullanım sıklığı) koyup aylık bütçeyi çıkar.
+
+| Senaryo | Aktif öğrenci | Öğrenci/ay kullanım | Birim maliyet (defterden) | Aylık maliyet ~ | Cache sonrası ~ |
+|---|---|---|---|---|---|
+| Pilot | 50 | 40 soru + 10 özet | — | — | — |
+| Okul | 500 | 40 soru + 10 özet | — | — | — |
+| Ölçek | 5.000 | 40 soru + 10 özet | — | — | — |
+
+- **Bütçe eşiği (alarm):** öğrenci başı aylık maliyet > \$… olursa (chunk küçült /
+  top-k düşür / cache oranı artır) → etkisini [[deney-sonuclari]] ile doğrula.
+- **Cache etkisi:** ResponseCache tekrar sorularda LLM çağrısını **sıfırlar**;
+  EmbeddingCache indekslemeyi amortize eder — projeksiyonda "cache sonrası" sütunu bunu yansıtır.
 
 ## 🧠 Maliyet düşürme notları (elle)
 - **Prompt cache**: aynı bağlam tekrar kullanılıyorsa cache-hit fiyatı ~30× ucuz →

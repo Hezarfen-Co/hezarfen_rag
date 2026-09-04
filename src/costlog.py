@@ -204,7 +204,7 @@ def render(ledger: str = LEDGER, maliyet: str = MALIYET) -> None:
 
 def _init_maliyet(path: str) -> None:
     """Boş Maliyet.md'ye profesyonel iskeleti yaz (AUTO marker'larıyla)."""
-    from ._maliyet_template import TEMPLATE
+    from ._cost_template import TEMPLATE
     os.makedirs(os.path.dirname(path), exist_ok=True)
     with open(path, "w", encoding="utf-8") as f:
         f.write(TEMPLATE)

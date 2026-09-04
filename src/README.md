@@ -9,7 +9,7 @@ kurulan çekirdek. **Sıfır harici bağımlılık** (yalnız Python stdlib).
 | `pricing.py` | DeepSeek fiyat tablosu (tek yer) + `cost_usd(model, usage, tier)` |
 | `providers/deepseek.py` | DeepSeek LLM çağrısı (OpenAI-uyumlu); metin + **token usage** döndürür |
 | `costlog.py` | run kaydı (`runs.jsonl`) + **Maliyet.md** otomatik render |
-| `_maliyet_template.py` | Maliyet.md profesyonel iskeleti (AUTO marker'lı) |
+| `_cost_template.py` | Maliyet.md profesyonel iskeleti (AUTO marker'lı) |
 
 ## Akış
 ```
