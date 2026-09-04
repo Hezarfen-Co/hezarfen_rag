@@ -5,7 +5,7 @@
 > ve `CLAUDE.md`'de BİREBİR AYNI tutulur.
 
 <!-- SHARED_RULES_START -->
-<!-- shared_rules_version: 2 -->
+<!-- shared_rules_version: 3 -->
 ## Ortak Kurallar (AGENTS.md ve CLAUDE.md'de kelimesi kelimesine AYNI)
 
 1. **Önce oku:** Göreve başlamadan `Notes.md` (varsa) + ilgili Markdown belgelerini oku. Yalnız sohbet geçmişine güvenme; proje dosyaları kalıcı hafızadır.
@@ -25,6 +25,9 @@
 15. **Git (kod deposu):** Tek branch (`main`), adım adım commit; feature-branch açılmaz. **Commit'lerde AI/Claude adı/izi bulunmaz** (yazar = Kadir).
 16. **Uydurma yasak:** Bilinmeyen bilgi etiketlenir: `[DOĞRULANDI]` `[VARSAYIM]` `[DENEYSEL SONUÇ]` `[KADİR ONAYI BEKLİYOR]` `[ARAŞTIRILACAK]` `[ÇELİŞKİ VAR]`.
 17. **AGENTS/CLAUDE senkronu:** Ortak kural değişirse **aynı işlemde** her iki dosya güncellenir ve `shared_rules_version` artırılır. Oturum başında iki blok karşılaştırılır; **çelişki varsa ajan sessizce seçmez, Kadir'e bildirir.**
+18. **Agentic orkestrasyon:** Roller Opus (orkestratör + mimar) + Sonnet (kodcu + doğrulayıcı) + Opus (değerlendirici); ajan tanımları `.claude/agents/`, protokol `docs/ORCHESTRATION.md`. Kod değişikliği yalnız `coder`; doğrulama ayrı `verifier` (temiz bağlam, düşmanca); kabul kriteri karşılanmazsa iş geri gönderilir. Zor/riskli karar `architect`; ölçüm/eksik-analizi `evaluator`.
+19. **GitHub issue akışı:** İşe başlamadan ilgili issue kontrol edilir; **varsa** üstünde çalışılıp commit referansıyla **kapatılır**, **yoksa açılır → çözülür → kapatılır**; kapalı işi yeniden optimize ederken **reopen** edilir. Commit mesajında `Refs #N`/`Closes #N`.
+20. **Sürekli optimizasyon (pass-bias YASAK):** Kalite + maliyet + eksik-görme üçlüsü ürün amacına varana dek gözetilir; amaç geçmek değil **eksiği bulmak**; metrik yetersizse yeni metrik/test önerilir; canlı token/$ ölçülür. Standing kararlar `docs/OPTIMIZATION.md`'de gömülü — Kadir tekrar prompt yazmaz.
 <!-- SHARED_RULES_END -->
 
 ## Claude'a özel notlar (ortak-dışı)
