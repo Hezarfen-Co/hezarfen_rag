@@ -1,17 +1,30 @@
-# hezarfen_rag bağımlılıkları
+# hezarfen_rag bağımlılıkları  (kurulum: python -m venv .venv && .venv/Scripts/pip install -r requirements.txt)
 #
-# Maliyet modülü (rag/pricing, rag/providers/deepseek, rag/costlog):
-#   SIFIR harici bağımlılık — yalnız Python stdlib (urllib, json).
-#
-# Kaynak derleyici (src/ingest — Faz 0):
-pymupdf>=1.27      # native PDF parse (metin blok + koordinat)
-pdfplumber>=0.11   # tablo tespiti (Faz 0.3c)
+# Maliyet modülü (src/pricing, src/providers/deepseek, src/costlog): SIFIR harici
+# bağımlılık — yalnız Python stdlib. Aşağısı ingest + RAG içindir.
 
-# İndirme araçları (eba_dl/, scratch scraper'lar) için:
+# --- PyTorch (embedding için) ---
+# Bu satır ortamdan bağımsız taban spec'tir: konteyner CPU wheel'i (Containerfile),
+# yerel geliştirme GPU wheel'i kurar; ikisi de bu spec'i karşılar.
+#   Yerel GPU (RTX 4060, CUDA 12.4) — requirements'tan SONRA açıkça kur:
+#     .venv/Scripts/pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
+#   (NOT: buraya --extra-index-url cu124 koymayın — pip PyPI'nin daha yüksek +cpu
+#    wheel'ini seçip GPU'yu atlıyor. Doğrulandı: 2.14.0+cpu geldi.)
+torch>=2.6
+
+# --- Kaynak derleyici (src/ingest — Faz 0) ---
+pymupdf>=1.27          # native PDF parse (metin blok + koordinat)
+pdfplumber>=0.11       # tablo tespiti (Faz 0.3c)
+numpy>=1.26
+
+# --- Embedding / retrieval (Faz 1) ---
+FlagEmbedding>=1.3     # BGE-M3 (dense + sparse), çok dilli
+qdrant-client>=1.9     # vektör store (Faz 1.3)
+rank-bm25>=0.2         # lexical retrieval / BM25 (Faz 1.3)
+
+# --- İndirme araçları (eba_dl/, scraper'lar) ---
 requests>=2.32
 gdown>=5.0
-#
-# Planlanan RAG boru hattı (henüz kullanılmıyor — aşamaya gelince eklenecek):
-# deepeval          # kalite metrikleri (faithfulness, contextual precision/recall)
-# qdrant-client     # vektör store
-# sentence-transformers  # embedding / reranker
+
+# --- Planlanan (aşamaya gelince) ---
+# deepeval             # kalite metrikleri (faithfulness, ctx precision/recall)
