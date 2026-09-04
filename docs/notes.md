@@ -40,3 +40,4 @@ _(Kadir buraya taşır)_
   4. **CONSTANTS.md:** kanıt-derecesi ölçeği (A/B/C/D) + model aday sınıflandırması sabitlensin.
   5. **Küçük:** `CLAUDE.md`/`AGENTS.md` başlığındaki "Bu klasör `C:/Users/w/Documents/Hezarfen/rag`" satırı artık kısmen bayat (yönetim dosyaları repo `docs/`'ta) — düzeltilsin mi?
   > Onaylarsan işleme alırım; onayın olmadan kilitli dosyaları değiştirmiyorum.
+  - **DURUM 2026-09-02 — Kadir mimari kararını verdi ("başarılı RAG mimarisi, agentic/graph değil").** Madde 1 (mimari) UYGULANDI → `mimari.md §0.1 KESİN KARAR`: Uyarlamalı+Hibrit+Hiyerarşik; agentic/graph koşullu; RAPTOR-routing; extract-then-abstract; claim-evidence + fail-closed; BGE-M3/DeepSeek "aday". Madde 2 (benchmark eşik değerleri) ve 3 (plan fazları) golden set kurulunca netleşecek; 4 (CONSTANTS kanıt-derecesi) ve 5 (başlık düzeltme) küçük, sırada.
