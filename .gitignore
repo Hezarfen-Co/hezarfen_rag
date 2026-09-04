@@ -17,3 +17,6 @@ venv/
 
 # Üretilen makine artefaktları
 data/benchmark_results.json
+
+
+.env
