@@ -1,0 +1,33 @@
+# hezarfen_rag — proje-bazlı Podman compose (Docker DEĞİL).
+# Kardeş servisler (backend/frontend/chatbot) kendi compose'larıyla ayağa kalkar.
+# RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır — Çelebi
+# köprüsüyle aynı desen. Servis girişi Faz 1 sonrası (QUIC api-read) eklenecek.
+#
+# Kullanım (backend ayaktayken):
+#   podman compose --profile product up -d --build
+services:
+  rag:
+    build:
+      context: .
+      dockerfile: Containerfile
+    image: localhost/hezarfen-rag:local
+    container_name: hezarfen-rag
+    profiles: ["product"]            # otomatik kalkmaz; backend hazır olunca çalıştır
+    environment:
+      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}   # üretim adımı (Faz 1.7) için
+      HF_HOME: /models                          # BGE-M3 model cache
+      PYTHONUNBUFFERED: "1"
+    volumes:
+      - rag-models:/models                       # model cache kalıcı (BGE-M3 ~2GB)
+      # - ./data:/app/data:ro                    # ölçüm verisi (opsiyonel; git-ignored)
+    networks:
+      - backend_net
+    restart: unless-stopped
+
+networks:
+  backend_net:
+    external: true
+    name: hezarfen_backend_default
+
+volumes:
+  rag-models:
