@@ -7,7 +7,7 @@
 ## A. Değerlendirme altyapısı — DeepEval metrikleri (GitHub #16)
 
 **Felsefe:** pass-bias YASAK. Amaç eksiği görmek. Metrik eksiği göremiyorsa yenisi eklenir.
-DeepEval hakem-LLM'i olarak **DeepSeek** kullanılır (custom model; `DEEPSEEK_API_KEY` gerekir).
+DeepEval hakem-LLM'i olarak **DeepSeek** kullanılır (custom model; `DEEPSEEK_API_KEY` gerekir). ".env dosyasında mevcut"
 
 **Retrieval metrikleri (golden set gerektirir):**
 | Metrik | Ölçtüğü | Hedef (ilk) |
@@ -87,5 +87,4 @@ küçük→parent genişletme (precision+bağlam). Her değişiklik `Maliyet.md`
 8. **Sınırlı-agentic** (E) — ablation ile kanıtla ya da kapat.
 9. **Observability** (#18) + **test piramidi** (#17).
 
-**Engeller (blocking):** `DEEPSEEK_API_KEY` (üretim + DeepEval hakem), golden set Kadir onayı.
-Döngü bunlara takılırsa: kod/altyapı hazırlanır, ölçüm anahtarı/onay gelince koşulur.
+**Engeller (blocking):** ✅ `DEEPSEEK_API_KEY` — `.env`'de mevcut + **doğrulandı** (gerçek çağrı OK, costlog uçtan uca çalışıyor, 2026-09-05). ⏳ **Kalan tek engel: golden set Kadir onayı** (kalite metrikleri için). Döngü buna takılırsa: kod/altyapı hazırlanır, taslak Kadir onayına sunulur, onay gelince kalite ölçümü koşulur.
