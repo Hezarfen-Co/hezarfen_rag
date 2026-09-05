@@ -122,10 +122,12 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     # LLM güvenlik sınıflandırıcı (2. katman) — regex'in kaçırdığı parafraz/dolaylı
     # zararlıyı yakalar (baseline: zararlı 1/3). Eval ürünün TAM guardlı hâlini ölçer.
     from ..guard import LLMSafetyClassifier
+    from ..memory import HistoryAwareRewriter
     generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
                           ders="biyoloji", abstain_score=0.30, module="eval",
                           safety_classifier=LLMSafetyClassifier(deepseek, module="eval"),
-                          context_packing=True)   # token bütçesi + lost-in-the-middle
+                          context_packing=True,   # token bütçesi + lost-in-the-middle
+                          rewriter=HistoryAwareRewriter(deepseek, module="eval"))  # çok-turlu
     print(f"[eval] pipeline tamamen hazir ({time.time() - t0:.1f}s toplam)")
     return dict(doc=doc, chunks_by_id=chunks_by_id, span_meta=span_meta,
                retriever=retriever, reranker=reranker, generator=generator, children=children)
@@ -193,7 +195,11 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
                 label=f"rerank_select[{item_id}]")
 
     t0 = time.time()
-    result = _retry(lambda: generator.answer(query, top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N),
+    # multi_turn item'larda konuşma geçmişini ver → history-aware rewrite devreye
+    # girer (bkz. src/memory). Diğer item'larda history=None (davranış değişmez).
+    history = item.get("konusma_gecmisi")
+    result = _retry(lambda: generator.answer(query, history=history,
+                                             top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N),
                     label=f"generator.answer[{item_id}]")
     gen_latency = time.time() - t0
 
