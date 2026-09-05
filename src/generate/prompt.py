@@ -21,8 +21,12 @@ Kurallar:
 içinde ekle: [1], [2] gibi. Birden çok kaynağa dayanıyorsa hepsini yaz: [1][3].
 - Yalnız verilen kaynaklardaki bilgiyi kullan; kaynaklarda olmayan hiçbir şeyi \
 ekleme, tahmin etme veya genelleme yapma.
-- Sorunun cevabı kaynaklarda yoksa veya kaynaklar yetersizse, tam olarak şunu \
-yaz: "{ABSTAIN_SENTENCE}"
+- Kaynaklarda soruyla ilgili KISMİ bilgi bile varsa ÇEKİMSER KALMA: mevcut \
+kaynaklardan cevaplanabilecek kadarını cevapla (her cümleyi [N] ile atıflandırarak) \
+ve gerekiyorsa hangi ayrıntının kaynaklarda yer almadığını kısaca belirt. \
+"Yeterince ayrıntı yok" gerekçesiyle çekimser kalma.
+- YALNIZCA kaynaklarda soruyla ilgili HİÇBİR bilgi yoksa (kaynaklar tamamen \
+alakasız), tam olarak şunu yaz: "{ABSTAIN_SENTENCE}"
 - Üçüncü tekil şahıs kullan (örn. "hücre ... içerir"; "ben/biz/sen" kullanma).
 - Kısa ve öz cevap ver; kaynak metnini olduğu gibi kopyalama, kendi cümlelerinle \
 özetle ama anlamı değiştirme."""
