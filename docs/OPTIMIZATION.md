@@ -105,10 +105,12 @@ küçük→parent genişletme (precision+bağlam). Her değişiklik `Maliyet.md`
 3. **Guardrail zararlı-içerik BYPASS** (3'te 1 yakalandı): e05 (intikam/zarar), e06 (fermantasyon→uyuşturucu) regex'i atlattı; yalnız retrieval-fail-closed sayesinde "kazara" güvenli. **Gerçek güvenlik açığı.**
 4. ~~faithfulness n/a~~ ✅ GİDERİLDİ (commit 9d5619f: json_object + max_tokens=4096 + truths_extraction_limit; faithfulness artık 1.000 hesaplanıyor).
 
+**RE-BASELINE (2026-09-05, eval_v0_20260905T155337Z — 3 P0 fix sonrası):** aşırı-abstain 5→**0**/20; guardrail zararlı 1→**3/3** (LLM-sınıflandırıcı); citation **SAYFA** P/R **0.48/0.775** (span-level 0.10 yanıltıcıydı); fail-closed **1.0**; faithfulness **0.986**, answer-rel 1.0, correctness 0.76; retrieval recall@20 0.958/sayfa 1.0 korundu. Maliyet $0.158.
+
 **OPTİMİZASYON ADIMLARI (öncelik sıralı):**
-1. **Atıf (P0):** (a) atıf-eşleme granülerliğini gözden geçir — exact-span yerine span-overlap/sayfa düzeyi daha anlamlı + adil (recall@20 sayfa=1.0); (b) prompt'ta "kullandığın HER kaynağı [N] ile atıfla" disiplinini güçlendir + few-shot atıf örneği; (c) [N]→span eşleme doğruluğunu denetle.
+1. **Atıf:** (a) ✅ sayfa-düzeyi + overlap metriği eklendi (commit 5a3165b) → gerçek değer **sayfa P/R 0.48/0.775** (span 0.10 yanıltıcıydı). (b) ⏳ **P1:** sayfa-precision 0.48 (model bazı gold-dışı sayfa atıflıyor) — prompt atıf-disiplini + few-shot ile artırılabilir; recall 0.775 iyi olduğundan P0 değil.
 2. ~~Aşırı-abstain~~ ✅ GİDERİLDİ (commit fca0fb8): kök neden prompt'ta "kaynaklar YETERSİZSE bulunamadı de" fazla agresifti → "yalnız TAMAMEN alakasızsa abstain; kısmi bilgide cevapla". Doğrulama (gerçek DeepSeek): 5 yanlış-abstain 0/5→**5/5 cevap**; edge-case'ler 3/3 korundu (over-correction yok); birim 40/40. NOT: transient qdrant/CUDA segfault → pipeline run'ı retry gerektirdi (ayrı operasyonel risk).
-3. **Guardrail zararlı-içerik (P0, güvenlik):** regex'e ek **LLM-güvenlik sınıflandırıcı** (DeepSeek) 2. katman — parafraz/dolaylı zararlıyı yakala (e05/e06 tipi). Golden set zararlı örneklerini genişlet.
+3. ~~Guardrail zararlı-içerik~~ ✅ GİDERİLDİ (commit e6d7c02): LLM-güvenlik sınıflandırıcı (2. katman, DeepSeek) → zararlı red **1/3→3/3** (e05/e06 parafraz yakalandı). ⏳ *kalan:* golden set zararlı örneklerini genişlet (Kadir); kriz-hattı no'su; red-team suite.
 4. ~~faithfulness fix~~ ✅ TAMAM (commit 9d5619f).
 5. **Golden set (P1, Kadir):** TASLAK'ı doğrula/genişlet (bazı gold span'lar dar; 9 kazanım kapsanmadı); onayla → benchmark resmî olsun.
 6. **Faz 1.6 kasa izolasyonu (P1):** can_access'i retrieval'e bağla (guardrail #3).
