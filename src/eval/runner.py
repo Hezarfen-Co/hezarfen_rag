@@ -38,7 +38,9 @@ from ..retrieve import SparseIndex, HybridRetriever
 from . import metrics as M
 from .judge import LlmJudge, JUDGE_METHOD, DEEPEVAL_AVAILABLE
 
-GOLDEN_PATH = os.path.join("tests", "golden", "golden_12bio_v0.json")
+# Varsayılan v1 (190 item, TASLAK); GOLDEN_PATH env değişkeniyle override edilebilir.
+GOLDEN_PATH = os.environ.get(
+    "GOLDEN_PATH", os.path.join("tests", "golden", "golden_12bio_v1.json"))
 BOOK_PATH = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
 RESULTS_DIR = os.path.join("tests", "evaluation", "results")
 
