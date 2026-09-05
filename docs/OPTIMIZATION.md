@@ -107,7 +107,7 @@ küçük→parent genişletme (precision+bağlam). Her değişiklik `Maliyet.md`
 
 **OPTİMİZASYON ADIMLARI (öncelik sıralı):**
 1. **Atıf (P0):** (a) atıf-eşleme granülerliğini gözden geçir — exact-span yerine span-overlap/sayfa düzeyi daha anlamlı + adil (recall@20 sayfa=1.0); (b) prompt'ta "kullandığın HER kaynağı [N] ile atıfla" disiplinini güçlendir + few-shot atıf örneği; (c) [N]→span eşleme doğruluğunu denetle.
-2. **Aşırı-abstain (P0):** 5 yanlış-çekimseri incele — child chunk bağlamı yetersiz mi (parent_text yeterince yardımcı mı?) yoksa abstain-detection/prompt fazla katı mı; abstain_score + prompt "bulunamadı" eşiğini kalibre et.
+2. ~~Aşırı-abstain~~ ✅ GİDERİLDİ (commit fca0fb8): kök neden prompt'ta "kaynaklar YETERSİZSE bulunamadı de" fazla agresifti → "yalnız TAMAMEN alakasızsa abstain; kısmi bilgide cevapla". Doğrulama (gerçek DeepSeek): 5 yanlış-abstain 0/5→**5/5 cevap**; edge-case'ler 3/3 korundu (over-correction yok); birim 40/40. NOT: transient qdrant/CUDA segfault → pipeline run'ı retry gerektirdi (ayrı operasyonel risk).
 3. **Guardrail zararlı-içerik (P0, güvenlik):** regex'e ek **LLM-güvenlik sınıflandırıcı** (DeepSeek) 2. katman — parafraz/dolaylı zararlıyı yakala (e05/e06 tipi). Golden set zararlı örneklerini genişlet.
 4. ~~faithfulness fix~~ ✅ TAMAM (commit 9d5619f).
 5. **Golden set (P1, Kadir):** TASLAK'ı doğrula/genişlet (bazı gold span'lar dar; 9 kazanım kapsanmadı); onayla → benchmark resmî olsun.
