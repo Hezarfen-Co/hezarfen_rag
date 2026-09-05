@@ -11,7 +11,9 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass, field
 
+from src.cache import EmbeddingCache, ResponseCache, SQLiteCache
 from src.generate import ABSTAIN_SENTENCE, Generator, GroundedAnswer, build_grounded_prompt
+from src.guard import Role, RoleContext
 from src.generate.generator import _format_pages
 from src.pricing import Usage
 from src.providers.deepseek import ChatResult
@@ -512,6 +514,165 @@ class GuardrailIntegrationTests(unittest.TestCase):
 
         self.assertFalse(result.abstained)
         self.assertNotEqual(result.reason, "guard_output")
+
+
+class ResponseCacheIntegrationTests(unittest.TestCase):
+    """Cache katmanı entegrasyonu (bkz. src/cache/response_cache.py,
+    docs/OPTIMIZATION.md §C). Model/ağ GEREKMEZ: DeepSeek stub — cache hit'te
+    stub'un `.chat()` metodunun ÇAĞRILMADIĞINI (sayaç sabit kalır) kanıtlar,
+    RagArt dersi: "ResponseCache DeepSeek çağrısını sıfırlar" (RES-002 §4)."""
+
+    def test_second_identical_query_is_cache_hit_llm_not_called(self):
+        deepseek = _StubDeepSeek(text="X'tir [1]. Y'dir [2].")
+        chunks_by_id, span_meta, hits = _corpus()
+        response_cache = ResponseCache(SQLiteCache(":memory:"))
+        gen = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
+                        chunks_by_id, span_meta, deepseek, ders="biyoloji",
+                        cost_recorder=_noop_recorder, response_cache=response_cache)
+
+        first = gen.answer("DNA nedir?")
+        self.assertFalse(first.abstained)
+        self.assertFalse(first.cache_hit)
+        self.assertEqual(deepseek.calls, 1)
+        self.assertGreater(first.cost_usd, 0.0)
+
+        second = gen.answer("DNA nedir?")
+        self.assertEqual(deepseek.calls, 1, "2. çağrıda DeepSeek.chat TEKRAR ÇAĞRILMAMALI")
+        self.assertTrue(second.cache_hit)
+        self.assertEqual(second.cost_usd, 0.0, "cache hit -> maliyet GERÇEKTEN sıfır")
+        self.assertEqual(second.text, first.text)
+        self.assertEqual(second.citations, first.citations)
+        self.assertEqual(gen.cache_hits, 1)
+        self.assertGreater(gen.cache_saved_usd, 0.0, "tahmini tasarruf 1. çağrının maliyetiyle artmalı")
+
+    def test_different_role_is_cache_miss_new_llm_call(self):
+        deepseek = _StubDeepSeek(text="X'tir [1]. Y'dir [2].")
+        chunks_by_id, span_meta, hits = _corpus()
+        response_cache = ResponseCache(SQLiteCache(":memory:"))
+        student_ctx = RoleContext(role=Role.STUDENT, sinif="9A", ders_list=["biyoloji"])
+        teacher_ctx = RoleContext(role=Role.TEACHER, sinif="9A", ders_list=["biyoloji"])
+
+        gen_student = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
+                                chunks_by_id, span_meta, deepseek, ders="biyoloji",
+                                cost_recorder=_noop_recorder, response_cache=response_cache,
+                                role_ctx=student_ctx)
+        gen_student.answer("DNA nedir?")
+        self.assertEqual(deepseek.calls, 1)
+
+        gen_teacher = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
+                                chunks_by_id, span_meta, deepseek, ders="biyoloji",
+                                cost_recorder=_noop_recorder, response_cache=response_cache,
+                                role_ctx=teacher_ctx)
+        result_teacher = gen_teacher.answer("DNA nedir?")
+
+        self.assertEqual(deepseek.calls, 2, "farklı rol -> cache MISS -> YENİ LLM çağrısı")
+        self.assertFalse(result_teacher.cache_hit)
+
+    def test_fail_closed_abstain_not_cached(self):
+        # LLM zaten çağrılmadı (fail-closed) -> cache'e YAZILMAMALI; 2. çağrı da
+        # normal fail-closed akışından geçmeli (cache'ten "sahte" hit dönmemeli).
+        deepseek = _StubDeepSeek()
+        response_cache = ResponseCache(SQLiteCache(":memory:"))
+        chunks_by_id, span_meta, _ = _corpus()
+        gen = Generator(_StubRetriever([]), _StubReranker({}), chunks_by_id, span_meta,
+                        deepseek, ders="biyoloji", cost_recorder=_noop_recorder,
+                        response_cache=response_cache)
+
+        first = gen.answer("alakasız soru")
+        second = gen.answer("alakasız soru")
+
+        self.assertTrue(first.abstained)
+        self.assertTrue(second.abstained)
+        self.assertEqual(deepseek.calls, 0)
+        self.assertEqual(gen.cache_hits, 0, "fail-closed abstain cache'e YAZILMADI (hit olmamalı)")
+
+    def test_model_abstained_answer_not_cached(self):
+        # LLM GERÇEKTEN çağrıldı ama post-hoc abstain (model_abstained) ->
+        # bu sonuç BİLİNÇLİ OLARAK cache'lenmemeli (2. çağrı da LLM'i tekrar çağırmalı).
+        deepseek = _StubDeepSeek(text=ABSTAIN_SENTENCE)
+        response_cache = ResponseCache(SQLiteCache(":memory:"))
+        gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
+        gen.response_cache = response_cache
+
+        gen.answer("DNA nedir?")
+        gen.answer("DNA nedir?")
+
+        self.assertEqual(deepseek.calls, 2, "model_abstained sonucu cache'lenmediği için 2. çağrı da LLM'e gider")
+        self.assertEqual(gen.cache_hits, 0)
+
+    def test_no_response_cache_behaves_exactly_as_before(self):
+        # response_cache=None (varsayılan) -> regresyon yok, davranış eskisiyle AYNI
+        deepseek = _StubDeepSeek()
+        gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
+        result = gen.answer("DNA nedir?")
+        self.assertFalse(result.cache_hit)
+        self.assertEqual(deepseek.calls, 1)
+
+
+class EmbeddingCacheEmbedderIntegrationTests(unittest.TestCase):
+    """BGEM3Embedder.embed() cache-aware entegrasyonu (bkz. src/embed/embedder.py,
+    src/cache/embedding_cache.py). Gerçek model YÜKLENMEZ: `_model` doğrudan sahte
+    bir model nesnesiyle DOLDURULUR (bkz. `BGEM3Embedder._load` — `_model` None
+    değilse yükleme/indirme hiç tetiklenmez), yalnız çağrı SAYACI doğrulanır."""
+
+    class _StubModel:
+        """FlagEmbedding.BGEM3FlagModel'in `.encode()` arayüzünü taklit eder +
+        kaç kez (kaç metinle) çağrıldığını sayar."""
+
+        def __init__(self):
+            self.calls = 0
+            self.texts_seen: list[list[str]] = []
+
+        def encode(self, texts, batch_size=12, max_length=8192,
+                  return_dense=True, return_sparse=False):
+            self.calls += 1
+            self.texts_seen.append(list(texts))
+            import numpy as np
+            # metne göre deterministik ama ayırt edici sahte vektör
+            return {"dense_vecs": np.array([[float(len(t)), 1.0, 2.0, 3.0] for t in texts])}
+
+    def test_second_embed_of_same_text_skips_model_call(self):
+        from src.embed import BGEM3Embedder
+
+        stub_model = self._StubModel()
+        cache = EmbeddingCache(SQLiteCache(":memory:"), model="BAAI/bge-m3")
+        embedder = BGEM3Embedder(cache=cache)
+        embedder._model = stub_model   # gerçek yükleme/indirme ATLANDI (bkz. _load())
+
+        v1 = embedder.embed(["merhaba dünya"])
+        self.assertEqual(stub_model.calls, 1)
+
+        v2 = embedder.embed(["merhaba dünya"])
+        self.assertEqual(stub_model.calls, 1, "aynı metin 2. embed -> model ÇAĞRILMAMALI (cache hit)")
+        self.assertTrue((v1 == v2).all())
+
+    def test_batch_with_partial_hit_only_sends_misses_to_model(self):
+        from src.embed import BGEM3Embedder
+
+        stub_model = self._StubModel()
+        cache = EmbeddingCache(SQLiteCache(":memory:"), model="BAAI/bge-m3")
+        embedder = BGEM3Embedder(cache=cache)
+        embedder._model = stub_model
+
+        embedder.embed(["a", "b"])
+        self.assertEqual(stub_model.calls, 1)
+        self.assertEqual(sorted(stub_model.texts_seen[0]), ["a", "b"])
+
+        # "a" zaten cache'te -> yalnız "c" (yeni) modele gitmeli
+        embedder.embed(["a", "c"])
+        self.assertEqual(stub_model.calls, 2)
+        self.assertEqual(stub_model.texts_seen[1], ["c"])
+
+    def test_no_cache_behaves_exactly_as_before(self):
+        from src.embed import BGEM3Embedder
+
+        stub_model = self._StubModel()
+        embedder = BGEM3Embedder()   # cache=None (varsayılan)
+        embedder._model = stub_model
+
+        embedder.embed(["x"])
+        embedder.embed(["x"])
+        self.assertEqual(stub_model.calls, 2, "cache yokken her embed() modele gitmeli (regresyon yok)")
 
 
 if __name__ == "__main__":

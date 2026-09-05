@@ -20,7 +20,7 @@ PDF'te bulabilsin (mimari §0.1: cevap ham leaf span'lara bağlı).
 from __future__ import annotations
 
 import re
-from dataclasses import dataclass, field
+from dataclasses import dataclass, field, replace
 from difflib import SequenceMatcher
 
 from .. import costlog
@@ -49,6 +49,7 @@ class GroundedAnswer:
     usage: Usage | None = None
     cost_usd: float = 0.0
     latency_s: float = 0.0
+    cache_hit: bool = False   # True -> ResponseCache'ten döndü, LLM/retrieval HİÇ ÇALIŞMADI
 
 
 def _parse_citation_ns(text: str) -> list[int]:
@@ -132,12 +133,31 @@ def _format_pages(pages: list[int]) -> str:
     return ",".join(parts)
 
 
+def _role_cache_key(role_ctx) -> str:
+    """role_ctx (opsiyonel `RoleContext`, bkz. src/guard/roles.py) -> ResponseCache
+    anahtarına giren STABİL metin. Duck-typing kullanılır (generator, guard.roles'a
+    sıkı bağlanmaz) — `role_ctx` yoksa/tanınmıyorsa boş string (herkese ortak
+    "rolsüz" anahtar; role_ctx None iken zaten davranış aynı).
+
+    RagArt'ın client-header karışıklığına düşmemek için: rol FARKLIYSA (ör.
+    student vs teacher, ya da farklı `ders_list`) aynı soru bile FARKLI cache
+    anahtarına düşer — aksi halde bir rolün cache'lenmiş cevabı başka bir role
+    sızabilirdi (bkz. src/cache/response_cache.py modül docstring'i)."""
+    if role_ctx is None:
+        return ""
+    role = getattr(role_ctx, "role", None)
+    role_str = str(getattr(role, "value", role)) if role is not None else ""
+    sinif = getattr(role_ctx, "sinif", None) or ""
+    ders_list = sorted(getattr(role_ctx, "ders_list", None) or [])
+    return f"{role_str}:{sinif}:{','.join(ders_list)}"
+
+
 class Generator:
     """Kaynak-sınırlı üretim: retrieve → rerank → FAIL-CLOSED eşiği → grounded LLM → atıf eşleme."""
 
     def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
                  ders: str = "", abstain_score: float = 0.30, module: str = "chat",
-                 cost_recorder=None, role_ctx=None):
+                 cost_recorder=None, role_ctx=None, response_cache=None):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -154,6 +174,17 @@ class Generator:
         # İSTEMCİ header'ından ASLA doğrudan kurulmamalı (çağıran taraf/auth katmanı
         # sorumlu). Şu an yalnız TAŞINIR; retrieval-seviyesi filtre Faz 1.6 hook'u.
         self.role_ctx = role_ctx
+        # Opsiyonel ResponseCache (bkz. src/cache/response_cache.py). None ise
+        # davranış ÖNCEKİYLE BİREBİR AYNI (mevcut testler bozulmaz). Hit olursa
+        # `answer()` LLM/retrieval'i HİÇ ÇALIŞTIRMAZ (bkz. aşağı).
+        self.response_cache = response_cache
+        # Cache telemetrisi (RES-002 §4 — RagArt'ın boşluğu: canlı $ ölçümü yoktu).
+        # Cache hit'te DeepSeek'e GERÇEKTEN gidilmediği için costlog.record'a
+        # yazacak gerçek token/usage YOK; sıfır-usage'lı bir "run" eklemek
+        # Maliyet.md'nin birim-maliyet tablosunu (asılsız $0 ile) BOZAR — bu yüzden
+        # hit sayısı + tahmini tasarruf burada AYRI, hafif sayaçlarla tutulur.
+        self.cache_hits = 0
+        self.cache_saved_usd = 0.0
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -180,6 +211,28 @@ class Generator:
                                   used_source_ids=[], invalid_citations=[],
                                   abstained=True, reason=f"guard_{guard_verdict.category}",
                                   usage=None, cost_usd=0.0, latency_s=0.0)
+
+        # CACHE (Faz — maliyet optimizasyonu, opsiyonel) — guard'dan SONRA,
+        # retrieval/LLM'den ÖNCE: hit varsa LLM/retrieval'i HİÇ ÇALIŞTIRMADAN
+        # cache'teki GroundedAnswer'ı dön (cost_usd=0.0 GERÇEKTEN sıfır — DeepSeek'e
+        # ağ çağrısı YAPILMADI). Anahtar cevabı değiştirebilecek HER parametreyi
+        # içerir (bkz. src/cache/response_cache.py) — RagArt'ın "eksik parametre ->
+        # yanlış cache hit" tuzağına düşmemek için.
+        #
+        # Guard red kararları BURAYA HİÇ ULAŞMAZ (yukarıda erken dönüldü) -> guard
+        # sonuçları KASITLI olarak cache'lenmez: LLM zaten çağrılmadığı için ek bir
+        # maliyet kazancı yok, üstelik guardrail kuralları zamanla değişebilir —
+        # donmuş bir red/allow kararını cache'lemek güvenlik riskini büyütür.
+        cache_kwargs = None
+        if self.response_cache is not None:
+            cache_kwargs = dict(query=query, role=_role_cache_key(self.role_ctx),
+                                model=getattr(self.deepseek, "model", ""),
+                                top_n=top_n, candidate_n=candidate_n, ders=self.ders)
+            cached = self.response_cache.get(**cache_kwargs)
+            if cached is not None:
+                self.cache_hits += 1
+                self.cache_saved_usd += cached.cost_usd
+                return replace(cached, cache_hit=True, cost_usd=0.0, latency_s=0.0)
 
         hits = self.retriever.retrieve(query, top_k=candidate_n)
         contexts = rerank_select(query, hits, self.chunks_by_id, self.reranker,
@@ -257,8 +310,18 @@ class Generator:
                                   reason="model_abstained", usage=result.usage,
                                   cost_usd=usd, latency_s=result.latency_s)
 
-        return GroundedAnswer(text=result.text, citations=citations,
-                              used_source_ids=used_source_ids,
-                              invalid_citations=invalid_citations, abstained=False,
-                              reason=reason, usage=result.usage, cost_usd=usd,
-                              latency_s=result.latency_s)
+        final_answer = GroundedAnswer(text=result.text, citations=citations,
+                                      used_source_ids=used_source_ids,
+                                      invalid_citations=invalid_citations, abstained=False,
+                                      reason=reason, usage=result.usage, cost_usd=usd,
+                                      latency_s=result.latency_s)
+
+        # Yalnız GERÇEK (abstained olmayan) cevaplar cache'e yazılır. FAIL-CLOSED
+        # abstain zaten LLM'i hiç çağırmadı (cache'lemenin maliyet kazancı yok);
+        # model_abstained/guard_output ise LLM ÇAĞRILDI ama sonuç kullanıcıya
+        # ret/çekimser olarak gösterildi — bunları cache'lemek "bu soru bir daha
+        # asla cevaplanamaz" diye DONDURUR (retrieval/index/eşik ileride değişebilir)
+        # -> BİLİNÇLİ OLARAK cache'lenmez (yalnız buradaki başarılı dönüş yazar).
+        if self.response_cache is not None and cache_kwargs is not None:
+            self.response_cache.set(final_answer, **cache_kwargs)
+        return final_answer
