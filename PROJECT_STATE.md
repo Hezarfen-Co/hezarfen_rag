@@ -21,8 +21,7 @@
 - **Agentic + optimizasyon:** `.claude/agents/` (Opus+Sonnet) + `docs/ORCHESTRATION.md`+`OPTIMIZATION.md`
   + `reports/RES-001/002/003` (kuzey-yıldızı ürün mimarisi). Sürekli-optimizasyon loop'u aktif.
 - **DEEPSEEK_API_KEY** `.env`'de (doğrulandı). **Bekleyen (Kadir):** golden v1.1 onayı + kriz-hattı no'su.
-- **Non-blocked optimizasyon BİTTİ** (citation P1 maxed + endpoint sözleşmesi). Sırada Kadir yönü (§10 menü):
-  servis endpoint'i + kalıcı store, çok-dersli/RAPTOR ölçek, özet-PDF/OCR, ya da iki bekleyenin çözümü.
+- **Çok-dersli kasa izolasyonu DOĞRULANDI** (EXP-002, 2026-09-06): 4 kitap birleşik indeks, ders+sınıf boyutu **0/800 sızıntı** (129 yabancı chunk filtresiz gelirdi), erişim-denemesi 4/4 fail-closed. Sıradaki (Kadir yönü §10): #3 özet-PDF/OCR.
 
 ## 2. Hedef ve Kapsam
 - **Ana hedef (niyet, repo adından):** öğretmenin yüklediği ders kaynağı üzerinden öğrencinin RAG ile sohbet edebildiği servis.
@@ -79,7 +78,7 @@ flowchart LR
 
 ## 9. Bilinen Hatalar ve Riskler
 - **RISK-01** — In-memory store: üretimde kalıcı Qdrant + incremental reindex gerekir (course-notes silme/güncelleme senkronu).
-- **RISK-02** — Vertical slice tek-ders (12-biyoloji); çok-dersli ölçekte metrikler yeniden ölçülmeli.
+- **RISK-02** — Vertical slice tek-ders (12-biyoloji). Kasa izolasyonu çok-dersli ölçekte DOĞRULANDI (EXP-002: ders+sınıf 0-sızıntı, 4 kitap); ANCAK non-bio derslerin (kimya/fizik/11-bio) retrieval KALİTESİ ölçülmedi (gold yok) + sayfa-recall metriği doygun → ayırt edici metrik backlog'ta.
 - **RISK-03** — Golden set TASLAK (Kadir onayı yok) → üretim eşikleri henüz kilitlenemez.
 - **NOT** — GitHub MCP bu oturumda bağlanamadı (auth header); issue akışı (kural 19) commit-referansıyla sonra bağlanacak.
 
