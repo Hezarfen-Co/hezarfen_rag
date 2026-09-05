@@ -87,4 +87,24 @@ küçük→parent genişletme (precision+bağlam). Her değişiklik `Maliyet.md`
 8. **Sınırlı-agentic** (E) — ablation ile kanıtla ya da kapat.
 9. **Observability** (#18) + **test piramidi** (#17).
 
+## H. BASELINE ÖLÇÜM (2026-09-05, golden_12bio_v0 TASLAK, 27 item, gerçek DeepSeek $0.19)
+
+> Eval: `src/eval/runner.py` → `tests/evaluation/results/eval_v0_20260905T023626Z.*`. Golden set TASLAK (Kadir onayı bekliyor). PASS-BIAS YASAK — yüksek skorlar sorgulandı.
+
+**GÜÇLÜ (darboğaz değil):** Retrieval — recall@20 span **0.958** / sayfa **1.000**, recall@10 0.908, MRR 0.758. Doğru kaynak neredeyse hep getiriliyor. answer_relevancy 1.0 (n=4), answer_correctness 0.775.
+
+**ZAYIF (öncelikli optimizasyon — bulgular):**
+1. **Atıf doğruluğu düşük** (citation P **0.101** / R **0.408**): retrieval doğru bağlamı bulduğu hâlde (recall@20=1.0) model gold span'ları atıflamıyor — birçok item citR=0.0. Kısmen METRİK granülerliği (gold span dar; model kullandığı chunk'ı atıflıyor, span_id birebir tutmuyor ama sayfa=1.0) + kısmen model davranışı. → **Kadir'in "kaynak yer bulma" önceliğinin ana açığı.**
+2. **Aşırı-abstain** (%25): 20 cevaplanabilir sorudan 5'i `model_abstained` (recall@20=1.0 iken "bulunamadı"). Yanlış çekimserlik.
+3. **Guardrail zararlı-içerik BYPASS** (3'te 1 yakalandı): e05 (intikam/zarar), e06 (fermantasyon→uyuşturucu) regex'i atlattı; yalnız retrieval-fail-closed sayesinde "kazara" güvenli. **Gerçek güvenlik açığı.**
+4. **faithfulness metriği n/a** — DeepEval faithfulness hesaplanmadı (harness eksiği).
+
+**OPTİMİZASYON ADIMLARI (öncelik sıralı):**
+1. **Atıf (P0):** (a) atıf-eşleme granülerliğini gözden geçir — exact-span yerine span-overlap/sayfa düzeyi daha anlamlı + adil (recall@20 sayfa=1.0); (b) prompt'ta "kullandığın HER kaynağı [N] ile atıfla" disiplinini güçlendir + few-shot atıf örneği; (c) [N]→span eşleme doğruluğunu denetle.
+2. **Aşırı-abstain (P0):** 5 yanlış-çekimseri incele — child chunk bağlamı yetersiz mi (parent_text yeterince yardımcı mı?) yoksa abstain-detection/prompt fazla katı mı; abstain_score + prompt "bulunamadı" eşiğini kalibre et.
+3. **Guardrail zararlı-içerik (P0, güvenlik):** regex'e ek **LLM-güvenlik sınıflandırıcı** (DeepSeek) 2. katman — parafraz/dolaylı zararlıyı yakala (e05/e06 tipi). Golden set zararlı örneklerini genişlet.
+4. **faithfulness fix (P1):** harness'te DeepEval faithfulness'ı çalışır kıl (kritik metrik).
+5. **Golden set (P1, Kadir):** TASLAK'ı doğrula/genişlet (bazı gold span'lar dar; 9 kazanım kapsanmadı); onayla → benchmark resmî olsun.
+6. **Faz 1.6 kasa izolasyonu (P1):** can_access'i retrieval'e bağla (guardrail #3).
+
 **Engeller (blocking):** ✅ `DEEPSEEK_API_KEY` — `.env`'de mevcut + **doğrulandı** (gerçek çağrı OK, costlog uçtan uca çalışıyor, 2026-09-05). ⏳ **Kalan tek engel: golden set Kadir onayı** (kalite metrikleri için). Döngü buna takılırsa: kod/altyapı hazırlanır, taslak Kadir onayına sunulur, onay gelince kalite ölçümü koşulur.
