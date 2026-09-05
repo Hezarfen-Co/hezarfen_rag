@@ -63,7 +63,22 @@ class DeepSeekJudgeModel(DeepEvalBaseLLM):
         return self._ds
 
     def generate(self, prompt: str, schema=None) -> str:
-        result = self._ds.chat(prompt, temperature=self.temperature, max_tokens=1200)
+        # DeepEval `schema` verdiginde (structured-output adimlari: truths/claims/
+        # verdicts/reason) DeepSeek'in JSON-mode'unu ZORLA (`response_format:
+        # json_object`) -- BULGU: bu olmadan DeepSeek bazen serbest metin/kod-
+        # bloguyla sarili JSON dondurup DeepEval'in `trimAndLoadJson`'ini
+        # patlatiyordu ("Evaluation LLM outputted an invalid JSON"; ilk kosuda
+        # TUM Faithfulness olcumleri boyle basarisiz oldu -- bkz. eval raporu).
+        # DeepSeek'in json_object modu, mesajlarda 'json' kelimesi gectiginde
+        # calisir; DeepEval'in kendi sablonlari zaten JSON istedigini yaziyor.
+        extra = {"response_format": {"type": "json_object"}} if schema is not None else None
+        try:
+            result = self._ds.chat(prompt, temperature=self.temperature, max_tokens=4096, extra=extra)
+        except Exception:
+            if extra is None:
+                raise
+            # fallback: API 'json' kelimesi gecmiyor diye reddederse duz istekle dene
+            result = self._ds.chat(prompt, temperature=self.temperature, max_tokens=4096)
         self.usages.append(result.usage)
         return result.text
 
@@ -121,7 +136,12 @@ class LlmJudge:
         self.judge_model = DeepSeekJudgeModel(model_name)
         self.faithfulness_metric = FaithfulnessMetric(
             threshold=threshold, model=self.judge_model, include_reason=True,
-            async_mode=False)
+            async_mode=False,
+            # BULGU: gercek (uzun, parent-genisletmeli) bagsam metniyle "truths"
+            # cikarma adiminin JSON ciktisi max_tokens'i asip kesiliyordu ("invalid
+            # JSON" hatasi HER judge item'inda tekrarlandi) -- sinir koyarak
+            # (+ generate()'te max_tokens=4096) kesilmeyi onler.
+            truths_extraction_limit=20)
         self.relevancy_metric = AnswerRelevancyMetric(
             threshold=threshold, model=self.judge_model, include_reason=True,
             async_mode=False)
