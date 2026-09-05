@@ -117,6 +117,7 @@ küçük→parent genişletme (precision+bağlam). Her değişiklik `Maliyet.md`
 3. ~~Guardrail zararlı-içerik~~ ✅ GİDERİLDİ (commit e6d7c02): LLM-güvenlik sınıflandırıcı (2. katman, DeepSeek) → zararlı red **1/3→3/3** (e05/e06 parafraz yakalandı). ⏳ *kalan:* golden set zararlı örneklerini genişlet (Kadir); kriz-hattı no'su; red-team suite.
 4. ~~faithfulness fix~~ ✅ TAMAM (commit 9d5619f).
 5. **Golden set (P1, Kadir):** TASLAK'ı doğrula/genişlet (bazı gold span'lar dar; 9 kazanım kapsanmadı); onayla → benchmark resmî olsun.
-6. **Faz 1.6 kasa izolasyonu (P1):** can_access'i retrieval'e bağla (guardrail #3).
+6. ~~Faz 1.6 kasa izolasyonu~~ ✅ GİDERİLDİ (commit 299681b, #22): can_access retrieval'e bağlandı (HybridRetriever meta+role_ctx filtresi). Gerçek retrieval doğrulaması: öğrenci-12, 100 chunk/5 sorgu HEPSİ sınıf-12, **0 yetkisiz sızıntı**. guardrail #3 kapandı.
+7. **memory + context** ✅ (commit 21d21ea/0070407): history-rewrite (A/B +0.10, değeri ölçekte artar) + lost-in-middle + token budget.
 
 **Engeller (blocking):** ✅ `DEEPSEEK_API_KEY` — `.env`'de mevcut + **doğrulandı** (gerçek çağrı OK, costlog uçtan uca çalışıyor, 2026-09-05). ⏳ **Kalan tek engel: golden set Kadir onayı** (kalite metrikleri için). Döngü buna takılırsa: kod/altyapı hazırlanır, taslak Kadir onayına sunulur, onay gelince kalite ölçümü koşulur.

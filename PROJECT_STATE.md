@@ -1,20 +1,28 @@
 # PROJECT_STATE
 
 > Bu dosya `hezarfen_rag` repo'sunundur. Kardeş repolar: `hezarfen_backend`,
-> `hezarfen_frontend`, `Hezarfen-Rule-Based-Chatbot`. Bu repo şu an **boş bir
-> placeholder**; büyük projenin planlanan RAG (retrieval-augmented generation)
-> servisi burada yaşayacak.
+> `hezarfen_frontend`, `Hezarfen-Rule-Based-Chatbot`. RAG (retrieval-augmented
+> generation) servisi + özet + guardrail burada; **aktif geliştirmede, uçtan uca
+> çalışan + ölçülen boru hattı VAR** (aşağı).
 
-## 1. Anlık Durum
-- Son güncelleme: 2026-08-16 (saat: DOĞRULANMADI)
-- Aktif branch: `main`
-- Son commit: `ca08ad9 Initial commit` (yalnız `README.md`, tek satır: `# hezarfen_rag`)
-- Çalışma ağacı: **temiz** (`git status --porcelain` boş)
-- Tek cümle (GÜNCEL 2026-08-29): **Veri + maliyet altyapısı + mimari plan HAZIR; RAG boru hattı henüz yok.**
-  - **Veri:** `data/` (git-ignored) — tüm ders/sınıf; lise 4-kaynak (kitap+kazanım+özet+defter+soru), ortaokul kitap. 12-bio: 187s kitap, 17 özet, f1-f8 defter, 720 soru (cevap anahtarlı; gövdeler eksik).
-  - **Kod:** `src/` (pricing + providers/deepseek + costlog) + `tests/` (unit/integration/e2e, 7 test yeşil). İndirme araçları: `eba_dl/` (git-ignored).
-  - **Plan/mimari:** Obsidian `Documents/Hezarfen/rag/`: [[mimari]], [[plan]] (fazlı küçük adımlar), [[benchmark]] (katı kapılar), [[Maliyet]] (otomatik).
-  - **Karar:** DeepSeek v4-flash, fine-tune YOK. Mimari: adaptive+hibrit+hiyerarşik+(sonra)multimodal RAG. Sıradaki: Faz 0.3 (12-bio PDF parse + cevap-anahtarı izolasyonu).
+## 1. Anlık Durum (2026-09-05)
+- Aktif branch: `main` (tek-branch, adım adım commit; feature-branch yok)
+- **Tek cümle:** Uçtan uca RAG + özet + guardrail + değerlendirme ÇALIŞIYOR ve 200-item
+  golden set'e karşı ÖLÇÜLDÜ (retrieval recall@20 0.96, faithfulness 0.99, guardrail
+  zararlı/injection 33/33·12/12, kasa izolasyonu 0-sızıntı); vertical slice = 12-biyoloji.
+- **Kod (`src/`):** ingest/canonical/chunk (Faz 0) · embed BGE-M3 GPU (1.2) · index
+  Qdrant+BM25 (1.3) · retrieve hibrit RRF + **kasa izolasyonu** (1.4/1.6) · rerank (1.5) ·
+  generate **kaynak-sınırlı+atıf+fail-closed** (1.7) · guard **zararlı+injection+rol+LLM-sınıflandırıcı**
+  (1.7b) · summarize **kanıtlı özet** (RAPTOR-benzeri) · memory **history-rewrite** · context
+  **lost-in-middle+budget** · cache (Response/Embedding) · eval **DeepEval+DeepSeek-hakem** ·
+  pricing/costlog. **316 birim testi yeşil.**
+- **Değerlendirme:** `tests/golden/golden_12bio_v1.json` (200 item TASLAK, Kadir onayı bekliyor);
+  `tests/evaluation/results/` re-baseline'lar; ölçümler Obsidian `deney-sonuclari.md`+`Maliyet.md`.
+- **Agentic + optimizasyon:** `.claude/agents/` (Opus+Sonnet) + `docs/ORCHESTRATION.md`+`OPTIMIZATION.md`
+  + `reports/RES-001/002/003` (kuzey-yıldızı ürün mimarisi). Sürekli-optimizasyon loop'u aktif.
+- **DEEPSEEK_API_KEY** `.env`'de (doğrulandı). **Bekleyen (Kadir):** golden v1.1 onayı + kriz-hattı no'su.
+- **Sıradaki:** P1 citation prompt-precision (sayfa 0.645→); servis girişi (QUIC/HTTP endpoint) +
+  backend/frontend entegrasyonu; Faz 2 RAPTOR ölçek, Faz 0.8 özet-PDF/OCR.
 
 ## 2. Hedef ve Kapsam
 - **Ana hedef (niyet, repo adından):** öğretmenin yüklediği ders kaynağı üzerinden öğrencinin RAG ile sohbet edebildiği servis.
