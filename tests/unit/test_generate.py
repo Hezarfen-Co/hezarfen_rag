@@ -35,8 +35,8 @@ class _StubRetriever:
     def __init__(self, hits):
         self._hits = list(hits)
 
-    def retrieve(self, query, top_k=20):
-        return self._hits[:top_k]
+    def retrieve(self, query, top_k=20, role_ctx=None):
+        return self._hits[:top_k]        # role_ctx yok sayılır (kasa izolasyonu ayrı test edilir)
 
 
 class _StubReranker:

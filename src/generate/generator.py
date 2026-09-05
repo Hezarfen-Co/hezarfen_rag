@@ -273,7 +273,13 @@ class Generator:
                 self.cache_saved_usd += cached.cost_usd
                 return replace(cached, cache_hit=True, cost_usd=0.0, latency_s=0.0)
 
-        hits = self.retriever.retrieve(q, top_k=candidate_n)
+        # KASA İZOLASYONU: role_ctx varsa retriever'a geçir (yetkisiz sınıf/ders
+        # elenir, bkz. src/retrieve/hybrid.py). role_ctx yoksa eski çağrı (stub/
+        # tek-kasa backward-compat).
+        if self.role_ctx is not None:
+            hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=self.role_ctx)
+        else:
+            hits = self.retriever.retrieve(q, top_k=candidate_n)
         contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
 
