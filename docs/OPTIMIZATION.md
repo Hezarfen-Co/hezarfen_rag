@@ -3,6 +3,12 @@
 > Sürekli-optimizasyon döngüsünün (bkz. `ORCHESTRATION.md` §7) yürüttüğü plan.
 > Kadir'in tekrar prompt yazmasına gerek yok; kararlar burada gömülü, döngü işler.
 > Ölçümler Obsidian `deney-sonuclari.md`/`Maliyet.md`'ye; süreç burada.
+>
+> **KUZEY YILDIZI:** ürün-seviyesi hedef mimari `reports/RES-003-urun-seviyesi-rag-referans.md`
+> (Kadir 2026-09-05). Öncelik sırası oradan: 1)eval+trace 2)sürüm/ACL 3)layout 4)hibrit+rerank(✓)
+> 5)abstention+claim-citation 6)multi-turn 7)cache 8)multimodal 9)adaptive 10)graph/agentic.
+> Derin re-mimari (EB-KOS/layout/calibration/güvenlik-suite) "optimizasyon fazı"nda ele alınır;
+> şimdilik döngü P0'lara (§H) devam eder. 3 ilke: retrieval-skoru≠güven, citation-var≠destekliyor, çok-context≠iyi.
 
 ## A. Değerlendirme altyapısı — DeepEval metrikleri (GitHub #16)
 
