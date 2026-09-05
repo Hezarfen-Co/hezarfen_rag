@@ -159,7 +159,8 @@ class Generator:
                  ders: str = "", abstain_score: float = 0.30, module: str = "chat",
                  cost_recorder=None, role_ctx=None, response_cache=None,
                  safety_classifier=None, context_packing: bool = False,
-                 context_max_tokens: int = 8000, context_reorder: bool = True):
+                 context_max_tokens: int = 8000, context_reorder: bool = True,
+                 rewriter=None):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -197,6 +198,10 @@ class Generator:
         self.context_packing = context_packing
         self.context_max_tokens = context_max_tokens
         self.context_reorder = context_reorder
+        # Opsiyonel history-aware query rewriter (çok-turlu hafıza, bkz.
+        # src/memory/history_rewrite.py). None ise/geçmiş yoksa atlanır. Duck-typed:
+        # .rewrite(history, query) -> str.
+        self.rewriter = rewriter
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -211,7 +216,7 @@ class Generator:
                               used_source_ids=[], abstained=True, reason=reason,
                               usage=None, cost_usd=0.0, latency_s=0.0)
 
-    def answer(self, query: str, *, top_n: int = 6, candidate_n: int = 40,
+    def answer(self, query: str, *, history=None, top_n: int = 6, candidate_n: int = 40,
                max_tokens: int = 700, temperature: float = 0.2) -> GroundedAnswer:
         # GUARDRAIL (Faz 1.7b) — EN BAŞTA: zararlı-içerik/injection ise LLM'i
         # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
@@ -247,9 +252,19 @@ class Generator:
         # sonuçları KASITLI olarak cache'lenmez: LLM zaten çağrılmadığı için ek bir
         # maliyet kazancı yok, üstelik guardrail kuralları zamanla değişebilir —
         # donmuş bir red/allow kararını cache'lemek güvenlik riskini büyütür.
+        # HAFIZA — history-aware query rewrite (çok-turlu): takip sorusunu (zamir/
+        # eksilti) BAĞIMSIZ sorguya çevir → retrieval + cache + üretim BUNU (`q`)
+        # kullanır (bkz. src/memory/history_rewrite.py). Geçmiş yok / rewriter yoksa
+        # `q == query` (davranış değişmez). Guard ORİJİNAL sorguyu denetledi (yukarıda);
+        # rewrite ondan SONRA — kullanıcının fiilen yazdığı denetlenir, retrieval ise
+        # çözülmüş bağımsız sorguyla yapılır.
+        q = query
+        if history and self.rewriter is not None:
+            q = self.rewriter.rewrite(history, query)
+
         cache_kwargs = None
         if self.response_cache is not None:
-            cache_kwargs = dict(query=query, role=_role_cache_key(self.role_ctx),
+            cache_kwargs = dict(query=q, role=_role_cache_key(self.role_ctx),
                                 model=getattr(self.deepseek, "model", ""),
                                 top_n=top_n, candidate_n=candidate_n, ders=self.ders)
             cached = self.response_cache.get(**cache_kwargs)
@@ -258,8 +273,8 @@ class Generator:
                 self.cache_saved_usd += cached.cost_usd
                 return replace(cached, cache_hit=True, cost_usd=0.0, latency_s=0.0)
 
-        hits = self.retriever.retrieve(query, top_k=candidate_n)
-        contexts = rerank_select(query, hits, self.chunks_by_id, self.reranker,
+        hits = self.retriever.retrieve(q, top_k=candidate_n)
+        contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
 
         # FAIL-CLOSED: bağlam yok VEYA en iyi rerank skoru eşik altında → LLM ÇAĞIRMA.
@@ -288,7 +303,7 @@ class Generator:
             source_lookup[i] = {"chunk_id": ctx.chunk_id, "span_ids": list(ctx.span_ids),
                                 "pages": pages}
 
-        system, user = build_grounded_prompt(query, numbered_sources)
+        system, user = build_grounded_prompt(q, numbered_sources)
         result = self.deepseek.chat(user, system=system, temperature=temperature,
                                     max_tokens=max_tokens)
 
