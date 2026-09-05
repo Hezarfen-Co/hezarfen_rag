@@ -118,8 +118,8 @@ def build_canonical(path: str, sinif: str, ders: str, *,
     if vlm:
         from .visual_caption import caption_visual_units, merge_visual_units
         if captioner is None:
-            from ..providers.vlm import VLMCaptioner
-            captioner = VLMCaptioner()
+            from ..providers.vlm import default_captioner
+            captioner = default_captioner()
         vunits = caption_visual_units(path, doc_id=doc_id, sinif=sinif, ders=ders,
                                       kaynak_turu=kaynak_turu, page_visual=page_visual,
                                       captioner=captioner)
