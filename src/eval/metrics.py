@@ -134,30 +134,51 @@ def compute_retrieval_metrics(ranked_span_sets: list[set], ranked_page_sets: lis
 
 @dataclass
 class CitationMetrics:
+    # span-level: YAPISAL OLARAK YANILTICI (bir chunk çok span_id taşır; model
+    # doğru chunk'ı atıflasa bile precision düşük çıkar). Tanı için tutulur.
     precision: float | None = None
     recall: float | None = None
+    # SAYFA-düzeyi: ÜRÜN-ANLAMLI ("kaynak yer bulma" — kullanıcı "s.20-21" görür).
+    # Birincil citation kalite metriği budur.
+    precision_page: float | None = None
+    recall_page: float | None = None
     n_cited_spans: int = 0
     n_gold_spans: int = 0
+    n_cited_pages: int = 0
+    n_gold_pages: int = 0
 
 
-def citation_precision_recall(cited_span_ids, gold_span_ids) -> CitationMetrics:
-    """cited_span_ids: GroundedAnswer.citations'taki TÜM span_ids'lerin birleşimi
-    (kaynak N -> span_ids listeleri birleştirilip küme yapılır).
-    gold boşsa (edge case, cevap beklenmiyor) tanımsız -> None.
-    cevap abstain olup citation hiç YOKSA (ve gold VARSA): precision tanımsız
-    (payda 0/0), recall 0.0 (gold'un hiçbiri kapsanmadı — bu GERÇEK bir
-    başarısızlık sinyali, gizlenmemeli)."""
-    gold = _as_set(gold_span_ids)
-    cited = _as_set(cited_span_ids)
+def _prec_rec(cited: set, gold: set):
+    """(precision, recall). gold boş -> (None,None); cited boş ama gold var ->
+    (None, 0.0) — recall=0 gerçek başarısızlık sinyali, gizlenmez."""
     if not gold:
-        return CitationMetrics(precision=None, recall=None,
-                               n_cited_spans=len(cited), n_gold_spans=0)
+        return (None, None)
     if not cited:
-        return CitationMetrics(precision=None, recall=0.0,
-                               n_cited_spans=0, n_gold_spans=len(gold))
+        return (None, 0.0)
     inter = cited & gold
-    return CitationMetrics(precision=len(inter) / len(cited), recall=len(inter) / len(gold),
-                           n_cited_spans=len(cited), n_gold_spans=len(gold))
+    return (len(inter) / len(cited), len(inter) / len(gold))
+
+
+def citation_precision_recall(cited_span_ids, gold_span_ids,
+                              cited_pages=None, gold_pages=None) -> CitationMetrics:
+    """cited_span_ids: GroundedAnswer.citations'taki TÜM span_ids birleşimi.
+    cited_pages/gold_pages verilirse SAYFA-düzeyi P/R de hesaplanır (ürün-anlamlı;
+    span-level'in chunk↔span granülerlik yanıltmasını düzeltir). Geriye uyumlu:
+    pages verilmezse yalnız span-level döner."""
+    gold_s = _as_set(gold_span_ids)
+    cited_s = _as_set(cited_span_ids)
+    ps, rs = _prec_rec(cited_s, gold_s)
+    m = CitationMetrics(precision=ps, recall=rs,
+                        n_cited_spans=len(cited_s), n_gold_spans=len(gold_s))
+    if gold_pages is not None:
+        gold_p = _as_set(gold_pages)
+        cited_p = _as_set(cited_pages or [])
+        pp, rp = _prec_rec(cited_p, gold_p)
+        m.precision_page = pp
+        m.recall_page = rp
+        m.n_cited_pages = len(cited_p)
+        m.n_gold_pages = len(gold_p)
+    return m
 
 
 # --------------------------------------------------------------------------

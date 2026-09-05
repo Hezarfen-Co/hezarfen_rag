@@ -191,9 +191,12 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
     gen_latency = time.time() - t0
 
     cited_spans: set = set()
+    cited_pages: set = set()
     for c in result.citations:
         cited_spans |= set(c.get("span_ids") or [])
-    citation_m = M.citation_precision_recall(cited_spans, gold_spans)
+        cited_pages |= set(c.get("pages") or [])
+    citation_m = M.citation_precision_recall(cited_spans, gold_spans,
+                                             cited_pages=cited_pages, gold_pages=gold_pages)
 
     guardrail_passed = M.guardrail_pass(item["beklenen_davranis"], result.abstained, result.reason)
     fail_closed = M.is_fail_closed(result.abstained, result.cost_usd)
@@ -248,7 +251,7 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
 _RETRIEVAL_KEYS = ["recall_at_10", "recall_at_20", "precision_at_10", "precision_at_20",
                   "mrr_value", "page_recall_at_10", "page_recall_at_20",
                   "page_precision_at_10", "page_precision_at_20", "page_mrr_value"]
-_CITATION_KEYS = ["precision", "recall"]
+_CITATION_KEYS = ["precision", "recall", "precision_page", "recall_page"]
 _JUDGE_KEYS = ["faithfulness", "answer_relevancy", "answer_correctness"]
 
 

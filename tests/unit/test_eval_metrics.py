@@ -147,6 +147,34 @@ class CitationPrecisionRecallTests(unittest.TestCase):
         self.assertEqual(m.precision, 0.0)
         self.assertEqual(m.recall, 0.0)
 
+    def test_pages_none_when_not_given_backward_compat(self):
+        m = citation_precision_recall({"a", "x"}, {"a", "b", "c"})
+        self.assertIsNone(m.precision_page)
+        self.assertIsNone(m.recall_page)
+
+    def test_page_level_fixes_span_granularity_artifact(self):
+        # Model DOĞRU chunk'ı atıflıyor: chunk 5 span taşır (s1..s5), gold sadece s1.
+        # span-level precision düşük (1/5) AMA sayfa doğru (sayfa 20) -> sayfa P/R=1.0.
+        m = citation_precision_recall(
+            {"s1", "s2", "s3", "s4", "s5"}, {"s1"},
+            cited_pages={20}, gold_pages={20})
+        self.assertAlmostEqual(m.precision, 0.2)          # span-level yanıltıcı düşük
+        self.assertEqual(m.recall, 1.0)
+        self.assertEqual(m.precision_page, 1.0)           # sayfa-level ürün-gerçeği
+        self.assertEqual(m.recall_page, 1.0)
+        self.assertEqual(m.n_cited_pages, 1)
+        self.assertEqual(m.n_gold_pages, 1)
+
+    def test_page_level_wrong_page(self):
+        m = citation_precision_recall({"s9"}, {"s1"}, cited_pages={99}, gold_pages={20})
+        self.assertEqual(m.precision_page, 0.0)
+        self.assertEqual(m.recall_page, 0.0)
+
+    def test_page_level_no_citation_recall_zero(self):
+        m = citation_precision_recall(set(), {"s1"}, cited_pages=set(), gold_pages={20})
+        self.assertIsNone(m.precision_page)
+        self.assertEqual(m.recall_page, 0.0)
+
 
 class GuardrailPassTests(unittest.TestCase):
     def test_cekimser_expected_and_abstained_passes(self):
