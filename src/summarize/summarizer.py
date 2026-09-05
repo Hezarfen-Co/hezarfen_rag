@@ -212,13 +212,16 @@ class Summarizer:
         result = self.deepseek.chat(user, system=system, temperature=temperature,
                                     max_tokens=max_tokens)
 
-        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        # KANITLI ÖZET bütünlüğü: nihai özet TÜM ara-özetlerin sentezidir; bu yüzden
+        # atıf listesi = kanıt üreten HER grubun span/sayfaları (yalnız merge-LLM'in
+        # [N]'lediği 1-2 grup DEĞİL — o yaklaşım evidence'ı eksik gösteriyordu: v1
+        # testinde 143 birim/12 grup için sadece 2 atıf, biri boştu). Boş-kanıtlı
+        # gruplar atlanır (sahte atıf yok). inline [N] hâlâ grup N'e karşılık gelir
+        # (n=i tutarlı). Atıf ham leaf span'da kalır (mimari §0.1).
         citations = []
-        for n in cited_ns:
-            src = merge_lookup.get(n)
-            if src is None:
-                continue
-            citations.append({"n": n, "span_ids": src["span_ids"], "pages": src["pages"]})
+        for i, src in merge_lookup.items():
+            if src["span_ids"] or src["pages"]:
+                citations.append({"n": i, "span_ids": src["span_ids"], "pages": src["pages"]})
 
         usd_merge = pricing_cost_usd(result.model, result.usage)
         self._record_call(usage=result.usage, model=result.model, n_items=len(group_summaries),

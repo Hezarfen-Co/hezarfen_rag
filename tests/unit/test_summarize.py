@@ -289,14 +289,17 @@ class HierarchicalTests(unittest.TestCase):
         # birleşik usage: 4 gerçek çağrının toplamı (her biri output=5)
         self.assertEqual(result.usage.output, 20)
 
-    def test_hierarchical_group_with_no_valid_citation_carries_empty_span_ids(self):
-        # grup, kendi biriminde HİÇ atıf yapmazsa nihai atıf da BOŞ span/sayfa
-        # taşımalı (sahte doldurma YOK) — pass-bias YASAK ilkesinin doğrudan testi.
+    def test_hierarchical_drops_group_with_no_valid_citation(self):
+        # KANITLI ÖZET bütünlüğü: bir grup kendi biriminde HİÇ atıf yapmazsa nihai
+        # atıf listesine EKLENMEZ (boş atıf = sahte/anlamsız kanıt; v1 testinde 143
+        # birim için 2 atıftan biri boş çıkmıştı). Kanıt üreten gruplar kalır; sahte
+        # doldurma YOK (pass-bias yasak). Atıf listesi = özetin dayandığı TÜM kanıt
+        # grupları (yalnız merge-LLM'in [N]'lediği değil).
         units = [_Unit("s1", 1, "m1"), _Unit("s2", 2, "m2"), _Unit("s3", 3, "m3")]
         texts = [
-            NO_CONTENT_SENTENCE,     # grup1 (s1,s2): atıf yok
-            "Grup2 özeti [1].",      # grup2 (s3): atıflı
-            "Nihai özet [1][2].",    # birleştirme
+            NO_CONTENT_SENTENCE,     # grup1 (s1,s2): atıf yok -> ATLANIR
+            "Grup2 özeti [1].",      # grup2 (s3): atıflı -> KALIR
+            "Nihai özet [2].",       # birleştirme
         ]
         ds = _StubDeepSeek(texts=texts)
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=2)
@@ -305,9 +308,9 @@ class HierarchicalTests(unittest.TestCase):
 
         self.assertTrue(result.hierarchical)
         c_by_n = {c["n"]: c for c in result.citations}
-        self.assertEqual(c_by_n[1]["span_ids"], [])
-        self.assertEqual(c_by_n[1]["pages"], [])
-        self.assertEqual(c_by_n[2]["span_ids"], ["s3"])
+        self.assertNotIn(1, c_by_n)                       # boş-kanıtlı grup1 atlandı
+        self.assertEqual(c_by_n[2]["span_ids"], ["s3"])   # kanıtlı grup2 kaldı
+        self.assertEqual(c_by_n[2]["pages"], [3])
 
 
 # --------------------------------------------------------------------------- cost_recorder spy
