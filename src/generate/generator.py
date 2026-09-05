@@ -1,9 +1,17 @@
 """Faz 1.7a — kaynak-sınırlı üretim + atıf (kaynak yer bulma).
+Faz 1.7b — guardrail entegrasyonu (bkz. src/guard/): `answer()` EN BAŞINDA
+`check_input` çağrılır (zararlı/injection ise LLM hiç çağrılmadan red);
+üretimden SONRA `check_output` çağrılır (üretilen metin zararlıysa cevap red
+mesajıyla değiştirilir). Rol-türevli erişim (`RoleContext`/`can_access`)
+SUNUCU-TARAFI türetilir (bkz. src/guard/roles.py) — opsiyonel `role_ctx`
+burada yalnız TAŞINIR; retrieval-seviyesi filtre Faz 1.6 kapsamındadır, bu
+generator HENÜZ retrieval'i role_ctx'e göre filtrelemez (ileriki hook).
 
-Akış: hibrit retrieval (1.4) → rerank + parent genişletme (1.5) → FAIL-CLOSED
-eşiği (kanıt yetersizse LLM'i hiç ÇAĞIRMA, çekimser dön) → kaynak-sınırlı
-prompt (prompt.py) → DeepSeek → cevaptaki `[N]` atıflarını gerçek kaynağa
-(chunk_id + span_ids + sayfa + bbox) eşle → costlog'a gerçek maliyeti yaz.
+Akış: [guard: check_input] → hibrit retrieval (1.4) → rerank + parent
+genişletme (1.5) → FAIL-CLOSED eşiği (kanıt yetersizse LLM'i hiç ÇAĞIRMA,
+çekimser dön) → kaynak-sınırlı prompt (prompt.py) → DeepSeek → [guard:
+check_output] → cevaptaki `[N]` atıflarını gerçek kaynağa (chunk_id +
+span_ids + sayfa + bbox) eşle → costlog'a gerçek maliyeti yaz.
 
 "Kaynak yer bulma": her `[N]` yalnız bir metin parçasına değil, `span_meta`
 üzerinden gerçek SAYFA (+ bbox) numarasına bağlanır — kullanıcı atıfı kaynak
@@ -16,6 +24,7 @@ from dataclasses import dataclass, field
 from difflib import SequenceMatcher
 
 from .. import costlog
+from ..guard import check_input, check_output
 from ..pricing import Usage, cost_usd as pricing_cost_usd
 from ..providers.deepseek import DeepSeek
 from ..rerank.pipeline import rerank_select
@@ -128,7 +137,7 @@ class Generator:
 
     def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
                  ders: str = "", abstain_score: float = 0.30, module: str = "chat",
-                 cost_recorder=None):
+                 cost_recorder=None, role_ctx=None):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -141,6 +150,10 @@ class Generator:
         # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
         # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).
         self._record = cost_recorder if cost_recorder is not None else costlog.record
+        # Opsiyonel — SUNUCU-TARAFI türetilmiş RoleContext (bkz. src/guard/roles.py).
+        # İSTEMCİ header'ından ASLA doğrudan kurulmamalı (çağıran taraf/auth katmanı
+        # sorumlu). Şu an yalnız TAŞINIR; retrieval-seviyesi filtre Faz 1.6 hook'u.
+        self.role_ctx = role_ctx
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -157,6 +170,17 @@ class Generator:
 
     def answer(self, query: str, *, top_n: int = 6, candidate_n: int = 40,
                max_tokens: int = 700, temperature: float = 0.2) -> GroundedAnswer:
+        # GUARDRAIL (Faz 1.7b) — EN BAŞTA: zararlı-içerik/injection ise LLM'i
+        # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
+        # input_guard.py). reason="guard_<kategori>" — çağıran taraf hangi
+        # guardrail kategorisinin tetiklendiğini ayırt edebilir.
+        guard_verdict = check_input(query)
+        if guard_verdict.action == "refuse":
+            return GroundedAnswer(text=guard_verdict.message, citations=[],
+                                  used_source_ids=[], invalid_citations=[],
+                                  abstained=True, reason=f"guard_{guard_verdict.category}",
+                                  usage=None, cost_usd=0.0, latency_s=0.0)
+
         hits = self.retriever.retrieve(query, top_k=candidate_n)
         contexts = rerank_select(query, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
@@ -210,6 +234,19 @@ class Generator:
         self._record(module=self.module, model=result.model, usage=result.usage, items=1,
                      config={"top_n": top_n, "candidate_n": candidate_n},
                      note=f"grounded-answer: {len(citations)}/{len(contexts)} kaynak atıflandı")
+
+        # GUARDRAIL (Faz 1.7b) — üretimden SONRA: girdi guard'ı geçse bile
+        # LLM'in ÜRETTİĞİ metin zararlı olabilir (ince ikinci savunma katmanı,
+        # bkz. src/guard/output_guard.py). LLM GERÇEKTEN çağrıldığı için
+        # usage/cost_usd GERÇEK kalır (sıfırlanmaz) — yalnız kullanıcıya
+        # gösterilecek metin + atıflar red mesajıyla değiştirilir.
+        output_verdict = check_output(result.text)
+        if output_verdict.action == "refuse":
+            return GroundedAnswer(text=output_verdict.message, citations=[],
+                                  used_source_ids=[], invalid_citations=[],
+                                  abstained=True, reason="guard_output",
+                                  usage=result.usage, cost_usd=usd,
+                                  latency_s=result.latency_s)
 
         # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
         # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
