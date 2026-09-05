@@ -1,0 +1,227 @@
+"""Faz 1.7a — kaynak-sınırlı üretim + atıf (kaynak yer bulma).
+
+Akış: hibrit retrieval (1.4) → rerank + parent genişletme (1.5) → FAIL-CLOSED
+eşiği (kanıt yetersizse LLM'i hiç ÇAĞIRMA, çekimser dön) → kaynak-sınırlı
+prompt (prompt.py) → DeepSeek → cevaptaki `[N]` atıflarını gerçek kaynağa
+(chunk_id + span_ids + sayfa + bbox) eşle → costlog'a gerçek maliyeti yaz.
+
+"Kaynak yer bulma": her `[N]` yalnız bir metin parçasına değil, `span_meta`
+üzerinden gerçek SAYFA (+ bbox) numarasına bağlanır — kullanıcı atıfı kaynak
+PDF'te bulabilsin (mimari §0.1: cevap ham leaf span'lara bağlı).
+"""
+from __future__ import annotations
+
+import re
+from dataclasses import dataclass, field
+from difflib import SequenceMatcher
+
+from .. import costlog
+from ..pricing import Usage, cost_usd as pricing_cost_usd
+from ..providers.deepseek import DeepSeek
+from ..rerank.pipeline import rerank_select
+from .prompt import ABSTAIN_SENTENCE, build_grounded_prompt
+
+# Parantez içini yakalar ("1", "1, 2", "1,2" ...); virgül/boşlukla ayrılmış çoklu
+# atıfları TEK eşleşmede yakalamak için [\d,\s]+ kullanılır — [1][2] ve [1] [2]
+# gibi bitişik/ayrı parantezler ise doğal olarak iki ayrı eşleşme üretir.
+_CITATION_RE = re.compile(r"\[([\d,\s]+)\]")
+
+_ABSTAIN_MATCH_THRESHOLD = 0.90   # normalize edilmiş cevap ~ ABSTAIN_SENTENCE benzerliği
+
+
+@dataclass
+class GroundedAnswer:
+    text: str
+    citations: list = field(default_factory=list)          # [{n, chunk_id, span_ids, pages, ders}]
+    used_source_ids: list = field(default_factory=list)    # atıf edilen chunk_id'ler (sırayla)
+    invalid_citations: list = field(default_factory=list)  # hayalet [N] numaraları (int listesi)
+    abstained: bool = False
+    reason: str = ""
+    usage: Usage | None = None
+    cost_usd: float = 0.0
+    latency_s: float = 0.0
+
+
+def _parse_citation_ns(text: str) -> list[int]:
+    """Metindeki `[N]`, `[N, M]`, `[N,M]`, `[N][M]`, `[N] [M]` atıflarının hepsini
+    ayrıştırır: parantez içini yakala (`[\\d,\\s]+`), virgülle böl, int'e çevir."""
+    ns: list[int] = []
+    for group in _CITATION_RE.findall(text):
+        for part in group.split(","):
+            part = part.strip()
+            if part.isdigit():
+                ns.append(int(part))
+    return ns
+
+
+def _normalize_for_abstain_compare(text: str) -> str:
+    """Atıf işaretlerini çıkar + boşluk/noktalama/büyük-küçük harfi normalize et
+    (ABSTAIN_SENTENCE ile 'bire bir' karşılaştırma öncesi)."""
+    stripped = _CITATION_RE.sub("", text)
+    stripped = stripped.strip().lower()
+    stripped = re.sub(r"\s+", " ", stripped)
+    stripped = stripped.strip(" .!?\"'")
+    return stripped
+
+
+_ABSTAIN_NORM = _normalize_for_abstain_compare(ABSTAIN_SENTENCE)
+
+
+def _looks_like_abstain(text: str) -> bool:
+    """Cevap, prompt'taki kaynak-yok cümlesine (ABSTAIN_SENTENCE) eşit ya da çok
+    yakın mı? (post-hoc abstain algılama — model FAIL-CLOSED eşiğini geçti ama
+    fiilen kaynaksız olduğunu kendi söyledi)."""
+    norm = _normalize_for_abstain_compare(text)
+    if not norm:
+        return False
+    if norm == _ABSTAIN_NORM:
+        return True
+    return SequenceMatcher(None, norm, _ABSTAIN_NORM).ratio() >= _ABSTAIN_MATCH_THRESHOLD
+
+
+def _is_effectively_empty(text: str) -> bool:
+    """Atıf işaretleri + noktalama/boşluk çıkarılınca geriye anlamlı içerik
+    kalmıyorsa True (LLM fiilen boş cevap verdi)."""
+    stripped = _CITATION_RE.sub("", text)
+    stripped = re.sub(r"[\s.,;:!?\"'\-]+", "", stripped)
+    return not stripped
+
+
+def _source_text_with_parent(ctx) -> str:
+    """Child (leaf) metnini + varsa parent genişletmesini AYRI, NET biçimde
+    birleştirir. Atıf/sayfa YİNE child span'dan hesaplanır (mimari §0.1: cevap
+    ham leaf span'lara bağlı) — parent yalnız LLM'e ek bağlam sağlar."""
+    text = ctx.text
+    parent = getattr(ctx, "parent_text", None)
+    if parent and parent.strip() and parent.strip() != text.strip():
+        text = f"{text}\n\nGenişletilmiş bağlam: {parent}"
+    return text
+
+
+def build_span_meta(canonical_doc) -> dict:
+    """CanonicalDoc.units'tan span_id -> {page, bbox} sözlüğü (atıf → sayfa/konum).
+
+    Generator, RerankedContext.span_ids'i bu sözlükle çözüp her `[N]` atıfını
+    gerçek sayfa numarasına bağlar ("kaynak yer bulma")."""
+    return {u.span_id: {"page": u.page, "bbox": u.bbox} for u in canonical_doc.units}
+
+
+def _format_pages(pages: list[int]) -> str:
+    """Sıralı benzersiz sayfa listesini kısa gösterime çevir: [12] -> "12",
+    [12,13,14] -> "12-14", [12,14] -> "12,14"."""
+    if not pages:
+        return "?"
+    parts: list[str] = []
+    start = prev = pages[0]
+    for p in pages[1:]:
+        if p == prev + 1:
+            prev = p
+            continue
+        parts.append(str(start) if start == prev else f"{start}-{prev}")
+        start = prev = p
+    parts.append(str(start) if start == prev else f"{start}-{prev}")
+    return ",".join(parts)
+
+
+class Generator:
+    """Kaynak-sınırlı üretim: retrieve → rerank → FAIL-CLOSED eşiği → grounded LLM → atıf eşleme."""
+
+    def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
+                 ders: str = "", abstain_score: float = 0.30, module: str = "chat",
+                 cost_recorder=None):
+        self.retriever = retriever
+        self.reranker = reranker
+        self.chunks_by_id = chunks_by_id
+        self.span_meta = span_meta
+        self.deepseek = deepseek if deepseek is not None else DeepSeek()
+        self.ders = ders
+        # PROVİZYONEL eşik — golden set (Faz 1.8) sonrası kalibre edilecek.
+        self.abstain_score = abstain_score
+        self.module = module
+        # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
+        # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).
+        self._record = cost_recorder if cost_recorder is not None else costlog.record
+
+    def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
+        pages = []
+        for sid in span_ids:
+            meta = self.span_meta.get(sid)
+            if meta and meta.get("page") is not None:
+                pages.append(meta["page"])
+        return sorted(set(pages))
+
+    def _abstain(self, reason: str) -> GroundedAnswer:
+        return GroundedAnswer(text=ABSTAIN_SENTENCE, citations=[],
+                              used_source_ids=[], abstained=True, reason=reason,
+                              usage=None, cost_usd=0.0, latency_s=0.0)
+
+    def answer(self, query: str, *, top_n: int = 6, candidate_n: int = 40,
+               max_tokens: int = 700, temperature: float = 0.2) -> GroundedAnswer:
+        hits = self.retriever.retrieve(query, top_k=candidate_n)
+        contexts = rerank_select(query, hits, self.chunks_by_id, self.reranker,
+                                 top_n=top_n, candidate_n=candidate_n)
+
+        # FAIL-CLOSED: bağlam yok VEYA en iyi rerank skoru eşik altında → LLM ÇAĞIRMA.
+        if not contexts or contexts[0].score < self.abstain_score:
+            return self._abstain("insufficient_data")
+
+        # kaynakları numarala + span_meta'dan gerçek sayfa(lar)ı çıkar; her kaynağın
+        # metnine (varsa) parent genişletmesini ayrı, net biçimde ekle (yalnız bağlam
+        # — atıf/sayfa child span'dan hesaplanır, aşağıda değişmez)
+        numbered_sources = []
+        source_lookup = {}
+        for i, ctx in enumerate(contexts, start=1):
+            pages = self._pages_for_span_ids(ctx.span_ids)
+            numbered_sources.append({"n": i, "ders": self.ders,
+                                     "page": _format_pages(pages),
+                                     "text": _source_text_with_parent(ctx)})
+            source_lookup[i] = {"chunk_id": ctx.chunk_id, "span_ids": list(ctx.span_ids),
+                                "pages": pages}
+
+        system, user = build_grounded_prompt(query, numbered_sources)
+        result = self.deepseek.chat(user, system=system, temperature=temperature,
+                                    max_tokens=max_tokens)
+
+        # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
+        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        citations = []
+        used_source_ids = []
+        invalid_citations = []
+        for n in cited_ns:
+            src = source_lookup.get(n)
+            if src is None:
+                invalid_citations.append(n)   # kaynak sayısını aşan [N] — patlamadan işaretle
+                continue
+            citations.append({"n": n, "chunk_id": src["chunk_id"],
+                              "span_ids": src["span_ids"], "pages": src["pages"],
+                              "ders": self.ders})
+            used_source_ids.append(src["chunk_id"])
+
+        if invalid_citations and not citations:
+            reason = "all_citations_phantom"    # [N] var ama HİÇBİRİ geçerli değil
+        elif invalid_citations:
+            reason = "phantom_citation"         # bazıları geçerli, bazıları hayalet
+        else:
+            reason = ""
+
+        usd = pricing_cost_usd(result.model, result.usage)
+        # LLM GERÇEKTEN çağrıldı → maliyet gerçek; aşağıdaki post-hoc abstain kontrolü
+        # yalnız `abstained` bayrağını/`reason`'ı düzeltir, cost_usd'yi SIFIRLAMAZ.
+        self._record(module=self.module, model=result.model, usage=result.usage, items=1,
+                     config={"top_n": top_n, "candidate_n": candidate_n},
+                     note=f"grounded-answer: {len(citations)}/{len(contexts)} kaynak atıflandı")
+
+        # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
+        # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
+        if _looks_like_abstain(result.text) or (not citations and _is_effectively_empty(result.text)):
+            return GroundedAnswer(text=result.text, citations=citations,
+                                  used_source_ids=used_source_ids,
+                                  invalid_citations=invalid_citations, abstained=True,
+                                  reason="model_abstained", usage=result.usage,
+                                  cost_usd=usd, latency_s=result.latency_s)
+
+        return GroundedAnswer(text=result.text, citations=citations,
+                              used_source_ids=used_source_ids,
+                              invalid_citations=invalid_citations, abstained=False,
+                              reason=reason, usage=result.usage, cost_usd=usd,
+                              latency_s=result.latency_s)
