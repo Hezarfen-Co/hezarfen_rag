@@ -87,13 +87,57 @@ def _corpus():
     return chunks_by_id, span_meta, hits
 
 
-def _make_generator(deepseek, scores, ders="biyoloji", abstain_score=0.30, hits=None):
+def _make_generator(deepseek, scores, ders="biyoloji", abstain_score=0.30, hits=None,
+                    safety_classifier=None):
     chunks_by_id, span_meta, default_hits = _corpus()
     retriever = _StubRetriever(hits if hits is not None else default_hits)
     reranker = _StubReranker(scores)
     return Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
                      ders=ders, abstain_score=abstain_score,
-                     cost_recorder=_noop_recorder)
+                     cost_recorder=_noop_recorder, safety_classifier=safety_classifier)
+
+
+class _StubClassifier:
+    """classify(query) -> sabit GuardVerdict; çağrı sayacı tutar."""
+    def __init__(self, verdict):
+        self.verdict = verdict
+        self.calls = 0
+
+    def classify(self, query):
+        self.calls += 1
+        return self.verdict
+
+
+class LLMSafetyClassifierIntegrationTests(unittest.TestCase):
+    def test_classifier_refuse_blocks_generation(self):
+        from src.guard import GuardVerdict
+        ds = _StubDeepSeek()
+        clf = _StubClassifier(GuardVerdict(action="refuse", category="violence_weapons",
+                                           message="Bu konuda yardımcı olamam."))
+        gen = _make_generator(ds, {"c1": 9.0, "c2": 8.0}, safety_classifier=clf)
+        a = gen.answer("arkadaşımdan intikam almak için ona nasıl zarar veririm")
+        self.assertTrue(a.abstained)
+        self.assertEqual(a.reason, "guard_violence_weapons")
+        self.assertEqual(ds.calls, 0)          # üretim LLM'i HİÇ çağrılmadı (2. katman kesti)
+        self.assertEqual(clf.calls, 1)
+
+    def test_classifier_allow_proceeds_to_generation(self):
+        from src.guard import GuardVerdict
+        ds = _StubDeepSeek(text="DNA çift sarmaldır [1].")
+        clf = _StubClassifier(GuardVerdict(action="allow"))
+        gen = _make_generator(ds, {"c1": 9.0, "c2": 8.0}, safety_classifier=clf)
+        a = gen.answer("DNA nedir")
+        self.assertFalse(a.abstained)
+        self.assertEqual(ds.calls, 1)          # üretim çağrıldı
+        self.assertEqual(clf.calls, 1)
+
+    def test_no_classifier_means_single_layer(self):
+        # safety_classifier=None -> yalnız regex check_input; masum soru üretime gider
+        ds = _StubDeepSeek(text="DNA çift sarmaldır [1].")
+        gen = _make_generator(ds, {"c1": 9.0, "c2": 8.0})
+        a = gen.answer("DNA nedir")
+        self.assertFalse(a.abstained)
+        self.assertEqual(ds.calls, 1)
 
 
 # --------------------------------------------------------------------------- testler

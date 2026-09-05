@@ -5,6 +5,7 @@ Bkz. input_guard.py / roles.py / output_guard.py docstring'leri için gerekçe
 from .input_guard import GuardVerdict, check_input
 from .output_guard import check_output
 from .roles import Role, RoleContext, can_access
+from .llm_classifier import LLMSafetyClassifier
 
 __all__ = ["GuardVerdict", "check_input", "check_output",
-          "Role", "RoleContext", "can_access"]
+          "Role", "RoleContext", "can_access", "LLMSafetyClassifier"]

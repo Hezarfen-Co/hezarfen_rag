@@ -157,7 +157,8 @@ class Generator:
 
     def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
                  ders: str = "", abstain_score: float = 0.30, module: str = "chat",
-                 cost_recorder=None, role_ctx=None, response_cache=None):
+                 cost_recorder=None, role_ctx=None, response_cache=None,
+                 safety_classifier=None):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -185,6 +186,10 @@ class Generator:
         # hit sayısı + tahmini tasarruf burada AYRI, hafif sayaçlarla tutulur.
         self.cache_hits = 0
         self.cache_saved_usd = 0.0
+        # Opsiyonel LLM güvenlik sınıflandırıcı (2. katman, bkz. src/guard/
+        # llm_classifier.py). None ise atlanır (regex check_input tek katman
+        # kalır). Duck-typed: .classify(query) -> GuardVerdict bekler.
+        self.safety_classifier = safety_classifier
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -211,6 +216,18 @@ class Generator:
                                   used_source_ids=[], invalid_citations=[],
                                   abstained=True, reason=f"guard_{guard_verdict.category}",
                                   usage=None, cost_usd=0.0, latency_s=0.0)
+
+        # 2. KATMAN — LLM güvenlik sınıflandırıcı (opsiyonel): regex'in kaçırdığı
+        # parafraz/dolaylı zararlıyı yakalar (baseline: e05/e06 regex'i atlatmıştı;
+        # bkz. src/guard/llm_classifier.py). DeepSeek maliyeti costlog'a (module=
+        # guard) yazılır; red ise retrieval/üretim HİÇ çalışmaz.
+        if self.safety_classifier is not None:
+            sv = self.safety_classifier.classify(query)
+            if sv.action == "refuse":
+                return GroundedAnswer(text=sv.message, citations=[],
+                                      used_source_ids=[], invalid_citations=[],
+                                      abstained=True, reason=f"guard_{sv.category}",
+                                      usage=None, cost_usd=0.0, latency_s=0.0)
 
         # CACHE (Faz — maliyet optimizasyonu, opsiyonel) — guard'dan SONRA,
         # retrieval/LLM'den ÖNCE: hit varsa LLM/retrieval'i HİÇ ÇALIŞTIRMADAN

@@ -117,8 +117,12 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     _retry(lambda: reranker.rerank("isinma", [("x", "deneme metni")]), label="reranker_warmup")
 
     deepseek = DeepSeek()
+    # LLM güvenlik sınıflandırıcı (2. katman) — regex'in kaçırdığı parafraz/dolaylı
+    # zararlıyı yakalar (baseline: zararlı 1/3). Eval ürünün TAM guardlı hâlini ölçer.
+    from ..guard import LLMSafetyClassifier
     generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
-                          ders="biyoloji", abstain_score=0.30, module="eval")
+                          ders="biyoloji", abstain_score=0.30, module="eval",
+                          safety_classifier=LLMSafetyClassifier(deepseek, module="eval"))
     print(f"[eval] pipeline tamamen hazir ({time.time() - t0:.1f}s toplam)")
     return dict(doc=doc, chunks_by_id=chunks_by_id, span_meta=span_meta,
                retriever=retriever, reranker=reranker, generator=generator, children=children)
