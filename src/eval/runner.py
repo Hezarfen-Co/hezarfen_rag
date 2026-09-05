@@ -124,7 +124,8 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     from ..guard import LLMSafetyClassifier
     generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
                           ders="biyoloji", abstain_score=0.30, module="eval",
-                          safety_classifier=LLMSafetyClassifier(deepseek, module="eval"))
+                          safety_classifier=LLMSafetyClassifier(deepseek, module="eval"),
+                          context_packing=True)   # token bütçesi + lost-in-the-middle
     print(f"[eval] pipeline tamamen hazir ({time.time() - t0:.1f}s toplam)")
     return dict(doc=doc, chunks_by_id=chunks_by_id, span_meta=span_meta,
                retriever=retriever, reranker=reranker, generator=generator, children=children)

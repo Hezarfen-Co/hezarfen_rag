@@ -158,7 +158,8 @@ class Generator:
     def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
                  ders: str = "", abstain_score: float = 0.30, module: str = "chat",
                  cost_recorder=None, role_ctx=None, response_cache=None,
-                 safety_classifier=None):
+                 safety_classifier=None, context_packing: bool = False,
+                 context_max_tokens: int = 8000, context_reorder: bool = True):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -190,6 +191,12 @@ class Generator:
         # llm_classifier.py). None ise atlanır (regex check_input tek katman
         # kalır). Duck-typed: .classify(query) -> GuardVerdict bekler.
         self.safety_classifier = safety_classifier
+        # Context engineering (opsiyonel, bkz. src/context/packing.py): token
+        # bütçesi + lost-in-the-middle sıralama. Varsayılan KAPALI (mevcut davranış
+        # korunur); eval/üretim açar. Atıf/span değişmez.
+        self.context_packing = context_packing
+        self.context_max_tokens = context_max_tokens
+        self.context_reorder = context_reorder
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -256,8 +263,17 @@ class Generator:
                                  top_n=top_n, candidate_n=candidate_n)
 
         # FAIL-CLOSED: bağlam yok VEYA en iyi rerank skoru eşik altında → LLM ÇAĞIRMA.
+        # (skor-azalan sıra üzerinde kontrol — packing'den ÖNCE)
         if not contexts or contexts[0].score < self.abstain_score:
             return self._abstain("insufficient_data")
+
+        # CONTEXT ENGINEERING (opsiyonel): token bütçesi + lost-in-the-middle sıralama
+        # (bkz. src/context/packing.py). Atıf/span değişmez; yalnız sıra + dahil edilen
+        # context'ler. fail-closed'dan SONRA, numaralı kaynaklardan ÖNCE.
+        if self.context_packing:
+            from ..context import pack_contexts
+            contexts = pack_contexts(contexts, max_tokens=self.context_max_tokens,
+                                     reorder=self.context_reorder)
 
         # kaynakları numarala + span_meta'dan gerçek sayfa(lar)ı çıkar; her kaynağın
         # metnine (varsa) parent genişletmesini ayrı, net biçimde ekle (yalnız bağlam
