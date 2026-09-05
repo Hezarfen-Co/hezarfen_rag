@@ -1,0 +1,102 @@
+# API-CONTRACT.md — RAG servis endpoint sözleşmesi (backend/frontend entegrasyonu)
+
+> Bu belge, `hezarfen_rag`'in sunduğu RAG yeteneklerinin (soru-cevap + özet)
+> backend'in QUIC/HTTP endpoint'iyle nasıl tüketileceğini tanımlar. **Bu repo
+> Generator/Summarizer'ı sağlar; backend bunları auth + rol-türetme + endpoint ile
+> sarar.** hezarfen_backend/frontend repolarına bu repodan DOKUNULMAZ — bu yalnız
+> sözleşme dokümanıdır (Ahmet/Burak entegre eder).
+
+## 0. ALTIN KURAL — rol SUNUCU-TARAFI türetilir
+`role`, kimliği doğrulanmış oturumdan (backend auth) türetilir; **ASLA istemci
+header/body'sinden körü körüne alınmaz** (RES-002 §2, RES-003 §7: RagArt'ın açığı
+buydu). Kasa izolasyonu (öğrenci yalnız kendi sınıf/dersini görür) bu role'e dayanır;
+yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrulamaz.
+
+## 1. POST /rag/chat — kaynakla konuşma (soru-cevap)
+
+**İstek:**
+```json
+{
+  "query": "DNA'nın yapısı nedir?",
+  "history": [                                  // opsiyonel — çok-turlu (history-aware rewrite)
+    {"role": "user", "content": "DNA nasıl eşlenir?"},
+    {"role": "assistant", "content": "..."}
+  ],
+  "role": {                                     // SUNUCU-TARAFI (auth'tan); istemciye güvenme
+    "role": "student",                          // student|teacher|parent|admin
+    "sinif": "12",
+    "ders_list": ["biyoloji"]
+  },
+  "options": {"top_n": 6, "ders": "biyoloji"}   // opsiyonel
+}
+```
+
+**Yanıt:**
+```json
+{
+  "text": "DNA ... çift sarmaldır [1]. ... Watson-Crick ... [2].",
+  "abstained": false,
+  "reason": "",                                 // "" | guard_<kat> | insufficient_data | model_abstained
+  "citations": [
+    {"n": 1, "chunk_id": "5eda...:c14", "span_ids": ["...#20.1"], "pages": [20,21], "ders": "biyoloji"},
+    {"n": 2, "chunk_id": "5eda...:c10", "span_ids": ["...#17.3"], "pages": [17,18], "ders": "biyoloji"}
+  ],
+  "used_source_ids": ["5eda...:c14", "5eda...:c10"],
+  "cost_usd": 0.00058,
+  "cache_hit": false
+}
+```
+
+**abstained/reason yorumu (frontend davranışı):**
+- `guard_self_harm|violence_weapons|sexual_content|illegal_drugs|hate_harassment|prompt_injection`
+  → `text` yaşa-uygun red mesajıdır; olduğu gibi göster (kaynak/atıf yok).
+- `insufficient_data` → kaynakta yok; "Kaynaklarda bulunamadı" + yönlendirme.
+- `model_abstained` → model kaynakta bulamadı.
+- boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
+  (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
+
+## 2. POST /rag/summarize — kanıtlı özet ("özet çıkar" butonu)
+
+**İstek:**
+```json
+{
+  "scope": {                                    // kapsam-tabanlı (soru DEĞİL)
+    "pages": [16,17,18,19,20,21],               // VEYA "span_ids": [...]
+    "ders": "biyoloji", "sinif": "12",
+    "scope_label": "DNA'nın yapısı ve keşfi"
+  },
+  "role": { ... }                               // SUNUCU-TARAFI
+}
+```
+
+**Yanıt:**
+```json
+{
+  "text": "# DNA'nın Yapısı ...\n## 1. ...\n- ... [1].\n...",   // detaylı, yapılandırılmış (başlık/alt-bölüm/kalın)
+  "abstained": false,
+  "reason": "",                                 // "" | empty_scope
+  "citations": [{"n": 1, "span_ids": ["..."], "pages": [16,17]}, ...],
+  "scope_pages": [16,17,18,19,20,21],
+  "hierarchical": true,                          // uzun kapsam → RAPTOR-benzeri
+  "cost_usd": 0.0258
+}
+```
+
+## 3. Backend'in sorumlulukları (bu repo YAPMAZ)
+- **Auth + rol türetme:** oturumdan `role`/`sinif`/`ders_list` çıkar; istemciye güvenme.
+- **Kaynak yükleme/indeksleme tetikleme:** öğretmen kaynak yükleyince (course-notes) ingest
+  + embed + index pipeline'ını çağır (bu repo'nun `src/ingest`+`src/embed`+`src/index`);
+  chunk meta'ya `{sinif, ders}` yaz (kasa izolasyonu için ZORUNLU).
+- **Kalıcılık:** kalıcı Qdrant + incremental reindex (şu an in-memory; üretimde kalıcı).
+- **Rate limit / DoS / maliyet tavanı** (RES-003 §7).
+- **Citation → PDF görüntüleyici** (frontend): `pages`/`span_ids` → sayfa+highlight.
+
+## 4. Notlar
+- **Atıf tıklanınca ACL tekrar kontrol** (RES-003 §3): citation'a tıklayan kullanıcının
+  o kaynağa erişimi hâlâ var mı (role değişmiş olabilir).
+- **Maliyet:** her çağrı `cost_usd` döner; backend `costlog`/telemetriye yazabilir.
+- **Servis girişi** (QUIC api-read) ve kalıcı store bu repodaki `compose.yaml`/`Containerfile`
+  ile Faz 1 sonrası eklenecek — şu an Generator/Summarizer kütüphane olarak hazır.
+- Kesin Python arayüzü: `src/generate/Generator.answer(query, history=, top_n=, ...)` →
+  `GroundedAnswer`; `src/summarize/Summarizer.summarize(units, scope_label=)` →
+  `GroundedSummary`; `src/guard/RoleContext` + `can_access`; `src/retrieve/HybridRetriever(meta=)`.
