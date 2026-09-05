@@ -96,11 +96,15 @@ def units_from_parsed(doc: ParsedDoc, *, doc_id: str, sinif: str, ders: str,
 
 
 def build_canonical(path: str, sinif: str, ders: str, *,
-                    kaynak_turu: str = "ders_kitabi", ocr: bool = False) -> CanonicalDoc:
+                    kaynak_turu: str = "ders_kitabi", ocr: bool = False,
+                    vlm: bool = False, captioner=None) -> CanonicalDoc:
     """PDF → kanonik doküman (parse + izolasyon + normalize + görsel sınıfı + metadata).
 
     `ocr=True` (Faz 0.8): text-layer'ı boş taranmış/görüntü sayfalar Tesseract ile
-    OCR edilir (bkz. pdf_parse.parse_pdf). Varsayılan KAPALI."""
+    OCR edilir (bkz. pdf_parse.parse_pdf). Varsayılan KAPALI.
+    `vlm=True` (Faz 5, #23): figure_heavy sayfalar VLM ile captionlanıp
+    `kind="gorsel_aciklama"` birim olarak eklenir (bkz. visual_caption.py; captioner
+    verilmezse env'den VLMCaptioner denenir, kullanılamıyorsa zarifçe atlanır)."""
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     full = file_sha256(path)
@@ -111,6 +115,15 @@ def build_canonical(path: str, sinif: str, ders: str, *,
     page_visual = {pv.page: pv.klass for pv in vis["pages"]}
     units = units_from_parsed(parsed, doc_id=doc_id, sinif=sinif, ders=ders,
                               kaynak_turu=kaynak_turu, page_visual=page_visual)
+    if vlm:
+        from .visual_caption import caption_visual_units, merge_visual_units
+        if captioner is None:
+            from ..providers.vlm import VLMCaptioner
+            captioner = VLMCaptioner()
+        vunits = caption_visual_units(path, doc_id=doc_id, sinif=sinif, ders=ders,
+                                      kaynak_turu=kaynak_turu, page_visual=page_visual,
+                                      captioner=captioner)
+        units = merge_visual_units(units, vunits)
     return CanonicalDoc(source_path=path, doc_id=doc_id, source_version=full,
                         sinif=sinif, ders=ders, kaynak_turu=kaynak_turu,
                         page_count=parsed.page_count, units=units)
