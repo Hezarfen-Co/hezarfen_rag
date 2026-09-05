@@ -20,3 +20,5 @@ data/benchmark_results.json
 
 
 .env
+# Yerel model dosyalari (buyuk; repoya girmez)
+models/

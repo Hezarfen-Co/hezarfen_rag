@@ -36,6 +36,7 @@ class Block:
     font_size: float = 0.0                    # bloğun baskın (max) font boyutu
     kind: str = PARAGRAPH                      # yukarıdaki tiplerden
     retrieval_disi: bool = False              # sızıntı: soru/cevap/meta → indekslenmez (bkz. isolate.py)
+    ocr: bool = False                         # provenance: metin text-layer'dan değil OCR'dan geldi (Faz 0.8)
 
     @property
     def is_body(self) -> bool:
@@ -156,8 +157,37 @@ def _block_text(block: dict) -> str:
     return "\n".join(lines).strip()
 
 
-def parse_pdf(path: str) -> ParsedDoc:
-    """PDF → sayfa (metin blokları + bbox + font + tip, okuma sırasında)."""
+def _page_needs_ocr(blocks: list[Block], has_images: bool,
+                    min_chars: int) -> bool:
+    """Sayfa text-layer'ı ~boş (gövde < `min_chars`) VE görüntü içeriyorsa OCR
+    adayıdır (saf fonksiyon — test edilebilir). Görüntüsüz boş sayfa (ör. ayraç)
+    OCR edilmez (uydurulacak metin yok)."""
+    body_chars = sum(len(b.text) for b in blocks if b.is_body)
+    return body_chars < min_chars and has_images
+
+
+def _ocr_blocks(text: str, page_no: int, width: float, height: float,
+                *, start_no: int = 9000) -> list[Block]:
+    """OCR ham metnini boş satırlara göre paragraf-bloklara böler (retrieval
+    granülerliği için). Saf fonksiyon — OCR motoru olmadan test edilebilir.
+    bbox = tüm sayfa (OCR paragraf-koordinatı vermez; atıf sayfa düzeyinde kalır);
+    her blok `ocr=True` (provenance) ve PARAGRAPH (gövde → indekslenir)."""
+    paras = [p.strip() for p in re.split(r"\n\s*\n", text or "") if p.strip()]
+    out: list[Block] = []
+    for j, p in enumerate(paras):
+        out.append(Block(page=page_no, bbox=(0.0, 0.0, width, height), text=p,
+                         block_no=start_no + j, font_size=0.0, kind=PARAGRAPH,
+                         ocr=True))
+    return out
+
+
+def parse_pdf(path: str, *, ocr: bool = False, ocr_lang: str = "tur",
+              ocr_min_chars: int = 20) -> ParsedDoc:
+    """PDF → sayfa (metin blokları + bbox + font + tip, okuma sırasında).
+
+    `ocr=True` (Faz 0.8): text-layer'ı ~boş (gövde < `ocr_min_chars`) AMA görüntü
+    içeren sayfalar Tesseract ile OCR edilir (bkz. ocr.py; tesseract yoksa zarifçe
+    atlanır). Varsayılan KAPALI — text-layer'lı kitaplar için OCR bağımlılığı yok."""
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     doc = fitz.open(path)
@@ -183,6 +213,12 @@ def parse_pdf(path: str) -> ParsedDoc:
                 blocks.append(Block(page=i + 1, bbox=bbox, text=text,
                                     block_no=bn, font_size=round(fs, 2), kind=kind))
             blocks = order_blocks(blocks, rect.width)
+            # Faz 0.8 OCR fallback: text-layer ~boş + sayfada görüntü var → OCR et
+            if ocr and _page_needs_ocr(blocks, bool(page.get_images(full=True)), ocr_min_chars):
+                from .ocr import ocr_page
+                otext = ocr_page(page, lang=ocr_lang)
+                if otext:
+                    blocks += _ocr_blocks(otext, i + 1, rect.width, rect.height)
             pages.append(Page(number=i + 1, width=rect.width,
                               height=rect.height, blocks=blocks))
         return ParsedDoc(source_path=path, page_count=doc.page_count, pages=pages)

@@ -96,13 +96,16 @@ def units_from_parsed(doc: ParsedDoc, *, doc_id: str, sinif: str, ders: str,
 
 
 def build_canonical(path: str, sinif: str, ders: str, *,
-                    kaynak_turu: str = "ders_kitabi") -> CanonicalDoc:
-    """PDF → kanonik doküman (parse + izolasyon + normalize + görsel sınıfı + metadata)."""
+                    kaynak_turu: str = "ders_kitabi", ocr: bool = False) -> CanonicalDoc:
+    """PDF → kanonik doküman (parse + izolasyon + normalize + görsel sınıfı + metadata).
+
+    `ocr=True` (Faz 0.8): text-layer'ı boş taranmış/görüntü sayfalar Tesseract ile
+    OCR edilir (bkz. pdf_parse.parse_pdf). Varsayılan KAPALI."""
     if not os.path.exists(path):
         raise FileNotFoundError(path)
     full = file_sha256(path)
     doc_id = full[:12]
-    parsed = parse_pdf(path)
+    parsed = parse_pdf(path, ocr=ocr)
     apply_isolation(parsed)                                  # retrieval_disi işaretle
     vis = analyze_document(path)
     page_visual = {pv.page: pv.klass for pv in vis["pages"]}
