@@ -21,7 +21,11 @@ from dataclasses import dataclass
 
 import fitz
 
-# Sınıf eşikleri (union görsel kaplama)
+# Sınıf eşikleri (union görsel kaplama; raster ∪ vektör — bkz. #26).
+# NOT (kalibrasyon, backlog): vektör-kaplama eklendikten sonra diyagram-yoğun
+# kitaplarda figure_heavy oranı yükseldi (kimya ~%81, bio ~%47). Bu diyagram-yoğun
+# içerik için makul; captioning maliyetini düşürmek istenirse eşik yükseltilebilir
+# ya da dekoratif tek-büyük-kutu vs kompozit-diyagram (fragment sayısı) ayrımı eklenebilir.
 FIGURE_HEAVY = 0.40    # ≥ → VLM/crop şart
 LOW_VISUAL = 0.10      # < → düz metin yeter; arası "karma"
 
@@ -66,13 +70,32 @@ def _classify(image_cov: float) -> str:
     return MIXED
 
 
+def _drawing_rects(page) -> list[tuple]:
+    """Vektör çizim (get_drawings) sınır-dikdörtgenleri. AUDIT EXP-007 #26: ders
+    kitabı diyagramları embedded raster DEĞİL VEKTÖR kompozittir (docstring); yalnız
+    get_image_info() ile ölçmek figure_heavy'i bu sayfalarda hiç tetiklemiyordu.
+    Sıfır-alanlı fragmanlar atlanır; union-grid kaplama üst-üste binmeyi zaten saymaz
+    (dağınık ince çizgiler düşük kaplama verir → metin sayfası yanlış-figür olmaz)."""
+    out = []
+    try:
+        for d in page.get_drawings():
+            r = d.get("rect")
+            if r is not None and r.x1 > r.x0 and r.y1 > r.y0:
+                out.append((r.x0, r.y0, r.x1, r.y1))
+    except Exception:
+        pass
+    return out
+
+
 def page_visual(page, number: int) -> PageVisual:
     W, H = page.rect.width, page.rect.height
-    irects = [tuple(im["bbox"]) for im in page.get_image_info()]
+    irects = [tuple(im["bbox"]) for im in page.get_image_info()]   # embedded raster
+    vrects = _drawing_rects(page)                                  # vektör çizim (diyagram)
+    visual_rects = irects + vrects
     trects = [tuple(b[:4]) for b in page.get_text("blocks") if b[6] == 0]
-    icov = _grid_coverage(irects, W, H)
+    icov = _grid_coverage(visual_rects, W, H)                      # raster ∪ vektör
     tcov = _grid_coverage(trects, W, H)
-    return PageVisual(page=number, n_fragments=len(irects),
+    return PageVisual(page=number, n_fragments=len(visual_rects),
                       image_coverage=round(icov, 3), text_coverage=round(tcov, 3),
                       klass=_classify(icov))
 

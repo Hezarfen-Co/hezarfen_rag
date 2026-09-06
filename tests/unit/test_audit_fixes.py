@@ -132,5 +132,44 @@ class SummarizerLlmNoContentTests(unittest.TestCase):
         self.assertEqual(res.reason, "llm_no_content")
 
 
+class VisualsVectorDiagramTests(unittest.TestCase):
+    """#26: get_drawings (vektör diyagram) görsel-kaplamaya katılmalı; eskiden yalnız
+    raster (get_image_info) sayılıp vektör diyagram sayfaları low_visual'a düşüyordu."""
+    class _R:
+        def __init__(s, x0, y0, x1, y1): s.x0, s.y0, s.x1, s.y1 = x0, y0, x1, y1
+        @property
+        def width(s): return s.x1 - s.x0
+        @property
+        def height(s): return s.y1 - s.y0
+    class _Page:
+        def __init__(s, drawings, images=None, blocks=None, w=600, h=800):
+            s.rect = VisualsVectorDiagramTests._R(0, 0, w, h)
+            s._d, s._i, s._b = drawings, images or [], blocks or []
+        def get_image_info(s): return s._i
+        def get_drawings(s): return s._d
+        def get_text(s, kind): return s._b
+
+    def test_vector_drawings_counted_as_figure(self):
+        from src.ingest.visuals import page_visual, FIGURE
+        # sayfanın ~%70'ini kaplayan vektör diyagram (raster YOK) → figure_heavy olmalı
+        draw = [{"rect": self._R(50, 50, 550, 600)}]
+        pv = page_visual(self._Page(draw), 1)
+        self.assertGreater(pv.image_coverage, 0.4)
+        self.assertEqual(pv.klass, FIGURE)
+        self.assertGreaterEqual(pv.n_fragments, 1)
+
+    def test_no_visuals_low(self):
+        from src.ingest.visuals import page_visual, TEXT
+        pv = page_visual(self._Page([]), 1)     # ne raster ne vektör
+        self.assertEqual(pv.image_coverage, 0.0)
+        self.assertEqual(pv.klass, TEXT)
+
+    def test_zero_area_drawing_ignored(self):
+        from src.ingest.visuals import _drawing_rects
+        rects = _drawing_rects(self._Page([{"rect": self._R(10, 10, 10, 400)},   # sıfır-genişlik
+                                           {"rect": self._R(20, 20, 120, 120)}])) # geçerli
+        self.assertEqual(len(rects), 1)
+
+
 if __name__ == "__main__":
     unittest.main()
