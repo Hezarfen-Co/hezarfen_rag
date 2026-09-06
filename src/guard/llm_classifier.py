@@ -75,8 +75,19 @@ class LLMSafetyClassifier:
         except Exception:
             pass
 
-        if data.get("safe") is False:
-            cat = data.get("category") or "hate_harassment"
+        # 'safe' alanını SAĞLAM yorumla: model bazen bool yerine string/int döndürür
+        # ({"safe":"false"}, {"safe":0}). Eskiden yalnız `is False` yakalanıyor, geri
+        # kalan her şey allow'a düşüyordu (güvenlik açığı). Açık-güvensiz biçimleri VE
+        # "safe: true DEĞİL ama bir zararlı-kategori var" durumunu refuse say.
+        safe_val = data.get("safe")
+        cat_raw = data.get("category")
+        cat_l = str(cat_raw).strip().lower() if cat_raw is not None else ""
+        explicit_unsafe = (safe_val is False or safe_val == 0 or
+                           (isinstance(safe_val, str) and
+                            safe_val.strip().lower() in ("false", "no", "hayır", "hayir", "0", "unsafe")))
+        has_harm_cat = cat_l not in ("", "none", "null", "safe")
+        if explicit_unsafe or (safe_val is not True and has_harm_cat):
+            cat = cat_raw or "hate_harassment"
             if cat not in _CLASSIFIER_MESSAGES:
                 cat = "hate_harassment"
             return GuardVerdict(action="refuse", category=cat,

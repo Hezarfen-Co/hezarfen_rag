@@ -216,30 +216,37 @@ class Generator:
                               used_source_ids=[], abstained=True, reason=reason,
                               usage=None, cost_usd=0.0, latency_s=0.0)
 
+    def _guard_refuse(self, verdict) -> GroundedAnswer:
+        """Guard red kararını (regex/LLM/rewrite-sonrası) tek biçimde döndür."""
+        return GroundedAnswer(text=verdict.message, citations=[], used_source_ids=[],
+                              invalid_citations=[], abstained=True,
+                              reason=f"guard_{verdict.category}", usage=None,
+                              cost_usd=0.0, latency_s=0.0)
+
+    def _guard_query(self, q: str):
+        """q'yu iki katmanla denetle; refuse ise GuardVerdict döner, değilse None.
+        Hem orijinal sorgu hem (çok-turlu) rewrite edilmiş sorgu için kullanılır —
+        rewrite edilen q retrieval+üretime giren metindir, o yüzden O DA denetlenmeli."""
+        gv = check_input(q)
+        if gv.action == "refuse":
+            return gv
+        if self.safety_classifier is not None:
+            sv = self.safety_classifier.classify(q)
+            if sv.action == "refuse":
+                return sv
+        return None
+
     def answer(self, query: str, *, history=None, top_n: int = 6, candidate_n: int = 40,
                max_tokens: int = 700, temperature: float = 0.2) -> GroundedAnswer:
         # GUARDRAIL (Faz 1.7b) — EN BAŞTA: zararlı-içerik/injection ise LLM'i
         # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
         # input_guard.py). reason="guard_<kategori>" — çağıran taraf hangi
         # guardrail kategorisinin tetiklendiğini ayırt edebilir.
-        guard_verdict = check_input(query)
-        if guard_verdict.action == "refuse":
-            return GroundedAnswer(text=guard_verdict.message, citations=[],
-                                  used_source_ids=[], invalid_citations=[],
-                                  abstained=True, reason=f"guard_{guard_verdict.category}",
-                                  usage=None, cost_usd=0.0, latency_s=0.0)
-
-        # 2. KATMAN — LLM güvenlik sınıflandırıcı (opsiyonel): regex'in kaçırdığı
-        # parafraz/dolaylı zararlıyı yakalar (baseline: e05/e06 regex'i atlatmıştı;
-        # bkz. src/guard/llm_classifier.py). DeepSeek maliyeti costlog'a (module=
-        # guard) yazılır; red ise retrieval/üretim HİÇ çalışmaz.
-        if self.safety_classifier is not None:
-            sv = self.safety_classifier.classify(query)
-            if sv.action == "refuse":
-                return GroundedAnswer(text=sv.message, citations=[],
-                                      used_source_ids=[], invalid_citations=[],
-                                      abstained=True, reason=f"guard_{sv.category}",
-                                      usage=None, cost_usd=0.0, latency_s=0.0)
+        # İki katman (regex check_input + opsiyonel LLM-sınıflandırıcı) ORİJİNAL
+        # sorguda: zararlı/injection ise LLM'i HİÇ çağırmadan red. reason="guard_<kat>".
+        gv = self._guard_query(query)
+        if gv is not None:
+            return self._guard_refuse(gv)
 
         # CACHE (Faz — maliyet optimizasyonu, opsiyonel) — guard'dan SONRA,
         # retrieval/LLM'den ÖNCE: hit varsa LLM/retrieval'i HİÇ ÇALIŞTIRMADAN
@@ -261,6 +268,13 @@ class Generator:
         q = query
         if history and self.rewriter is not None:
             q = self.rewriter.rewrite(history, query)
+            # ÇOK-TURLU BYPASS KAPAMA: rewrite edilmiş q, retrieval + üretim promptuna
+            # giren fiili metindir. Zararlı bir niyet geçmişe yayılıp "devam et" gibi
+            # zararsız bir turla tetiklenebilir → rewrite SONRASI q'yu da denetle.
+            if q != query:
+                gv2 = self._guard_query(q)
+                if gv2 is not None:
+                    return self._guard_refuse(gv2)
 
         cache_kwargs = None
         if self.response_cache is not None:
@@ -363,6 +377,18 @@ class Generator:
                                   invalid_citations=invalid_citations, abstained=True,
                                   reason="model_abstained", usage=result.usage,
                                   cost_usd=usd, latency_s=result.latency_s)
+
+        # TEMELLENDİRME BÜTÜNLÜĞÜ (audit EXP-007 #C1): metin DOLU ama GEÇERLİ ATIF YOK
+        # (model [N] hiç emitmedi YA DA hepsi hayalet) → kaynağa bağlanamamış =
+        # temellendirilmemiş. Grounded RAG'de böyle bir cevabı kullanıcıya SUNMA;
+        # çekimser kal (kaynak-yok cümlesiyle). LLM çağrıldı → cost gerçek; CACHE'LENMEZ.
+        # Eskiden atıfsız-ama-dolu cevap "güvenli" sanılıp sunuluyordu.
+        if not citations:
+            r = "all_citations_phantom" if invalid_citations else "ungrounded_no_citations"
+            return GroundedAnswer(text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                                  invalid_citations=invalid_citations, abstained=True,
+                                  reason=r, usage=result.usage, cost_usd=usd,
+                                  latency_s=result.latency_s)
 
         final_answer = GroundedAnswer(text=result.text, citations=citations,
                                       used_source_ids=used_source_ids,

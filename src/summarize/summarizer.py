@@ -174,8 +174,14 @@ class Summarizer:
                                f"{len(citations)} atıflandı")
 
         scope_pages = sorted({u.page for u in units})
+        # AUDIT EXP-007 #C2: model prompt gereği "içerik yok" cümlesini dönerse bu bir
+        # ÇEKİMSER'dir — abstained=True işaretle (çağıran .abstained'e bakıp gerçek özet
+        # sanmasın). Eskiden yalnız BOŞ kapsam abstained sayılıyordu.
+        llm_abstained = result.text.strip() == NO_CONTENT_SENTENCE
         return GroundedSummary(text=result.text, citations=citations, scope_pages=scope_pages,
-                               n_source_units=len(units), abstained=False, reason="",
+                               n_source_units=len(units),
+                               abstained=llm_abstained,
+                               reason="llm_no_content" if llm_abstained else "",
                                usage=result.usage, cost_usd=usd, latency_s=result.latency_s,
                                hierarchical=hierarchical)
 

@@ -51,9 +51,10 @@ def join_hyphenation(s: str) -> str:
 
 
 def normalize(s: str) -> str:
-    """Ham metin → temiz normalize metin (RAG'e beslenecek). Simgeler/alt-indis korunur."""
-    if not s:
-        return s
+    """Ham metin → temiz normalize metin (RAG'e beslenecek). Simgeler/alt-indis korunur.
+    Savunmacı: str olmayan/boş girdi → "" (parse'ta beklenmeyen tip gelse çökmesin)."""
+    if not isinstance(s, str) or not s:
+        return ""
     s = strip_invisibles(s)
     s = join_hyphenation(s)
     s = nfc(s)

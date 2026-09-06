@@ -52,8 +52,15 @@ def _load(ledger: str = LEDGER) -> list[dict]:
     with open(ledger, encoding="utf-8") as f:
         for line in f:
             line = line.strip()
-            if line:
+            if not line:
+                continue
+            try:
                 out.append(json.loads(line))
+            except json.JSONDecodeError:
+                # AUDIT EXP-007: TEK bozuk/yarım satır (ör. eşzamanlı append artığı)
+                # tüm defteri okunamaz kılmasın — o satırı atla+uyar, gerisini oku.
+                import warnings
+                warnings.warn(f"costlog: bozuk satır atlandı: {line[:80]!r}", stacklevel=2)
     return out
 
 

@@ -131,10 +131,12 @@ class SQLiteCache(BaseCache):
             return value
 
     def set(self, key: str, value, ttl: float | None = None) -> None:
-        # TTL=0 veya negatif: kayıt anında "geçmiş" sayılır -> hiç YAZMA (no-op).
-        # Böylece davranış tutarlı: bu anahtarla hemen sonraki get() her zaman
-        # miss döner (yazıp sonra silmekle aynı gözlemlenebilir sonuç, daha ucuz).
+        # TTL=0 veya negatif: kayıt anında "geçmiş" sayılır -> YAZMA, ama VARSA eski
+        # değeri SİL. (AUDIT EXP-007 #K2: eskiden bare return önceden yazılmış bir
+        # değeri BIRAKIYORDU → sonraki get() stale HIT dönüyordu; docstring'in "her
+        # zaman miss" sözüyle çelişiyordu. Artık gerçekten miss döner.)
         if ttl is not None and ttl <= 0:
+            self.delete(key)
             return
         now = self._now()
         expires_at = (now + ttl) if ttl is not None else None

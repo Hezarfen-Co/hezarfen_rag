@@ -35,14 +35,21 @@ class HybridRetriever:
                  dense_k: int = 40, bm25_k: int = 40, sparse_k: int = 30,
                  role_ctx=None):
         """Sorgu → RRF-birleştirilmiş (chunk_id, rrf_skoru) top_k. `role_ctx` verilirse
-        (ve meta varsa) KASA İZOLASYONU: yetkisiz sınıf/ders chunk'ları elenir
-        (trim'den ÖNCE, böylece top_k yalnız yetkili chunk'larla dolar)."""
+        KASA İZOLASYONU: yetkisiz sınıf/ders chunk'ları elenir (trim'den ÖNCE).
+
+        FAIL-CLOSED: `role_ctx` verildi AMA `meta` yoksa → boş liste döner (sızıntıdansa
+        hiç sonuç vermek yeğ; rol-filtresi istendiği hâlde uygulanamıyorsa açık bırakma).
+        Boş/whitespace sorgu → boş liste (indeksleri boşuna dövme, çöp sonuç üretme)."""
+        if not query or not query.strip():
+            return []
+        if role_ctx is not None and self.meta is None:
+            return []                                            # fail-closed (bkz. docstring)
         qv = self.embedder.embed([query])[0]
         rankings = [self.dense.search(qv, dense_k), self.bm25.search(query, bm25_k)]
         if self.sparse is not None:
             qs = self.embedder.embed_sparse([query])[0]
             rankings.append(self.sparse.search(qs, sparse_k))
         fused = rrf_fuse(rankings, k=self.rrf_k, top_k=None)     # tümü (trim sonra)
-        if role_ctx is not None and self.meta is not None:
+        if role_ctx is not None:                                 # meta burada garanti var
             fused = [(cid, s) for cid, s in fused if self._allowed(cid, role_ctx)]
         return fused[:top_k]

@@ -86,6 +86,7 @@ def ocr_page(page: "fitz.Page", *, lang: str = "tur", dpi: int = 300) -> str:
     pt = _pt()
     if pt is None:
         return ""
+    _prev_prefix = os.environ.get("TESSDATA_PREFIX")   # kaydet (audit EXP-007: env sızıntısı)
     try:
         from PIL import Image
         zoom = dpi / 72.0
@@ -97,3 +98,8 @@ def ocr_page(page: "fitz.Page", *, lang: str = "tur", dpi: int = 300) -> str:
         return pt.image_to_string(img, lang=use_lang).strip()
     except Exception:
         return ""
+    finally:                                            # env'i eski haline getir (thread/global sızıntısı olmasın)
+        if _prev_prefix is None:
+            os.environ.pop("TESSDATA_PREFIX", None)
+        else:
+            os.environ["TESSDATA_PREFIX"] = _prev_prefix

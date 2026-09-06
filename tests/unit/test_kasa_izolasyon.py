@@ -53,11 +53,14 @@ class KasaIzolasyonTests(unittest.TestCase):
         self.assertIn("c_9bio", got)
         self.assertIn("c_12fizik", got)
 
-    def test_no_meta_means_no_filter(self):
-        r = _retriever(meta=None)                          # meta yok -> filtre yok
+    def test_role_without_meta_fails_closed(self):
+        # AUDIT EXP-007 (core #1): role_ctx verildi AMA meta yok → FAIL-CLOSED (boş).
+        # Eskiden filtre sessizce atlanıp TÜM chunk'lar dönüyordu (kasa sızıntısı /
+        # fail-open); artık rol-filtresi istenip uygulanamıyorsa sızıntıdansa boş döner.
+        r = _retriever(meta=None)
         rc = RoleContext(role=Role.STUDENT, sinif="12", ders_list=["biyoloji"])
         got = [cid for cid, _ in r.retrieve("soru", top_k=10, role_ctx=rc)]
-        self.assertEqual(len(got), 4)                      # meta olmadan izolasyon YOK (uyarı: üretimde meta zorunlu)
+        self.assertEqual(got, [])                          # fail-closed: 0 sızıntı
 
     def test_teacher_other_class_zero_leak(self):
         r = _retriever(_META)

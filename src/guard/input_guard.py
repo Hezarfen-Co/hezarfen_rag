@@ -54,8 +54,11 @@ def _compile(patterns: list[str]) -> list[re.Pattern]:
 
 
 def _fold_loose(s: str) -> str:
-    """`fold_for_match` + ı/i birleştirme (bkz. `_compile` NOT)."""
-    return fold_for_match(s).replace("ı", "i")
+    """`fold_for_match` + ı/i birleştirme (bkz. `_compile` NOT) + TÜM boşlukları
+    (newline/tab dahil) tek boşluğa indirger. Newline-katlama güvenlik-kritik:
+    aksi halde "bomba\\nnasıl yapılır" ya da "ignore\\nprevious instructions" gibi
+    araya \\n konarak kalıp eşleşmesi ATLATILABİLİRDİ (normalize \\n'i korur)."""
+    return re.sub(r"\s+", " ", fold_for_match(s)).replace("ı", "i")
 
 
 # ---------------------------------------------------------------------------
@@ -215,20 +218,23 @@ def _scan_harm_categories(text: str) -> str | None:
 # ---------------------------------------------------------------------------
 
 _INJECTION_PATTERNS = _compile([
-    # Türkçe
-    r"önceki talimatları (?:yok say|unut)",
-    r"yukarıdaki talimatları (?:yok say|görmezden gel)",
-    r"sistem promptunu (?:göster|yazdır|ifşa et|paylaş)",
-    r"kurallarını unut",
-    r"gizli talimatlarını (?:göster|söyle|paylaş)",
+    # Türkçe — talimat/kural yok-sayma (araya "tüm/bütün/önceki" gibi kelimeler
+    # girebildiği için esnek aralık; boşluklar _fold_loose'ta tek boşluğa indi)
+    r"(?:önceki|yukarıdaki|tüm|bütün)?\s*talimatları(?:nı)?\b.{0,20}(?:yok say|unut|görmezden gel|kaldır|dikkate alma)",
+    r"sistem promptunu (?:göster|yazdır|ifşa et|paylaş|söyle)",
+    r"kurallarını (?:unut|yok say|kaldır|görmezden gel)",
+    r"gizli talimatlarını (?:göster|söyle|paylaş|yazdır)",
     r"artık (?:hiç|bir)? ?kısıtlaman yok",
-    # İngilizce
-    r"ignore (?:the )?(?:previous|above|all)(?: prior)? instructions",
-    r"disregard (?:your|the|all) (?:rules|instructions)",
+    r"kısıtlaman(?:ız)? (?:yok|olmadan) (?:gibi )?davran",
+    # İngilizce — "ignore/disregard <herhangi> instructions/rules/prompt" (canonical
+    # jailbreak: "ignore all/your previous instructions" ESKİ kalıpta kaçıyordu)
+    r"ignore\b.{0,30}\b(?:instruction|rule|prompt|guideline)",
+    r"disregard\b.{0,30}\b(?:instruction|rule|prompt|guideline)",
     r"reveal (?:your |the )?system prompt",
     r"\bjailbreak\b",
-    r"do anything now",
+    r"\bdo anything now\b|\bdan mode\b",
     r"pretend (?:you are|to be) (?:an ai )?(?:with no|without) restrictions",
+    r"act as (?:if you have no|an unrestricted|a dan)",
 ])
 
 

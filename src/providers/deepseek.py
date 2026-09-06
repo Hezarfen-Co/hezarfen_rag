@@ -69,7 +69,11 @@ class DeepSeek:
             data = json.loads(resp.read().decode("utf-8"))
         latency = time.time() - t0
 
-        text = data["choices"][0]["message"]["content"]
+        # content None olabilir (finish_reason=length / içerik-filtresi / yalnız-reasoning
+        # turu) → "" (aksi halde çağıran taraf _parse_citation_ns(None) vb. ile çöker).
+        # choices boşsa da güvenli boş dön (audit EXP-007).
+        choices = data.get("choices") or [{}]
+        text = (choices[0].get("message", {}) or {}).get("content") or ""
         usage = Usage.from_api(data.get("usage", {}))
         return ChatResult(text=text, usage=usage, model=self.model,
                           latency_s=latency, raw=data)

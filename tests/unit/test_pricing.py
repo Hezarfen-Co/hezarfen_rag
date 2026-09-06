@@ -20,9 +20,15 @@ class PricingTests(unittest.TestCase):
         self.assertEqual(resolve("deepseek-chat"), "deepseek-v4-flash")
         self.assertEqual(resolve("deepseek-reasoner"), "deepseek-v4-pro")
 
-    def test_unknown_model_raises(self):
-        with self.assertRaises(KeyError):
-            cost_usd("gpt-yok", Usage(output=1))
+    def test_unknown_model_warns_and_returns_zero(self):
+        # AUDIT EXP-007 R2: bilinmeyen model artık KeyError DEĞİL — uyarı + 0.0 döner
+        # (model churn üretimi/costlog'u çökertmesin). Fiyat eksikse uyarı loglanır.
+        import warnings
+        with warnings.catch_warnings(record=True) as w:
+            warnings.simplefilter("always")
+            got = cost_usd("gpt-yok", Usage(output=1))
+        self.assertEqual(got, 0.0)
+        self.assertTrue(any("bilinmeyen model" in str(x.message) for x in w))
 
     def test_usage_from_api_cache_split(self):
         u = Usage.from_api({"prompt_cache_hit_tokens": 100,

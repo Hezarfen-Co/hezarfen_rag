@@ -28,19 +28,29 @@ class BM25Index:
     def __init__(self):
         self._bm25 = None
         self._ids: list[str] = []
+        self._built = False
 
     def build(self, ids, texts):
         from rank_bm25 import BM25Okapi
+        self._ids = list(ids)
+        self._built = True
+        if not texts:                          # boş korpus → BM25Okapi([]) ZeroDivision (avgdl)
+            self._bm25 = None
+            return self
         corpus = [tokenize(t) or [_EMPTY] for t in texts]   # boş → placeholder
         self._bm25 = BM25Okapi(corpus)
-        self._ids = list(ids)
         return self
 
     def search(self, query, top_k: int = 20):
-        """(chunk_id, bm25_skoru) listesi, skor azalan."""
-        if self._bm25 is None:
+        """(chunk_id, bm25_skoru) listesi, skor azalan. Boş indeks/sorgu → []."""
+        if not self._built:
             raise RuntimeError("önce build() çağır")
-        scores = self._bm25.get_scores(tokenize(query))
+        if self._bm25 is None:                 # boş korpus build edildi → sonuç yok
+            return []
+        toks = tokenize(query)
+        if not toks:                           # boş/whitespace/simgesiz sorgu → çöp sonuç verme
+            return []
+        scores = self._bm25.get_scores(toks)
         order = np.argsort(-scores)[:top_k]
         return [(self._ids[i], float(scores[i])) for i in order]
 

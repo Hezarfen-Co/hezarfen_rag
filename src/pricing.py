@@ -73,11 +73,19 @@ class Usage:
 
 
 def cost_usd(model: str, usage: Usage, tier: str = "peak") -> float:
-    """Bir çağrının USD maliyeti. tier: 'peak' | 'offpeak'."""
+    """Bir çağrının USD maliyeti. tier: 'peak' | 'offpeak'.
+
+    Bilinmeyen model → KeyError DEĞİL: uyarı + 0.0 döner. Neden (audit EXP-007):
+    DeepSeek model kimlikleri değişebiliyor (v4/vision churn); fiyat tablosunda
+    olmayan bir model YÜZÜNDEN kullanıcının cevabını/özetini ya da costlog kaydını
+    ÇÖKERTMEK, maliyeti eksik saymaktan daha kötü. Eksik fiyatı görmek için uyarı
+    loglanır (pricing.PRICING'e eklenmeli)."""
     key = resolve(model)
     if key not in PRICING:
-        raise KeyError(f"Fiyat tablosunda model yok: {model!r} (çözülen: {key!r}). "
-                       f"pricing.PRICING'e ekle.")
+        import warnings
+        warnings.warn(f"pricing: bilinmeyen model {model!r} (çözülen {key!r}) → "
+                      f"maliyet 0.0 sayıldı; pricing.PRICING'e ekle.", stacklevel=2)
+        return 0.0
     p = PRICING[key]
     factor = OFFPEAK_FACTOR if tier == "offpeak" else 1.0
     usd = (usage.input_cache_hit * p["in_hit"]

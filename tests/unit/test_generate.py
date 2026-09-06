@@ -384,20 +384,24 @@ class CommaAndAdjacentCitationRegexTests(unittest.TestCase):
 
 
 class AllCitationsPhantomTests(unittest.TestCase):
-    """DOĞRULAYICI bulgusu #6: cevap [N] içeriyor ama HİÇBİRİ geçerli değilse
-    reason="all_citations_phantom" olmalı + hangi N'lerin hayalet olduğu
-    invalid_citations'da saklanmalı."""
+    """AUDIT EXP-007 #C1 (temellendirme bütünlüğü): cevap [N] içeriyor ama HİÇBİRİ
+    geçerli değilse → cevap KAYNAĞA BAĞLANAMAMIŞ = temellendirilmemiş → çekimser
+    kal (abstained=True), kaynak-yok cümlesi göster. reason="all_citations_phantom",
+    hayalet N'ler invalid_citations'da. (Önceden atıfsız-ama-dolu cevap sunuluyordu;
+    bu bir grounding açığıydı — audit ile kapatıldı.)"""
 
-    def test_all_citations_phantom_reason_and_invalid_list(self):
+    def test_all_citations_phantom_abstains_ungrounded(self):
         # yalnız 2 kaynak var; LLM sadece geçersiz [5] ve [7]'ye atıf yapıyor
         deepseek = _StubDeepSeek(text="Bir cevap ama [5] ve [7] numaralı kaynaklara göre.")
         gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
         result = gen.answer("DNA nedir?")
 
-        self.assertFalse(result.abstained)   # boş değil, LLM gerçek metin üretti
+        self.assertTrue(result.abstained)    # geçerli atıf yok → temellendirilmemiş → çekimser
         self.assertEqual(result.reason, "all_citations_phantom")
+        self.assertEqual(result.text, "Kaynaklarda bu bilgi bulunamadı.")
         self.assertEqual(result.citations, [])
         self.assertEqual(sorted(result.invalid_citations), [5, 7])
+        self.assertGreater(result.cost_usd, 0.0)   # LLM çağrıldı → maliyet gerçek
 
 
 class ParentTextContextTests(unittest.TestCase):

@@ -36,10 +36,10 @@ def apply_token_budget(contexts, max_tokens: int):
     kept, used = [], 0
     for ctx in contexts:
         t = approx_tokens(_ctx_text(ctx))
-        if kept and used + t > max_tokens:      # ilk context'i her zaman al
-            break
-        kept.append(ctx)
-        used += t
+        if kept and used + t > max_tokens:      # ilk context'i her zaman al;
+            continue                            # sonrakinde bütçeyi aşanı ATLA ama
+        kept.append(ctx)                        # SONRAKİ (sığan) düşük-skorluları DENE
+        used += t                               # (AUDIT #M3: eski `break` sığanları da düşürüyordu)
     return kept
 
 
