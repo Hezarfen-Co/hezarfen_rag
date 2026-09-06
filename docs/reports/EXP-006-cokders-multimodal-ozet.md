@@ -22,7 +22,20 @@
 - **[ÖNERİ] Güvenilir multimodal için sağlayıcıyı değiştir:** `VLM_BASE_URL/VLM_MODEL/VLM_API_KEY` ile **stabil bir vision API'ye** (Gemini 2.0 Flash / GPT-4o-mini) geç — sağlayıcı-bağımsız tasarım (providers/vlm.py) tam da bunun için. Kod değişmez, yalnız env.
 - **[BACKLOG]** stabil VLM ile tam-korpus caption batch (rate-limit backoff); captioning'i altyazılı/diyagram (mixed) sayfalara hedefle (figure_heavy-düşük-metin = çoğu dekoratif ayraç); özet-görsel demo stabil modelde tekrarla.
 
-## 4. Aksiyon
-- Özet çok-ders: ✅. Multimodal-özet mimari: ✅ (model kararı Kadir'de).
-- **Kadir kararı:** güvenilir multimodal için stabil VLM key'i (Gemini/GPT-4o-mini) sağlansın mı, yoksa exp-model'in aralıklı captioning'i şimdilik yeterli mi.
+## 4. ÇÖZÜM — exp-VL boş-içerik giderildi ✅ (2026-09-06)
+Kadir "exp-model yeter" dedi → sorunu exp-model içinde çözdük. Ampirik prob (`scratchpad/vl_fix_probe.py`, s.37):
+
+| Yöntem | İçerik | Not |
+|---|---|---|
+| baseline mt512 | **len=0** | reasoning=512, bug |
+| **`reasoning_effort:"none"`** | **len=2362** ✅ | reasoning kapalı, boşa token yok — SEÇİLEN |
+| `thinking:{type:disabled}` | len=2469 ✅ | alternatif |
+| max_tokens=4096 | len=3654 ✅ | çalışır ama 2038 reasoning token israf |
+| düşük dpi (110) | len=0 | işe yaramadı |
+
+**Fix (commit sonrası):** `default_captioner()` DeepSeek yolunda `extra_params={"reasoning_effort":"none"}` enjekte edilir (sağlayıcı-bağımsız kalır — VLM_* ile başka sağlayıcıda enjekte edilmez). Doğrulama: s.37 (önceden boş) artık zengin içerik + özet **diyagramı içeriyor** ("A/B pilleri şeması, Cu/Ag elektrot, tuz köprüsü, voltmetre, elektron akışı"). VLM captioning artık karmaşık diyagramda da güvenilir.
+
+## 5. Aksiyon
+- Özet çok-ders ✅ · Multimodal-özet mimari ✅ · **exp-VL boş-içerik ✅ giderildi (reasoning_effort=none).**
+- **Kalan (backlog):** tam-korpus caption batch; görsel-span atıf tam-eşleşmesi (şu an içerik var ama atıf paylaşılan sayfaya düşebiliyor — citation-granülerlik); captioning'i diyagram sayfalarına hedefleme.
 - Durum: `İNSAN İNCELEMESİ BEKLİYOR`.

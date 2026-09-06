@@ -46,12 +46,16 @@ class CaptionResult:
 
 class VLMCaptioner:
     def __init__(self, model: str | None = None, base_url: str | None = None,
-                 api_key: str | None = None, timeout: float = 120.0):
+                 api_key: str | None = None, timeout: float = 120.0,
+                 extra_params: dict | None = None):
         self.model = model or os.environ.get("VLM_MODEL")
         base = base_url or os.environ.get("VLM_BASE_URL")
         self.base_url = base.rstrip("/") if base else None
         self.timeout = timeout
         self._api_key = api_key or os.environ.get("VLM_API_KEY")
+        # İstek gövdesine eklenecek sağlayıcıya-özel parametreler (ör. DeepSeek-VL'de
+        # reasoning'i kapatmak: `{"reasoning_effort": "none"}`). Bkz. default_captioner.
+        self.extra_params = extra_params or {}
 
     def available(self) -> bool:
         """Gerçek çağrı yapılabilir mi (key + base + model tanımlı)."""
@@ -74,6 +78,7 @@ class VLMCaptioner:
                 ]}],
                 "max_tokens": max_tokens, "temperature": temperature, "stream": False,
             }
+            payload.update(self.extra_params)     # sağlayıcıya-özel (ör. reasoning_effort)
             req = urllib.request.Request(
                 f"{self.base_url}/chat/completions",
                 data=json.dumps(payload).encode("utf-8"),
@@ -110,6 +115,10 @@ def default_captioner(timeout: float = 120.0) -> VLMCaptioner:
         return VLMCaptioner(timeout=timeout)
     dk = os.environ.get("DEEPSEEK_API_KEY")
     if dk:
+        # reasoning_effort=none: exp-VL yoğun diyagramda tüm bütçeyi reasoning'e
+        # harcayıp boş içerik döndürüyordu (EXP-006); reasoning'i kapatınca içerik
+        # doğrudan gelir + boşa token yok (ampirik doğrulandı, vl_fix_probe).
         return VLMCaptioner(model=DEEPSEEK_VISION_MODEL, base_url=DEEPSEEK_BASE,
-                            api_key=dk, timeout=timeout)
+                            api_key=dk, timeout=timeout,
+                            extra_params={"reasoning_effort": "none"})
     return VLMCaptioner()
