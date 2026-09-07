@@ -29,7 +29,16 @@
 | C2 | MED | summarizer: LLM "içerik yok" dönerse abstained=False kalıyordu | `abstained=True` |
 | K2 | MED | SQLiteCache `set(ttl<=0)` eski değeri bırakıyordu (stale hit) | `delete` |
 
-## 3. BACKLOG (doğrulandı, düzeltilmedi — GitHub issue) — riskli/tasarım gerektiren
+## 3. BACKLOG → ✅ HEPSİ ÇÖZÜLDÜ (2026-09-07, #26-#31 kapandı)
+Aşağıdaki maddeler ikinci bir turda düzeltildi (her biri test'li, `Closes #N`):
+- **#26** (c5b63b2): visuals `get_drawings` (vektör) → figure_heavy tetikleniyor.
+- **#27**: ingest TR-caption + LABEL punct-gate + tam-genişlik sıra + meta-başlık geniş tarama (**core#5 isolate over-match güvenlik-gereği REDDEDİLDİ** — izolasyonu gevşetmek 'yasaklı retrieval=0' kapısını tehdit eder).
+- **#28**: costlog dosya-kilidi (id-yarışı) + atomik render + eksik-satır savunması.
+- **#29**: eval runner per-item guard + dürüst maliyet-etiketi + judge per-metrik-n; runner/judge/costlog testleri (0-test'ti).
+- **#30**: summarizer RAPTOR-proper özyineleme + cache corpus_version.
+- **#31**: classifier anahtar-yok uyarısı + kaynak fenced-delimit + require_role strict mod.
+
+Aşağıdaki liste bu maddelerin ÖZGÜN bulgu tanımıdır (tarihsel):
 - **[multimodal] `visuals.py` yalnız raster (`get_image_info`) ölçüyor, VEKTÖR diyagramları görmüyor** → figure_heavy vektör-diyagram sayfalarında tetiklenmiyor (captioning hedefi kaçıyor; exp006b'de "dekoratif" adaylar bunun belirtisiydi). `get_drawings` eklenmeli. (core#2, HIGH-etkili)
 - **[ingest kalite] içerik-kaybı/yanlış-sınıflama:** LABEL ≤14-char kısa blokları düşürüyor (core#3); 2-sütun tam-genişlik başlık okuma-sırasını bozuyor (core#4); isolate assessment/option over-match meşru içeriği düşürüyor (core#5); page-meta izolasyonu yalnız HEADER/HEADING tarıyor → yanlış-sınıf başlıkta cevap-anahtarı sızabilir (core#6, güvenlik-ilişkili); `classify` TR-güvensiz `.lower()` → ŞEKİL/RESİM caption'ı kaçırır (core#7).
 - **[ops] costlog eşzamanlılık:** kilitsiz read-modify-write → duplicate run_id + Maliyet.md yarım-yazma (eval#1); render her record'da O(n) (eval#10). Dosya-kilidi + atomik replace.
@@ -39,7 +48,9 @@
 - **[safety] classifier API-key yokken fail-open** (bonus katman sessiz no-op; tasarım gereği ama uyarı gerekir); indirect-injection için kaynak-metni fenced-delimit (prompt sertleştirmesi yapıldı, tam izolasyon backlog).
 
 ## 4. Aksiyon
-- Fix batch commit `aeee583` + testler.
-- Backlog GitHub issue'ları açıldı: **#26** (multimodal vektör-diyagram) · **#27** (ingest içerik-kaybı/sınıflama) · **#28** (costlog eşzamanlılık) · **#29** (eval runner/judge/costlog + 0-test) · **#30** (summarizer özyineleme + cache versiyon) · **#31** (kalan guard sertleştirme).
+- 1. tur fix batch `aeee583` + testler (17 fix). 2. tur: #26-#31 tamamı çözüldü (c5b63b2 … ) + ~29 yeni test.
+- **Tüm denetim bulguları kapatıldı** (17 acil + 6 backlog issue). 382 unit testi yeşil.
+- Kabul edilen tek "düzeltmeme" kararı: **#27 core#5** (isolate over-match) — güvenlik-öncelik (izolasyon gevşetilmez).
+- Kalan (küçük, ayrı): judge.py DeepEval `LLMTestCaseParams` DeprecationWarning (kütüphane API drift) — işlevi etkilemiyor.
 - **Golden set gözlemi:** üç gold TASLAK (bio v1.1 + kimya/fizik) hâlâ Kadir onayı bekliyor; costlog/runner/judge test-boşluğu kapatılmalı.
 - Durum: `İNSAN İNCELEMESİ BEKLİYOR`.
