@@ -30,6 +30,10 @@ from ..providers.deepseek import DeepSeek
 from ..rerank.pipeline import rerank_select
 from .prompt import ABSTAIN_SENTENCE, build_grounded_prompt
 
+# answer(role_ctx=...) için sentinel: "verilmedi → __init__'teki role_ctx'i kullan"
+# (None geçerli bir değer: 'rol yok' demek, o yüzden None ile ayrılmalı).
+_USE_INIT_ROLE = object()
+
 # Parantez içini yakalar ("1", "1, 2", "1,2" ...); virgül/boşlukla ayrılmış çoklu
 # atıfları TEK eşleşmede yakalamak için [\d,\s]+ kullanılır — [1][2] ve [1] [2]
 # gibi bitişik/ayrı parantezler ise doğal olarak iki ayrı eşleşme üretir.
@@ -245,18 +249,23 @@ class Generator:
         return None
 
     def answer(self, query: str, *, history=None, top_n: int = 6, candidate_n: int = 40,
-               max_tokens: int = 700, temperature: float = 0.2, trace=None) -> GroundedAnswer:
+               max_tokens: int = 700, temperature: float = 0.2, trace=None,
+               role_ctx=_USE_INIT_ROLE) -> GroundedAnswer:
         # trace (opsiyonel, #18): karar izi + adım süreleri. None ise ek maliyet YOK.
         def _tr(name, **m):
             if trace is not None:
                 trace.event(name, **m)
+        # role_ctx istek-başına override (#2 servis çok-kiracılı): verilmezse __init__'teki
+        # kullanılır (mevcut davranış). Verilirse retrieval + kasa izolasyonu + cache
+        # anahtarı O role'e göre → tek Generator örneği farklı rollere hizmet edebilir.
+        eff_role = self.role_ctx if role_ctx is _USE_INIT_ROLE else role_ctx
         # GUARDRAIL (Faz 1.7b) — EN BAŞTA: zararlı-içerik/injection ise LLM'i
         # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
         # input_guard.py). reason="guard_<kategori>" — çağıran taraf hangi
         # guardrail kategorisinin tetiklendiğini ayırt edebilir.
         # STRICT çok-kiracılı mod (AUDIT #31): role_ctx zorunluysa ve yoksa FAIL-CLOSED
         # (filtresiz retrieval ile kasa sızıntısındansa hiç cevap verme).
-        if self.require_role and self.role_ctx is None:
+        if self.require_role and eff_role is None:
             _tr("decision", stage="role_required", abstained=True, reason="role_required")
             return self._abstain("role_required")
 
@@ -297,7 +306,7 @@ class Generator:
 
         cache_kwargs = None
         if self.response_cache is not None:
-            cache_kwargs = dict(query=q, role=_role_cache_key(self.role_ctx),
+            cache_kwargs = dict(query=q, role=_role_cache_key(eff_role),
                                 model=getattr(self.deepseek, "model", ""),
                                 top_n=top_n, candidate_n=candidate_n, ders=self.ders,
                                 corpus_version=self.corpus_version)
@@ -312,8 +321,8 @@ class Generator:
         # KASA İZOLASYONU: role_ctx varsa retriever'a geçir (yetkisiz sınıf/ders
         # elenir, bkz. src/retrieve/hybrid.py). role_ctx yoksa eski çağrı (stub/
         # tek-kasa backward-compat).
-        if self.role_ctx is not None:
-            hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=self.role_ctx)
+        if eff_role is not None:
+            hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=eff_role)
         else:
             hits = self.retriever.retrieve(q, top_k=candidate_n)
         contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
