@@ -97,7 +97,7 @@ def units_from_parsed(doc: ParsedDoc, *, doc_id: str, sinif: str, ders: str,
 
 def build_canonical(path: str, sinif: str, ders: str, *,
                     kaynak_turu: str = "ders_kitabi", ocr: bool = False,
-                    vlm: bool = False, captioner=None) -> CanonicalDoc:
+                    vlm: bool = False, captioner=None, distill: bool = False) -> CanonicalDoc:
     """PDF → kanonik doküman (parse + izolasyon + normalize + görsel sınıfı + metadata).
 
     `ocr=True` (Faz 0.8): text-layer'ı boş taranmış/görüntü sayfalar Tesseract ile
@@ -115,6 +115,9 @@ def build_canonical(path: str, sinif: str, ders: str, *,
     page_visual = {pv.page: pv.klass for pv in vis["pages"]}
     units = units_from_parsed(parsed, doc_id=doc_id, sinif=sinif, ders=ders,
                               kaynak_turu=kaynak_turu, page_visual=page_visual)
+    if distill:                                          # #8: tekrar/near-duplicate ayıkla
+        from .distill import distill_units
+        units, _ = distill_units(units)
     if vlm:
         from .visual_caption import caption_visual_units, merge_visual_units
         if captioner is None:
