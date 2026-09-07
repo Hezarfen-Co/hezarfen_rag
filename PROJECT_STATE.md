@@ -38,7 +38,7 @@
 
 ## 3. Çalıştırma ve Doğrulama
 - **Ortam:** `.venv` (proje-yerel), GPU torch cu124 (RTX 4060, cuda doğrulandı). Modeller: BGE-M3 (embed) + BGE-reranker-v2-m3 (rerank), GPU. `DEEPSEEK_API_KEY` `.env`'de.
-- **Testler:** `python -m pytest -q` → **316 birim testi yeşil**. Değerlendirme: `python -m src.eval.runner` (golden set'e karşı; `GOLDEN_PATH` ile override).
+- **Testler:** `python -m pytest -q` → **419 unit + integration + e2e yeşil**. Değerlendirme: `python -m src.eval.runner` (golden set'e karşı; `GOLDEN_PATH` ile override).
 - **Servis girişi:** henüz kütüphane (Generator/Summarizer import edilir); QUIC/HTTP endpoint + kalıcı Qdrant Faz-1-sonrası (bkz. `docs/API-CONTRACT.md`). Kök `../compose.yaml`'da `rag` servisi henüz YOK.
 
 ## 4. Mimari Özet
@@ -60,12 +60,12 @@ flowchart LR
 ## 5. Teknik Kararlar
 - **D1** — RAG kaynağı sıfırdan yükleme alanı GEREKMEZ: `course-notes` (öğretmen→kayıtlı-öğrenci, dosya ekli) doğal korpustur. **kabul edildi** (backend/frontend main'de doğrulandı 2026-08-16). ⚠️ **Çelişki düzeltmesi:** bu oturumun erken RAG cevabı "böyle bir alan yok" idi; o cevap course-notes eklenmeden önceki duruma aitti ve **artık geçersiz** — doğrulanmış gerçek: alan VAR.
 - **D2** — Retrieval/embedding/vektör-store/LLM: **KARAR VERİLDİ** — hibrit (dense BGE-M3 + BM25) RRF + BGE-reranker-v2-m3; vektör-store Qdrant (şu an embedded, üretimde kalıcı); generatör DeepSeek (fine-tuning YOK). **kabul edildi + uygulandı + ölçüldü**.
-- **D3** — Köprü mü / kendi HTTP API'si mi: **AÇIK** (Kadir kararı). Sözleşme hazır (`docs/API-CONTRACT.md`); QUIC-capability `rag.reply` varsayımı güçlü ama doğrulanmadı.
+- **D3** — Servis transport: **KARAR VERİLDİ = ayrı HTTP servisi** (Kadir: 'kendi repomuzda backend-hazır'). Uygulandı: `src/service/http_app.py` (FastAPI, API-CONTRACT.md endpoint'leri), canlı smoke OK. Backend bu HTTP'yi çağırır; QUIC-köprü alternatifi backend'e kalır.
 
 ## 6. Aktif Görev
 - **ID:** TASK-RAG-CHECKPOINT
 - **Amaç:** non-blocked optimizasyon kalemleri tamamlandı; Kadir'in yön/onayı bekleniyor.
-- **Kabul kriterleri:** karşılandı — uçtan uca boru hattı + 200-item ölçüm + 316 test yeşil + endpoint sözleşmesi.
+- **Kabul kriterleri:** karşılandı — uçtan uca boru hattı + 200-item ölçüm + 419 test yeşil + endpoint sözleşmesi.
 - **Gerçek test sonucu:** §1 (recall@20 0.96, faithfulness 0.99, guardrail 33/33·12/12, kasa 0-sızıntı).
 - **Durum:** `KADİR ONAYI/YÖNÜ BEKLİYOR` — non-blocked iş kalmadı; diminishing returns veri-onaylı.
 - **Sonraki kesin işlem:** Kadir yön versin (aşağı §10 menü) VEYA iki bekleyeni çözsün (golden v1.1 onayı + kriz-hattı no'su).
