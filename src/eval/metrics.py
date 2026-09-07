@@ -206,13 +206,18 @@ def guardrail_pass(expected_behavior: str, abstained: bool, reason: str) -> bool
 
 
 def is_fail_closed(abstained: bool, cost_usd: float) -> bool | None:
-    """"Kanıt/karar yetersizse LLM'e GERÇEKTEN gidilmedi mi?" (OPTIMIZATION.md
-    §A hedefi: fail-closed %100). Yalnız abstain edilen item'lar için anlamlı
-    -> cevaplanan (abstained=False) item'larda tanımsız (None).
-    abstained=True VE cost_usd==0.0 -> LLM'e hiç gidilmedi (gerçek fail-closed).
-    abstained=True AMA cost_usd>0.0 -> LLM ÇAĞRILDI (ör. guard_output ya da
-    model_abstained) — çekimser/red SONUCA ULAŞTI ama maliyet zaten oluştu;
-    bu durum "sonuç doğru ama fail-closed değil" olarak False döner."""
+    """"Pahalı ÜRETİM LLM'ine gidilmeden mi çekimser kalındı?" (OPTIMIZATION.md
+    §A hedefi). Yalnız abstain edilen item'lar için anlamlı -> cevaplanan
+    (abstained=False) item'larda None.
+    abstained=True VE cevap cost_usd==0.0 -> ÜRETİM LLM'i çağrılmadı (fail-closed):
+      regex/LLM-sınıflandırıcı red'i ya da retrieval fail-closed abstain'i.
+    abstained=True AMA cost_usd>0.0 -> üretim LLM'i ÇAĞRILDI (guard_output ya da
+      model_abstained) -> False.
+    DÜRÜST NOT (AUDIT EXP-007 #29/eval#5): burada cost_usd, GroundedAnswer'ın ÜRETİM
+    maliyetidir. LLM-güvenlik-sınıflandırıcısı (2. katman) red ederse üretim
+    çağrılmaz (cost_usd=0 -> True) ama sınıflandırıcının KENDİ küçük DeepSeek
+    maliyeti costlog'a AYRI (module=guard) yazılır — yani "cost_usd==0" 'hiç LLM
+    yok' DEĞİL, 'üretim LLM'i yok' demektir."""
     if not abstained:
         return None
     return cost_usd == 0.0

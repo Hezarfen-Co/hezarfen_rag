@@ -257,6 +257,27 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
     }
 
 
+def _failed_item(item: dict, exc: Exception) -> dict:
+    """AUDIT EXP-007 #29/eval#4: bir golden item değerlendirilirken hata olursa
+    (eksik alan, pipeline hatası) TÜM run'ı düşürme — hatayı bu item'a kaydet,
+    aggregate ile uyumlu boş-metrik iskeleti dön, döngü devam etsin."""
+    return {
+        "id": item.get("id", "?"), "kategori": item.get("kategori", "?"),
+        "unite": item.get("unite"), "kazanim_kod": item.get("kazanim_kod"),
+        "critical": bool(item.get("critical")),
+        "beklenen_davranis": item.get("beklenen_davranis", "?"),
+        "zararli_kategori": item.get("zararli_kategori"),
+        "soru": item.get("soru", ""),
+        "retrieval": {}, "citation": {},
+        "guardrail": {"passed": None, "fail_closed": None, "abstained": None, "reason": "eval_error"},
+        "generation": {"text": "", "abstained": None,
+                       "reason": f"eval_error: {type(exc).__name__}", "n_citations": 0,
+                       "invalid_citations": [], "cost_usd": 0.0, "latency_s": 0.0},
+        "judge": None,
+        "error": f"{type(exc).__name__}: {exc}",
+    }
+
+
 # --------------------------------------------------------------------------
 # Aggregate + rapor
 # --------------------------------------------------------------------------
@@ -280,9 +301,17 @@ def _aggregate(subset: list[dict]) -> dict:
     judged = [it["judge"] for it in subset if it["judge"] and not it["judge"].get("skipped")]
     judge_agg = {k: M.mean([j.get(k) for j in judged]) for k in _JUDGE_KEYS}
     judge_agg["n_judged"] = len(judged)
+    # AUDIT EXP-007 #29/eval#6: mean() None'ları düşürür → "faithfulness (n=N)" ama
+    # ortalama gerçekte < N item üzerinden olabilir (judge hatası → skor None ama
+    # skipped değil → judged'da kalır). Her metrik için KATKI VEREN (None-olmayan)
+    # sayıyı + hakem-hata sayısını AYRI raporla (survivorship pass-bias görünür olsun).
+    for k in _JUDGE_KEYS:
+        judge_agg[k + "_n"] = sum(1 for j in judged if j.get(k) is not None)
+    judge_agg["n_errors"] = sum(1 for j in judged if j.get("errors"))
     return {"n": n, "retrieval": retrieval, "citation": citation,
            "guardrail_pass_rate": guardrail_pass_rate, "n_guardrail_applicable": len(guardrail_vals),
            "fail_closed_rate": fail_closed_rate, "n_abstained": len(fc_vals),
+           "n_errors": sum(1 for it in subset if it.get("error")),
            "judge": judge_agg}
 
 
@@ -292,6 +321,8 @@ def _weakness_score(it: dict) -> float:
     hatasi her zaman en kritik zayifliktir. Aksi halde mevcut (None olmayan)
     kalite sinyallerinin ortalamasi (retrieval recall@20, citation recall,
     faithfulness, answer_correctness)."""
+    if it.get("error"):                 # #29: değerlendirilemeyen item en zayıf (görünür kalsın)
+        return 0.0
     g = it["guardrail"]["passed"]
     if g is False:
         return 0.0
@@ -329,7 +360,9 @@ def _md_report(golden: dict, items_out: list[dict], overall: dict, by_category: 
     lines.append(f"- Item sayisi: {len(items_out)}")
     lines.append(f"- LLM-hakem yontemi: **{judge_method}** (DeepEval kutuphanesi + DeepSeek custom judge model)")
     lines.append(f"- LLM-hakem uygulanan item'lar ({len(judge_ids)}): {', '.join(sorted(judge_ids))}")
-    lines.append(f"- Toplam GERCEK DeepSeek maliyeti (bu eval kosusu, uretim+hakem): ${total_cost_usd:.6f}")
+    lines.append(f"- DeepSeek maliyeti (bu eval kosusu, URETIM + HAKEM): ${total_cost_usd:.6f} "
+                f"— NOT: guard LLM-siniflandirici + history-rewrite cagrilarinin maliyeti "
+                f"costlog'da AYRI (module=guard/memory); bu toplam yalniz uretim+hakem'dir (#29).")
     lines.append("")
 
     lines.append("## Genel (tum item'lar)")
@@ -393,9 +426,14 @@ def _aggregate_table(agg: dict) -> str:
     lines.append(f"| citation recall | {_fmt(c.get('recall'))} |")
     lines.append(f"| guardrail pass-rate (n={agg['n_guardrail_applicable']}) | {_fmt(agg['guardrail_pass_rate'])} |")
     lines.append(f"| fail-closed orani (n={agg['n_abstained']} abstain) | {_fmt(agg['fail_closed_rate'])} |")
-    lines.append(f"| faithfulness (n={j['n_judged']}) | {_fmt(j.get('faithfulness'))} |")
-    lines.append(f"| answer_relevancy (n={j['n_judged']}) | {_fmt(j.get('answer_relevancy'))} |")
-    lines.append(f"| answer_correctness (n={j['n_judged']}) | {_fmt(j.get('answer_correctness'))} |")
+    # per-metrik n = ortalamaya KATKI VEREN item (hakem hatası olanlar hariç, #29)
+    lines.append(f"| faithfulness (n={j.get('faithfulness_n', j['n_judged'])}) | {_fmt(j.get('faithfulness'))} |")
+    lines.append(f"| answer_relevancy (n={j.get('answer_relevancy_n', j['n_judged'])}) | {_fmt(j.get('answer_relevancy'))} |")
+    lines.append(f"| answer_correctness (n={j.get('answer_correctness_n', j['n_judged'])}) | {_fmt(j.get('answer_correctness'))} |")
+    if j.get("n_errors"):
+        lines.append(f"| ⚠ hakem-hatası item | {j['n_errors']} (skor None → ortalamaya girmedi) |")
+    if agg.get("n_errors"):
+        lines.append(f"| ⚠ değerlendirilemeyen item (eval_error) | {agg['n_errors']} |")
     return "\n".join(lines)
 
 
@@ -419,8 +457,12 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
 
     items_out = []
     for i, item in enumerate(items, start=1):
-        print(f"[eval] ({i}/{len(items)}) {item['id']}: {item['soru'][:70]!r}")
-        it_out = _eval_item(item, pipeline, judge, judge_ids)
+        print(f"[eval] ({i}/{len(items)}) {item.get('id','?')}: {str(item.get('soru',''))[:70]!r}")
+        try:
+            it_out = _eval_item(item, pipeline, judge, judge_ids)
+        except Exception as e:                       # #29: tek bozuk item run'ı düşürmesin
+            print(f"       !! HATA ({type(e).__name__}: {e}) -- item atlandı, run devam")
+            it_out = _failed_item(item, e)
         items_out.append(it_out)
         print(f"       -> abstained={it_out['generation']['abstained']} "
              f"reason={it_out['generation']['reason']!r} "
@@ -463,7 +505,7 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
 
     print(f"\n[eval] TAMAM ({elapsed_s:.1f}s). JSON: {json_path}")
     print(f"[eval] MD: {md_path}")
-    print(f"[eval] toplam gercek DeepSeek maliyeti (bu kosuda): ${total_cost_usd:.6f}")
+    print(f"[eval] DeepSeek maliyeti (uretim+hakem; guard/rewrite costlog'da ayri): ${total_cost_usd:.6f}")
     return payload
 
 
