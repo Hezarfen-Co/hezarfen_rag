@@ -119,6 +119,42 @@ class CacheTtlZeroDeletesTests(unittest.TestCase):
         self.assertIsNone(c.get("k"))
 
 
+class SummarizerRecursionTests(unittest.TestCase):
+    """#30/M6: çok grup → özyinelemeli birleştirme (hiçbir merge > max_units_per_group)."""
+    class _Chat:
+        def __init__(s, t): s.text = t; s.model = "deepseek-chat"; \
+            s.usage = Usage(output=2); s.latency_s = 0.0
+    class _DS:
+        def __init__(s): s.calls = 0
+        def chat(s, *a, **k): s.calls += 1; return SummarizerRecursionTests._Chat("Ara/özet [1].")
+    def _units(self, n):
+        return [CanonicalUnit(span_id=f"d#{i}.0", doc_id="d", sinif="12", ders="biyoloji",
+                              kaynak_turu="ders_kitabi", page=i, bbox=(0, 0, 1, 1), block_no=0,
+                              kind="paragraph", text=f"birim {i}", page_visual="mixed",
+                              retrieval_disi=False) for i in range(1, n + 1)]
+    def test_recursive_merge_multi_level(self):
+        ds = self._DS()
+        s = Summarizer(deepseek=ds, cost_recorder=lambda **k: None, max_units_per_group=2)
+        res = s.summarize(self._units(5), scope_label="x")     # 5 birim, grup=2 → 3 leaf → çok seviye
+        self.assertTrue(res.hierarchical)
+        self.assertEqual(res.n_source_units, 5)
+        self.assertEqual(res.scope_pages, [1, 2, 3, 4, 5])
+        self.assertTrue(res.citations)                          # atıf leaf'ten yukarı taşındı
+        self.assertGreater(ds.calls, 3)                         # leaf(3) + merge seviyeleri → >3
+
+
+class CacheCorpusVersionTests(unittest.TestCase):
+    """#30/M2: corpus_version anahtara girer → re-ingest sonrası stale hit yok."""
+    def test_different_version_misses(self):
+        from src.cache.response_cache import canonical_key, ResponseCache
+        self.assertNotEqual(canonical_key(query="q", corpus_version="v1"),
+                            canonical_key(query="q", corpus_version="v2"))
+        rc = ResponseCache(SQLiteCache())
+        rc.set("ANS", query="q", corpus_version="v1")
+        self.assertEqual(rc.get(query="q", corpus_version="v1"), "ANS")
+        self.assertIsNone(rc.get(query="q", corpus_version="v2"))   # farklı sürüm → miss
+
+
 class SummarizerLlmNoContentTests(unittest.TestCase):
     """#C2: LLM 'içerik yok' cümlesi dönerse abstained=True."""
     def test_llm_no_content_abstains(self):

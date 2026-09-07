@@ -160,7 +160,7 @@ class Generator:
                  cost_recorder=None, role_ctx=None, response_cache=None,
                  safety_classifier=None, context_packing: bool = False,
                  context_max_tokens: int = 8000, context_reorder: bool = True,
-                 rewriter=None):
+                 rewriter=None, corpus_version: str = ""):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -202,6 +202,9 @@ class Generator:
         # src/memory/history_rewrite.py). None ise/geçmiş yoksa atlanır. Duck-typed:
         # .rewrite(history, query) -> str.
         self.rewriter = rewriter
+        # Kaynak/indeks sürümü (AUDIT #30/M2): cache anahtarına girer → re-ingest
+        # sonrası eski cevap dönmesin. Boş "" ise cache davranışı öncekiyle aynı.
+        self.corpus_version = corpus_version
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -280,7 +283,8 @@ class Generator:
         if self.response_cache is not None:
             cache_kwargs = dict(query=q, role=_role_cache_key(self.role_ctx),
                                 model=getattr(self.deepseek, "model", ""),
-                                top_n=top_n, candidate_n=candidate_n, ders=self.ders)
+                                top_n=top_n, candidate_n=candidate_n, ders=self.ders,
+                                corpus_version=self.corpus_version)
             cached = self.response_cache.get(**cache_kwargs)
             if cached is not None:
                 self.cache_hits += 1

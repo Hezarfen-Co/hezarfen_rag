@@ -187,60 +187,68 @@ class Summarizer:
 
     # ----------------------------------------------------------------- hiyerarşik
 
-    def _summarize_hierarchical(self, units: list[CanonicalUnit], *, scope_label: str,
-                                max_tokens: int, temperature: float) -> GroundedSummary:
-        """RAPTOR-benzeri: birimleri okuma-sırası koruyarak gruplara böl, her grubu
-        AYRI özetle (ara-özet), sonra ara-özetleri BİRLEŞTİRİP nihai detaylı özeti
-        üret. Her gerçek DeepSeek çağrısı (grup + birleştirme) ayrı costlog kaydı
-        alır; `GroundedSummary.cost_usd` bunların bağımsız (pricing.cost_usd ile
-        yeniden hesaplanmış) toplamıdır."""
-        groups = _chunk_list(units, self.max_units_per_group)
-        group_summaries: list[GroundedSummary] = [
-            self._summarize_single_pass(g, scope_label=scope_label, max_tokens=max_tokens,
-                                        temperature=temperature, hierarchical=True)
-            for g in groups
-        ]
-
-        # Ara-özetleri "kaynak" olarak numaralayıp birleştirme promptu kur. Nihai
-        # metindeki [N] artık N'inci ARA-ÖZETE işaret eder; o ara-özetin KENDİ
-        # atıflarındaki ham leaf span_id/sayfa'lar aşağıda nihai atıfa TAŞINIR
-        # (atıf ham leaf span'da kalır, mimari §0.1) — merge adımı asla yeni bir
-        # span/sayfa UYDURMAZ.
+    def _merge_summaries(self, summaries: list[GroundedSummary], *, scope_label: str,
+                         max_tokens: int, temperature: float) -> GroundedSummary:
+        """Ara-özet listesini TEK DeepSeek çağrısıyla birleştir. Nihai metindeki [N]
+        i'inci ara-özete işaret eder; o ara-özetin atıflarındaki ham leaf span_id/
+        sayfa'lar nihai atıfa AYNEN taşınır (atıf leaf'te kalır, mimari §0.1 — merge
+        yeni span/sayfa UYDURMAZ). Boş-kanıtlı ara-özetler atıfta atlanır (sahte yok)."""
         merge_blocks = []
         merge_lookup: dict[int, dict] = {}
-        for i, gs in enumerate(group_summaries, start=1):
+        for i, gs in enumerate(summaries, start=1):
             merge_blocks.append({"n": i, "page": _format_pages(gs.scope_pages), "text": gs.text})
             span_ids = sorted({sid for c in gs.citations for sid in c["span_ids"]})
             pages = sorted({p for c in gs.citations for p in c["pages"]})
             merge_lookup[i] = {"span_ids": span_ids, "pages": pages}
-
         system, user = build_summary_prompt(merge_blocks, scope_label)
         result = self.deepseek.chat(user, system=system, temperature=temperature,
                                     max_tokens=max_tokens)
-
-        # KANITLI ÖZET bütünlüğü: nihai özet TÜM ara-özetlerin sentezidir; bu yüzden
-        # atıf listesi = kanıt üreten HER grubun span/sayfaları (yalnız merge-LLM'in
-        # [N]'lediği 1-2 grup DEĞİL — o yaklaşım evidence'ı eksik gösteriyordu: v1
-        # testinde 143 birim/12 grup için sadece 2 atıf, biri boştu). Boş-kanıtlı
-        # gruplar atlanır (sahte atıf yok). inline [N] hâlâ grup N'e karşılık gelir
-        # (n=i tutarlı). Atıf ham leaf span'da kalır (mimari §0.1).
-        citations = []
-        for i, src in merge_lookup.items():
-            if src["span_ids"] or src["pages"]:
-                citations.append({"n": i, "span_ids": src["span_ids"], "pages": src["pages"]})
-
-        usd_merge = pricing_cost_usd(result.model, result.usage)
-        self._record_call(usage=result.usage, model=result.model, n_items=len(group_summaries),
-                          note=f"özet hiyerarşik-birleştirme: {len(group_summaries)} ara-özet "
-                               f"({len(units)} kaynak birimi)")
-
-        all_usages = [gs.usage for gs in group_summaries if gs.usage is not None]
-        all_usages.append(result.usage)
-        total_cost = sum(gs.cost_usd for gs in group_summaries) + usd_merge
-        total_latency = sum(gs.latency_s for gs in group_summaries) + result.latency_s
-        scope_pages = sorted({u.page for u in units})
-
+        citations = [{"n": i, "span_ids": src["span_ids"], "pages": src["pages"]}
+                     for i, src in merge_lookup.items() if src["span_ids"] or src["pages"]]
+        usd = pricing_cost_usd(result.model, result.usage)
+        self._record_call(usage=result.usage, model=result.model, n_items=len(summaries),
+                          note=f"özet hiyerarşik-birleştirme: {len(summaries)} ara-özet")
+        scope_pages = sorted({p for gs in summaries for p in gs.scope_pages})
         return GroundedSummary(text=result.text, citations=citations, scope_pages=scope_pages,
+                               n_source_units=sum(gs.n_source_units for gs in summaries),
+                               abstained=False, reason="", usage=result.usage,
+                               cost_usd=usd, latency_s=result.latency_s, hierarchical=True)
+
+    def _summarize_hierarchical(self, units: list[CanonicalUnit], *, scope_label: str,
+                                max_tokens: int, temperature: float) -> GroundedSummary:
+        """RAPTOR-proper (ÖZYİNELEMELİ, AUDIT EXP-007 #30/M6): birimleri gruplara böl →
+        her grubu ara-özetle → ara-özet sayısı `max_units_per_group`'u AŞTIĞI sürece
+        onları da gruplayıp özyinelemeli birleştir → tek nihai özet. Böylece HİÇBİR
+        birleştirme çağrısı `max_units_per_group`'tan fazla blok almaz (eskiden tek
+        merge tüm grupları alıyordu → çok büyük kapsamda context taşması riski).
+        Maliyet/usage/latency TÜM seviyelerin toplamıdır; atıf her seviyede leaf'te kalır."""
+        mupg = self.max_units_per_group
+        groups = _chunk_list(units, mupg)
+        level: list[GroundedSummary] = [
+            self._summarize_single_pass(g, scope_label=scope_label, max_tokens=max_tokens,
+                                        temperature=temperature, hierarchical=True)
+            for g in groups
+        ]
+        all_usages = [gs.usage for gs in level if gs.usage is not None]
+        total_cost = sum(gs.cost_usd for gs in level)
+        total_latency = sum(gs.latency_s for gs in level)
+
+        # ara-özet sayısı 1'e inene dek özyinelemeli birleştir (her turda ≤ mupg'lik gruplar)
+        while len(level) > 1:
+            new_level: list[GroundedSummary] = []
+            for chunk in _chunk_list(level, mupg):
+                merged = self._merge_summaries(chunk, scope_label=scope_label,
+                                               max_tokens=max_tokens, temperature=temperature)
+                new_level.append(merged)
+                if merged.usage is not None:
+                    all_usages.append(merged.usage)
+                total_cost += merged.cost_usd
+                total_latency += merged.latency_s
+            level = new_level
+
+        final = level[0]
+        return GroundedSummary(text=final.text, citations=final.citations,
+                               scope_pages=sorted({u.page for u in units}),
                                n_source_units=len(units), abstained=False, reason="",
                                usage=_sum_usage(all_usages), cost_usd=total_cost,
                                latency_s=total_latency, hierarchical=True)
