@@ -245,7 +245,11 @@ class Generator:
         return None
 
     def answer(self, query: str, *, history=None, top_n: int = 6, candidate_n: int = 40,
-               max_tokens: int = 700, temperature: float = 0.2) -> GroundedAnswer:
+               max_tokens: int = 700, temperature: float = 0.2, trace=None) -> GroundedAnswer:
+        # trace (opsiyonel, #18): karar izi + adım süreleri. None ise ek maliyet YOK.
+        def _tr(name, **m):
+            if trace is not None:
+                trace.event(name, **m)
         # GUARDRAIL (Faz 1.7b) — EN BAŞTA: zararlı-içerik/injection ise LLM'i
         # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
         # input_guard.py). reason="guard_<kategori>" — çağıran taraf hangi
@@ -253,12 +257,14 @@ class Generator:
         # STRICT çok-kiracılı mod (AUDIT #31): role_ctx zorunluysa ve yoksa FAIL-CLOSED
         # (filtresiz retrieval ile kasa sızıntısındansa hiç cevap verme).
         if self.require_role and self.role_ctx is None:
+            _tr("decision", stage="role_required", abstained=True, reason="role_required")
             return self._abstain("role_required")
 
         # İki katman (regex check_input + opsiyonel LLM-sınıflandırıcı) ORİJİNAL
         # sorguda: zararlı/injection ise LLM'i HİÇ çağırmadan red. reason="guard_<kat>".
         gv = self._guard_query(query)
         if gv is not None:
+            _tr("decision", stage="guard", abstained=True, reason=f"guard_{gv.category}")
             return self._guard_refuse(gv)
 
         # CACHE (Faz — maliyet optimizasyonu, opsiyonel) — guard'dan SONRA,
@@ -299,6 +305,8 @@ class Generator:
             if cached is not None:
                 self.cache_hits += 1
                 self.cache_saved_usd += cached.cost_usd
+                _tr("decision", stage="cache", abstained=cached.abstained,
+                    reason=cached.reason, cache_hit=True)
                 return replace(cached, cache_hit=True, cost_usd=0.0, latency_s=0.0)
 
         # KASA İZOLASYONU: role_ctx varsa retriever'a geçir (yetkisiz sınıf/ders
@@ -310,10 +318,14 @@ class Generator:
             hits = self.retriever.retrieve(q, top_k=candidate_n)
         contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
+        _tr("retrieve", n_hits=len(hits), n_contexts=len(contexts),
+            top_score=round(contexts[0].score, 4) if contexts else None,
+            abstain_score=self.abstain_score)
 
         # FAIL-CLOSED: bağlam yok VEYA en iyi rerank skoru eşik altında → LLM ÇAĞIRMA.
         # (skor-azalan sıra üzerinde kontrol — packing'den ÖNCE)
         if not contexts or contexts[0].score < self.abstain_score:
+            _tr("decision", stage="fail_closed", abstained=True, reason="insufficient_data")
             return self._abstain("insufficient_data")
 
         # CONTEXT ENGINEERING (opsiyonel): token bütçesi + lost-in-the-middle sıralama
@@ -409,6 +421,8 @@ class Generator:
                                       invalid_citations=invalid_citations, abstained=False,
                                       reason=reason, usage=result.usage, cost_usd=usd,
                                       latency_s=result.latency_s)
+        _tr("decision", stage="generate", abstained=False, reason=reason or "answer",
+            n_citations=len(citations), cost_usd=round(usd, 6))
 
         # Yalnız GERÇEK (abstained olmayan) cevaplar cache'e yazılır. FAIL-CLOSED
         # abstain zaten LLM'i hiç çağırmadı (cache'lemenin maliyet kazancı yok);
