@@ -22,9 +22,17 @@ FlagEmbedding>=1.3     # BGE-M3 (dense + sparse), çok dilli
 qdrant-client>=1.9     # vektör store (Faz 1.3)
 rank-bm25>=0.2         # lexical retrieval / BM25 (Faz 1.3)
 
+# --- OCR (Faz 0.8, opsiyonel — src/ingest/ocr.py) ---
+pytesseract>=0.3       # Tesseract sarmalayıcı (tesseract binary + tur.traineddata ayrı gerekir)
+Pillow>=10.0           # görüntü işleme (OCR + VLM render)
+
+# --- Değerlendirme (src/eval — DeepEval + DeepSeek hakem) ---
+deepeval>=1.0          # kalite metrikleri (faithfulness, answer relevancy/correctness)
+
+# --- Servis (Faz — src/service/http_app.py, backend-hazır HTTP) ---
+fastapi>=0.110         # HTTP endpoint (API-CONTRACT.md)
+uvicorn>=0.30          # ASGI sunucu (uvicorn[standard])
+
 # --- İndirme araçları (eba_dl/, scraper'lar) ---
 requests>=2.32
 gdown>=5.0
-
-# --- Planlanan (aşamaya gelince) ---
-# deepeval             # kalite metrikleri (faithfulness, ctx precision/recall)
