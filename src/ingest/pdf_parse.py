@@ -17,6 +17,8 @@ from dataclasses import dataclass, asdict, field
 
 import fitz  # PyMuPDF
 
+from ..text.tr_normalize import tr_lower   # TR-güvenli küçültme (İ→i, I→ı; #27 core#7)
+
 # Blok tipleri
 HEADING, PARAGRAPH, LIST, CAPTION, HEADER, FOOTER, LABEL = (
     "heading", "paragraph", "list", "caption", "header", "footer", "label")
@@ -89,7 +91,8 @@ def classify(text: str, font_size: float, bbox, page_h: float,
     x0, y0, x1, y1 = bbox
     t = text.strip()
     clean = _strip_marker(t)
-    low = clean.lower()
+    low = tr_lower(clean)          # TR-güvenli: "ŞEKİL".lower() combining-dot üretip
+                                   # startswith("şekil")'i kaçırıyordu (#27 core#7)
     # header/footer: sayfanın en üst/alt %6'sı + kısa
     if y1 <= page_h * 0.07 and len(t) < 120:
         return HEADER
@@ -109,8 +112,11 @@ def classify(text: str, font_size: float, bbox, page_h: float,
     # heading: bölüm-numarası deseni ("1.2.2. ..." veya "A) ...") + gövde-üstü font
     if _SECTION_NO.match(t) and font_size >= body_size and len(t) < 140:
         return HEADING
-    # label: çok kısa, büyük-font olmayan → diyagram etiketi gürültüsü
-    if len(clean) <= 14 and font_size < body_size * 1.12:
+    # label: çok kısa, büyük-font olmayan → diyagram etiketi gürültüsü. AUDIT #27
+    # (core#3): cümle/tanım noktalaması (. ! ? : ;) içeren kısa bloklar (ör.
+    # "ATP: enerji", "Evet.") ETİKET DEĞİL öğretici içeriktir → PARAGRAPH kalır.
+    if (len(clean) <= 14 and font_size < body_size * 1.12
+            and not re.search(r"[.!?:;]", clean)):
         return LABEL
     return PARAGRAPH
 
@@ -125,10 +131,14 @@ def order_blocks(blocks: list[Block], page_width: float) -> list[Block]:
     body = [b for b in blocks if b.kind not in (HEADER, FOOTER)]
 
     boundary = page_width * 0.5
-    centers = [((b.bbox[0] + b.bbox[2]) / 2) for b in body]
-    left = [b for b in body if (b.bbox[0] + b.bbox[2]) / 2 < boundary]
-    right = [b for b in body if (b.bbox[0] + b.bbox[2]) / 2 >= boundary]
-    # 2 sütun sayılması için iki taraf da anlamlı dolu olmalı (aksi halde tek sütun)
+
+    def _is_full_width(b):
+        return (b.bbox[2] - b.bbox[0]) > page_width * 0.6
+
+    # sütun tespiti tam-genişlik bloklarını HARİÇ tutar (onlar sütun değil)
+    col_blocks = [b for b in body if not _is_full_width(b)]
+    left = [b for b in col_blocks if (b.bbox[0] + b.bbox[2]) / 2 < boundary]
+    right = [b for b in col_blocks if (b.bbox[0] + b.bbox[2]) / 2 >= boundary]
     two_col = len(left) >= 2 and len(right) >= 2
 
     def by_y(bs):
@@ -136,7 +146,20 @@ def order_blocks(blocks: list[Block], page_width: float) -> list[Block]:
 
     ordered = by_y(headers)
     if two_col:
-        ordered += by_y(left) + by_y(right)
+        # AUDIT #27 (core#4): tam-genişlik blok (başlık/şekil) okuma akışını BÖLER —
+        # ondan önce biriken sütunları (sol→sağ) boşalt, sonra tam-genişlik bloğu
+        # yerleştir. (Tam-genişlik yoksa davranış öncekiyle AYNI: by_y(left)+by_y(right).)
+        seg_left, seg_right = [], []
+        for b in by_y(body):
+            if _is_full_width(b):
+                ordered += by_y(seg_left) + by_y(seg_right)
+                seg_left, seg_right = [], []
+                ordered.append(b)
+            elif (b.bbox[0] + b.bbox[2]) / 2 < boundary:
+                seg_left.append(b)
+            else:
+                seg_right.append(b)
+        ordered += by_y(seg_left) + by_y(seg_right)
     else:
         ordered += by_y(body)
     ordered += by_y(footers)

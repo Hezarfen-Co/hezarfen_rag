@@ -171,5 +171,59 @@ class VisualsVectorDiagramTests(unittest.TestCase):
         self.assertEqual(len(rects), 1)
 
 
+class IngestClassifyTests(unittest.TestCase):
+    """#27 core#3/#7: LABEL kısa-blok gate + TR-güvenli caption sınıflama."""
+    def test_allcaps_turkish_caption(self):
+        from src.ingest.pdf_parse import classify, CAPTION
+        # "ŞEKİL" .lower() combining-dot üretiyordu → CAPTION kaçıyordu; tr_lower ile yakalanır
+        self.assertEqual(classify("ŞEKİL 2.3: hücre", 10, (50, 100, 300, 120), 800, 10), CAPTION)
+        self.assertEqual(classify("RESİM 4", 10, (50, 100, 300, 120), 800, 10), CAPTION)
+    def test_short_block_with_punct_kept_paragraph(self):
+        from src.ingest.pdf_parse import classify, PARAGRAPH, LABEL
+        self.assertEqual(classify("ATP: enerji", 10, (50, 100, 150, 115), 800, 10), PARAGRAPH)
+        self.assertEqual(classify("Evet.", 10, (50, 100, 90, 115), 800, 10), PARAGRAPH)
+        self.assertEqual(classify("3,4 nm", 10, (50, 100, 90, 115), 800, 10), LABEL)  # noktasız kısa → etiket
+
+
+class OrderBlocksFullWidthTests(unittest.TestCase):
+    """#27 core#4: 2-sütun sayfada tam-genişlik başlık doğru yere gelmeli."""
+    def test_fullwidth_heading_between_columns(self):
+        from src.ingest.pdf_parse import Block, order_blocks, PARAGRAPH, HEADING
+        def b(txt, x0, y0, x1, y1, kind=PARAGRAPH):
+            return Block(page=1, bbox=(x0, y0, x1, y1), text=txt, block_no=0, kind=kind)
+        A = b("sol-üst", 50, 100, 290, 120)
+        B = b("sağ-üst", 310, 100, 550, 120)
+        FW = b("TAM GENİŞLİK BAŞLIK", 50, 200, 550, 230, HEADING)   # width 500 > 0.6*600
+        C = b("sol-alt", 50, 300, 290, 320)
+        D = b("sağ-alt", 310, 300, 550, 320)
+        order = order_blocks([A, B, FW, C, D], page_width=600)
+        iA, iB, iFW, iC, iD = (order.index(x) for x in (A, B, FW, C, D))
+        self.assertTrue(iA < iFW and iB < iFW)   # başlık üst sütunlardan SONRA
+        self.assertTrue(iFW < iC and iFW < iD)   # alt sütunlardan ÖNCE
+
+
+class PageMetaMisclassifiedTitleTests(unittest.TestCase):
+    """#27 core#6: yanlış-sınıflanmış (PARAGRAPH) meta başlık da sayfayı hariç tutmalı,
+    ama gövdede işaret geçen uzun cümle HARİÇ TUTMAMALI."""
+    def test_misclassified_title_excluded(self):
+        from src.ingest.pdf_parse import Block, Page, PARAGRAPH
+        from src.ingest.isolate import page_exclusion_reason
+        title = Block(page=1, bbox=(50, 20, 300, 45), text="Cevap Anahtarı", block_no=0,
+                     font_size=20.0, kind=PARAGRAPH)   # başlık ama PARAGRAPH'a düşmüş
+        body = Block(page=1, bbox=(50, 100, 550, 300), text="1-A 2-B 3-C", block_no=1,
+                    font_size=10.0, kind=PARAGRAPH)
+        pg = Page(number=1, width=600, height=800, blocks=[title, body])
+        self.assertEqual(page_exclusion_reason(pg), "cevap_anahtari")
+    def test_body_mention_not_excluded(self):
+        from src.ingest.pdf_parse import Block, Page, HEADING, PARAGRAPH
+        from src.ingest.isolate import page_exclusion_reason
+        h = Block(page=1, bbox=(50, 20, 300, 45), text="2. Ünite", block_no=0, font_size=16.0, kind=HEADING)
+        body = Block(page=1, bbox=(50, 100, 550, 300),
+                    text="Soruların cevap anahtarı karekodda verilmiştir.", block_no=1,
+                    font_size=10.0, kind=PARAGRAPH)
+        pg = Page(number=1, width=600, height=800, blocks=[h, body])
+        self.assertIsNone(page_exclusion_reason(pg))
+
+
 if __name__ == "__main__":
     unittest.main()

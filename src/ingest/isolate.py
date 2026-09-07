@@ -45,15 +45,40 @@ def _norm(s: str) -> str:
 
 
 def page_exclusion_reason(page) -> str | None:
-    """Sayfa tamamen meta/arka-madde mi? Yalnız HEADER/HEADING bloğunda işaret
-    aranır (gövdede geçen 'cevap anahtarı' → içindekiler yanlış-pozitifini önler)."""
+    """Sayfa tamamen meta/arka-madde mi? Aday bloklar: HEADER/HEADING + sayfanın
+    EN BÜYÜK-FONTLU bloğu + ÜST %15'teki bloklar. AUDIT EXP-007 #27(core#6): eskiden
+    yalnız HEADER/HEADING taranıyordu; başlık yanlış-sınıflanırsa (kısa 'İçindekiler'
+    → LABEL, ya da gövde-fontlu → PARAGRAPH) cevap-anahtarı/içindekiler sayfası KAÇIP
+    indekse sızıyordu (güvenlik: 'yasaklı retrieval=0' gate'i). İşaretler çok ayırt
+    edici (cevap anahtarı, içindekiler, dizin, sözlük, kaynakça) olduğundan üst/başlık
+    bloklarını taramak gövde yanlış-pozitifi riskini düşük tutar."""
+    page_h = getattr(page, "height", 0) or 0
+    # HEADER/HEADING blokları: SUBSTRING eşleşme (başlık zaten doğru sınıflanmış).
     for b in page.blocks:
-        if b.kind not in (HEADER, HEADING):
-            continue
-        t = _norm(b.text)
-        for marker, reason in _PAGE_MARKERS.items():
-            if marker in t:
-                return reason
+        if b.kind in (HEADER, HEADING):
+            t = _norm(b.text)
+            for marker, reason in _PAGE_MARKERS.items():
+                if marker in t:
+                    return reason
+    # EKSTRA adaylar (yanlış-sınıflanmış başlığı yakalamak için): en-büyük-font blok +
+    # üst %15'teki bloklar. Ama burada KATI eşleşme — blok KISA (title-benzeri, <=30 kar)
+    # VE işaretle BAŞLIYOR olmalı. Böylece gövdede işaret geçen uzun cümle
+    # ("soruların cevap anahtarı karekodda verilmiştir") YANLIŞ-POZİTİF yapmaz (#27 core#6).
+    if page.blocks:
+        extra = [max(page.blocks, key=lambda b: getattr(b, "font_size", 0.0))]
+        if page_h:
+            extra += [b for b in page.blocks if b.bbox[1] <= page_h * 0.15]
+        seen = set()
+        for b in extra:
+            if id(b) in seen or b.kind in (HEADER, HEADING):
+                continue
+            seen.add(id(b))
+            t = _norm(b.text)
+            if len(t) > 30:
+                continue
+            for marker, reason in _PAGE_MARKERS.items():
+                if t.startswith(marker):
+                    return reason
     return None
 
 
