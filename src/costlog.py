@@ -18,9 +18,21 @@ CLI:
     python -m src.costlog demo       # örnek satırlar ekle (sonra sil)
 """
 from __future__ import annotations
+import contextlib
 import json
 import os
+import tempfile
+import time
 from datetime import datetime, timezone
+
+try:                       # POSIX
+    import fcntl
+except ImportError:
+    fcntl = None
+try:                       # Windows
+    import msvcrt
+except ImportError:
+    msvcrt = None
 
 from .pricing import (Usage, cost_usd, price_table_rows,
                       PRICING_UPDATED, PRICING_SOURCE, OFFPEAK_FACTOR)
@@ -43,6 +55,42 @@ MODULES = {
 
 def _now_iso() -> str:
     return datetime.now(timezone.utc).strftime("%Y-%m-%dT%H:%M:%SZ")
+
+
+@contextlib.contextmanager
+def _file_lock(target: str):
+    """Süreçler-arası eksklüzif kilit (AUDIT EXP-007 #28): id-atama + append kritik
+    bölümünü serileştirir → duplicate run_id + iç-içe append (bozuk satır) önlenir.
+    fcntl (POSIX) / msvcrt (Windows); ikisi de yoksa no-op (yalnız tek-süreç güvence)."""
+    lockpath = target + ".lock"
+    d = os.path.dirname(lockpath)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    f = open(lockpath, "a+")
+    try:
+        if fcntl is not None:
+            fcntl.flock(f.fileno(), fcntl.LOCK_EX)
+        elif msvcrt is not None:
+            f.seek(0)
+            for _ in range(200):                    # ~10s dene (LK_LOCK zaten bloklar; NBLCK ile döngü)
+                try:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_NBLCK, 1)
+                    break
+                except OSError:
+                    time.sleep(0.05)
+        yield
+    finally:
+        try:
+            if fcntl is not None:
+                fcntl.flock(f.fileno(), fcntl.LOCK_UN)
+            elif msvcrt is not None:
+                f.seek(0)
+                try:
+                    msvcrt.locking(f.fileno(), msvcrt.LK_UNLCK, 1)
+                except OSError:
+                    pass
+        finally:
+            f.close()
 
 
 def _load(ledger: str = LEDGER) -> list[dict]:
@@ -79,10 +127,9 @@ def record(module: str, model: str, usage: Usage, items: int = 1, *,
            ts: str | None = None, ledger: str = LEDGER,
            maliyet: str = MALIYET) -> dict:
     """Bir run'ı kaydet: maliyet+birim maliyet hesapla, JSONL'e ekle, Maliyet.md render et."""
-    runs = _load(ledger)
-    usd = cost_usd(model, usage, tier)
+    usd = cost_usd(model, usage, tier)             # saf hesap — kilidin DIŞINDA
     rec = {
-        "run_id": _next_id(runs),
+        "run_id": None,                            # kilit içinde atanır (yarış önleme #28)
         "ts": ts or _now_iso(),
         "module": module,
         "model": model,
@@ -96,10 +143,16 @@ def record(module: str, model: str, usage: Usage, items: int = 1, *,
         "quality": quality or {},
         "note": note,
     }
-    os.makedirs(os.path.dirname(ledger), exist_ok=True)
-    with open(ledger, "a", encoding="utf-8") as f:
-        f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    render(ledger, maliyet)
+    d = os.path.dirname(ledger)
+    if d:
+        os.makedirs(d, exist_ok=True)
+    # KRİTİK BÖLÜM: id-atama (max-scan) + append tek kilit altında → eşzamanlı iki
+    # süreç aynı id'yi almaz, satırlar iç-içe girmez (#28).
+    with _file_lock(ledger):
+        rec["run_id"] = _next_id(_load(ledger))
+        with open(ledger, "a", encoding="utf-8") as f:
+            f.write(json.dumps(rec, ensure_ascii=False) + "\n")
+    render(ledger, maliyet)                         # kilit DIŞINDA + atomik (aşağı)
     return rec
 
 
@@ -195,7 +248,12 @@ def render(ledger: str = LEDGER, maliyet: str = MALIYET) -> None:
     """runs.jsonl'dan Maliyet.md'nin AUTO bloklarını yeniden üret."""
     if not os.path.exists(maliyet) or os.path.getsize(maliyet) == 0:
         _init_maliyet(maliyet)
-    runs = _load(ledger)
+    # Savunmacı (AUDIT #28/#29): tablolar hard-key erişir; eksik-alanlı (geçerli-JSON
+    # ama kısmi/elle-düzenlenmiş) satır tüm render'ı çökertmesin → böyle satırları
+    # tablolardan ATLA (yine de _next_id bunları _load ile görür, id çakışmaz).
+    _need = {"run_id", "ts", "module", "model", "tier", "items", "usage",
+             "cost_usd", "unit_cost_usd"}
+    runs = [r for r in _load(ledger) if isinstance(r, dict) and _need <= r.keys()]
     with open(maliyet, encoding="utf-8") as f:
         text = f.read()
     text = _replace_block(text, "PRICING", _price_table())
@@ -205,8 +263,17 @@ def render(ledger: str = LEDGER, maliyet: str = MALIYET) -> None:
     text = _replace_block(text, "STAMP",
                           f"_Son güncelleme: {_now_iso()} · toplam run: {len(runs)} · "
                           f"bu görünüm `runs.jsonl`'dan otomatik üretildi._")
-    with open(maliyet, "w", encoding="utf-8") as f:
-        f.write(text)
+    # ATOMİK yaz (AUDIT #28): temp'e yaz + os.replace → eşzamanlı render yarım/bozuk
+    # Maliyet.md bırakmaz (os.replace atomiktir).
+    d = os.path.dirname(maliyet) or "."
+    fd, tmp = tempfile.mkstemp(dir=d, suffix=".md.tmp")
+    try:
+        with os.fdopen(fd, "w", encoding="utf-8") as f:
+            f.write(text)
+        os.replace(tmp, maliyet)
+    finally:
+        if os.path.exists(tmp):
+            os.remove(tmp)
 
 
 def _init_maliyet(path: str) -> None:
