@@ -26,6 +26,8 @@ from .input_guard import GuardVerdict, _HARM_MESSAGES, _INJECTION_MESSAGE
 # yakalıyordu; LLM katmanı dolaylı/parafraz injection'ı da yakalar).
 _CLASSIFIER_MESSAGES = {**_HARM_MESSAGES, "prompt_injection": _INJECTION_MESSAGE}
 
+_warned_no_key = False   # anahtar-yok uyarısı bir kez verilsin (bkz. __init__, #31)
+
 _SYSTEM = """Sen bir eğitim uygulaması için içerik+güvenlik sınıflandırıcısısın. \
 Kullanıcı (çoğu reşit olmayan öğrenci) sorusunu değerlendir. Soru aşağıdaki kategorilerden \
 BİRİNE giriyorsa işaretle — DOLAYLI/PARAFRAZ ifadeleri de yakala (ör. "bir arkadaşımdan \
@@ -53,6 +55,16 @@ class LLMSafetyClassifier:
         self.module = module
         from .. import costlog
         self._record = cost_recorder if cost_recorder is not None else costlog.record
+        # AUDIT EXP-007 #31: anahtar yoksa bu katman fail-safe 'allow' no-op olur
+        # (chat() RuntimeError → except → allow). Sessiz kalmasın — bir kez UYAR:
+        # 2. güvenlik katmanı (semantik zararlı/injection) devre dışı demektir.
+        global _warned_no_key
+        if not getattr(self.deepseek, "_api_key", None) and not _warned_no_key:
+            import warnings
+            warnings.warn("LLMSafetyClassifier: DEEPSEEK_API_KEY yok → 2. güvenlik "
+                          "katmanı (semantik zararlı/prompt-injection) DEVRE DIŞI "
+                          "(yalnız regex kalır). Üretimde anahtar sağlanmalı.", stacklevel=2)
+            _warned_no_key = True
 
     def classify(self, query: str | None) -> GuardVerdict:
         if not query or not query.strip():

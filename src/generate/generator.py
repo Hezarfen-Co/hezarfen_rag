@@ -160,7 +160,7 @@ class Generator:
                  cost_recorder=None, role_ctx=None, response_cache=None,
                  safety_classifier=None, context_packing: bool = False,
                  context_max_tokens: int = 8000, context_reorder: bool = True,
-                 rewriter=None, corpus_version: str = ""):
+                 rewriter=None, corpus_version: str = "", require_role: bool = False):
         self.retriever = retriever
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
@@ -205,6 +205,11 @@ class Generator:
         # Kaynak/indeks sürümü (AUDIT #30/M2): cache anahtarına girer → re-ingest
         # sonrası eski cevap dönmesin. Boş "" ise cache davranışı öncekiyle aynı.
         self.corpus_version = corpus_version
+        # Çok-kiracılı STRICT mod (AUDIT #31): True ise role_ctx OLMADAN cevap
+        # ÜRETİLMEZ (fail-closed) — tek-kasa backward-compat'te role_ctx=None ile
+        # filtresiz retrieval "yanlışlıkla açık kasa" riskini kapatır. Varsayılan
+        # KAPALI (mevcut tek-kasa davranışı bozulmaz).
+        self.require_role = require_role
 
     def _pages_for_span_ids(self, span_ids: list[str]) -> list[int]:
         pages = []
@@ -245,6 +250,11 @@ class Generator:
         # HİÇ ÇAĞIRMADAN red (reşit-olmayan öğrenci kitlesi; bkz. src/guard/
         # input_guard.py). reason="guard_<kategori>" — çağıran taraf hangi
         # guardrail kategorisinin tetiklendiğini ayırt edebilir.
+        # STRICT çok-kiracılı mod (AUDIT #31): role_ctx zorunluysa ve yoksa FAIL-CLOSED
+        # (filtresiz retrieval ile kasa sızıntısındansa hiç cevap verme).
+        if self.require_role and self.role_ctx is None:
+            return self._abstain("role_required")
+
         # İki katman (regex check_input + opsiyonel LLM-sınıflandırıcı) ORİJİNAL
         # sorguda: zararlı/injection ise LLM'i HİÇ çağırmadan red. reason="guard_<kat>".
         gv = self._guard_query(query)
