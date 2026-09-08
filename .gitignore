@@ -1,13 +1,4 @@
-# Ölçüm veri kasası (büyük, telifli — repoya girmez)
-data/
-
-# İndirme araçları (scraper; RAG servisi değil) — repoya girmez
-eba_dl/
-
-# Eski mock veri (artık gerçek veri var — gerekmez)
-mockdata/
-
-# Python
+# Recreated locally after cloning
 __pycache__/
 *.py[cod]
 *.egg-info/
@@ -15,10 +6,7 @@ __pycache__/
 venv/
 .pytest_cache/
 
-# Üretilen makine artefaktları
-data/benchmark_results.json
-
-
+# Credentials stay local; template is versioned
 .env
-# Yerel model dosyalari (buyuk; repoya girmez)
-models/
+.env.*
+!.env.example

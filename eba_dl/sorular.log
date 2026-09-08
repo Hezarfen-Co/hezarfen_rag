@@ -1,0 +1,82 @@
+   ! img 77936: status 404
+OK grade  9 biyoloji             : 831 soru, 831 written (imgs+key)
+OK grade  9 cografya             : 637 soru, 637 written (imgs+key)
+OK grade  9 fl-biyoloji          : 53 soru, 53 written (imgs+key)
+OK grade  9 fl-fizik             : 44 soru, 44 written (imgs+key)
+OK grade  9 fl-kimya             : 80 soru, 80 written (imgs+key)
+OK grade  9 fl-matematik         : 206 soru, 206 written (imgs+key)
+   ! img 84018: status 404
+OK grade  9 fizik                : 1059 soru, 1059 written (imgs+key)
+OK grade  9 ingilizce            : 434 soru, 434 written (imgs+key)
+   ! img 78924: status 404
+   ! img 78927: status 404
+   ! img 78928: status 404
+   ! img 78932: status 404
+   ! img 79253: status 404
+   ! img 79262: status 404
+   ! img 79263: status 404
+   ! img 79264: status 404
+OK grade  9 kimya                : 1001 soru, 1001 written (imgs+key)
+OK grade  9 matematik            : 2174 soru, 2174 written (imgs+key)
+   ! img 45168: status 404
+OK grade  9 tarih                : 597 soru, 597 written (imgs+key)
+   ! img 8844: status 404
+OK grade  9 turk-dili-edebiyat   : 780 soru, 780 written (imgs+key)
+OK grade  9 din-kulturu          : 265 soru, 265 written (imgs+key)
+   ! img 78203: status 404
+OK grade 10 biyoloji             : 720 soru, 720 written (imgs+key)
+OK grade 10 cografya             : 694 soru, 694 written (imgs+key)
+OK grade 10 felsefe              : 592 soru, 592 written (imgs+key)
+OK grade 10 fl-biyoloji          : 277 soru, 277 written (imgs+key)
+OK grade 10 fl-fizik             : 25 soru, 25 written (imgs+key)
+OK grade 10 fl-kimya             : 140 soru, 140 written (imgs+key)
+OK grade 10 fl-matematik         : 143 soru, 143 written (imgs+key)
+   ! img 81904: status 404
+   ! img 81966: status 404
+   ! img 81998: status 404
+   ! img 82001: status 404
+OK grade 10 fizik                : 1076 soru, 1076 written (imgs+key)
+   ! img 14487: status 404
+OK grade 10 ingilizce            : 445 soru, 445 written (imgs+key)
+   ! img 82164: status 404
+   ! img 82202: status 404
+OK grade 10 kimya                : 969 soru, 969 written (imgs+key)
+   ! img 82109: status 404
+OK grade 10 matematik            : 1520 soru, 1520 written (imgs+key)
+OK grade 10 tarih                : 663 soru, 663 written (imgs+key)
+OK grade 10 turk-dili-edebiyat   : 945 soru, 945 written (imgs+key)
+OK grade 10 din-kulturu          : 244 soru, 244 written (imgs+key)
+OK grade 11 biyoloji             : 1297 soru, 1297 written (imgs+key)
+OK grade 11 cografya             : 936 soru, 936 written (imgs+key)
+OK grade 11 felsefe              : 541 soru, 541 written (imgs+key)
+OK grade 11 fl-biyoloji          : 72 soru, 72 written (imgs+key)
+OK grade 11 fl-fizik             : 32 soru, 32 written (imgs+key)
+OK grade 11 fl-kimya             : 217 soru, 217 written (imgs+key)
+OK grade 11 fl-matematik         : 13 soru, 13 written (imgs+key)
+   ! img 84429: status 404
+OK grade 11 fizik                : 1111 soru, 1111 written (imgs+key)
+OK grade 11 ingilizce            : 317 soru, 317 written (imgs+key)
+   ! img 82609: status 404
+OK grade 11 kimya                : 1235 soru, 1235 written (imgs+key)
+OK grade 11 matematik            : 1016 soru, 1016 written (imgs+key)
+OK grade 11 tarih                : 415 soru, 415 written (imgs+key)
+OK grade 11 turk-dili-edebiyat   : 692 soru, 692 written (imgs+key)
+OK grade 11 din-kulturu          : 128 soru, 128 written (imgs+key)
+OK grade 12 biyoloji             : 798 soru, 798 written (imgs+key)
+OK grade 12 cografya             : 561 soru, 561 written (imgs+key)
+OK grade 12 fl-biyoloji          : 40 soru, 40 written (imgs+key)
+   ! img 1865: status tiny
+OK grade 12 fl-fizik             : 109 soru, 109 written (imgs+key)
+OK grade 12 fl-kimya             : 136 soru, 136 written (imgs+key)
+OK grade 12 fl-matematik         : 163 soru, 163 written (imgs+key)
+OK grade 12 fizik                : 867 soru, 867 written (imgs+key)
+   ! img 15422: status 404
+OK grade 12 ingilizce            : 1541 soru, 1541 written (imgs+key)
+OK grade 12 kimya                : 779 soru, 779 written (imgs+key)
+   ! img 89901: status 404
+OK grade 12 matematik            : 1033 soru, 1033 written (imgs+key)
+OK grade 12 turk-dili-edebiyat   : 1218 soru, 1218 written (imgs+key)
+OK grade 12 inkilap              : 550 soru, 550 written (imgs+key)
+OK grade 12 din-kulturu          : 48 soru, 48 written (imgs+key)
+
+==== D SUMMARY ==== subjects:54 imgs_new:13550 skipped:3 no_image:18900 free:41.8GB

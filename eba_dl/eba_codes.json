@@ -1,0 +1,675 @@
+{
+ "_note": "ogmmateryal.eba.gov.tr = OGM (high school only, grades 9-12). Grade query code = grade-3. Subject 'd' code is per-grade. Grade code 4 = standalone Matematik (d=65).",
+ "base": "https://ogmmateryal.eba.gov.tr",
+ "cdn": "https://ogm-large-cdn.eba.gov.tr",
+ "grade_code_to_grade": {
+  "6": 9,
+  "7": 10,
+  "8": 11,
+  "9": 12,
+  "4": "ozel-matematik"
+ },
+ "grade_to_grade_code": {
+  "9": 6,
+  "10": 7,
+  "11": 8,
+  "12": 9
+ },
+ "kasa": {
+  "5": "ortaokul",
+  "6": "ortaokul",
+  "7": "ortaokul",
+  "8": "ortaokul",
+  "9": "lise",
+  "10": "lise",
+  "11": "lise",
+  "12": "lise"
+ },
+ "flow_endpoints": {
+  "soru": "/api/soru-ders-listele/",
+  "fasikul": "/api/fasikul-ders-listele/",
+  "calisma": "/api/calisma-ders-listele/"
+ },
+ "flow_meaning": {
+  "soru": "C kazanim + D sorular",
+  "fasikul": "A konu ozetleri",
+  "calisma": "B calisma defteri"
+ },
+ "url_templates": {
+  "C_kazanim": "https://ogmmateryal.eba.gov.tr/soru-bankasi-kazanim/{slug}?s={gc}&d={d}&u=0&k=0",
+  "D_test": "https://ogmmateryal.eba.gov.tr/soru-bankasi/{slug}/test?s={gc}&d={d}&u=0&k={kazanim_ids}&id=&p=10&t=css&ks=0&os=0&zs=0",
+  "A_list": "https://ogmmateryal.eba.gov.tr/konu-ozetleri?s={gc}&d={d}&u=0&k=0",
+  "B_list": "https://ogmmateryal.eba.gov.tr/calisma-defteri-sec?s={gc}&d={d}&u=0&k=0"
+ },
+ "subjects": {
+  "4": [
+   {
+    "id": 65,
+    "baslik": "Matematik",
+    "kod": "MAT",
+    "slug": "matematik",
+    "flows": [
+     "soru",
+     "calisma"
+    ],
+    "vault_slug": "matematik"
+   }
+  ],
+  "6": [
+   {
+    "id": 5,
+    "baslik": "Biyoloji",
+    "kod": "BIY",
+    "slug": "biyoloji",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "biyoloji"
+   },
+   {
+    "id": 9,
+    "baslik": "Coğrafya",
+    "kod": "COG",
+    "slug": "cografya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "cografya"
+   },
+   {
+    "id": 16,
+    "baslik": "Fen Lisesi Biyoloji",
+    "kod": "FBIY",
+    "slug": "fl-biyoloji",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-biyoloji"
+   },
+   {
+    "id": 20,
+    "baslik": "Fen Lisesi Fizik",
+    "kod": "FFIZ",
+    "slug": "fl-fizik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-fizik"
+   },
+   {
+    "id": 24,
+    "baslik": "Fen Lisesi Kimya",
+    "kod": "FKIM",
+    "slug": "fl-kimya",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-kimya"
+   },
+   {
+    "id": 28,
+    "baslik": "Fen Lisesi Matematik",
+    "kod": "FMAT",
+    "slug": "fl-matematik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-matematik"
+   },
+   {
+    "id": 32,
+    "baslik": "Fizik",
+    "kod": "FIZ",
+    "slug": "fizik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "fizik"
+   },
+   {
+    "id": 40,
+    "baslik": "İngilizce",
+    "kod": "ING",
+    "slug": "ingilizce",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "ingilizce"
+   },
+   {
+    "id": 44,
+    "baslik": "Kimya",
+    "kod": "KIM",
+    "slug": "kimya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "kimya"
+   },
+   {
+    "id": 48,
+    "baslik": "Matematik",
+    "kod": "MAT",
+    "slug": "matematik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "matematik"
+   },
+   {
+    "id": 55,
+    "baslik": "Tarih",
+    "kod": "TAR",
+    "slug": "tarih",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "tarih"
+   },
+   {
+    "id": 58,
+    "baslik": "Türk Dili ve Edebiyatı",
+    "kod": "TDE",
+    "slug": "tde",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "turk-dili-edebiyat"
+   },
+   {
+    "id": 98,
+    "baslik": "Din Kültürü ve Ahlâk Bilgisi",
+    "kod": "DIKAB",
+    "slug": "dikab",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "din-kulturu"
+   }
+  ],
+  "7": [
+   {
+    "id": 6,
+    "baslik": "Biyoloji",
+    "kod": "BIY",
+    "slug": "biyoloji",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "biyoloji"
+   },
+   {
+    "id": 10,
+    "baslik": "Coğrafya",
+    "kod": "COG",
+    "slug": "cografya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "cografya"
+   },
+   {
+    "id": 14,
+    "baslik": "Felsefe",
+    "kod": "FEL",
+    "slug": "felsefe",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "felsefe"
+   },
+   {
+    "id": 17,
+    "baslik": "Fen Lisesi Biyoloji",
+    "kod": "FBIY",
+    "slug": "fl-biyoloji",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-biyoloji"
+   },
+   {
+    "id": 21,
+    "baslik": "Fen Lisesi Fizik",
+    "kod": "FFIZ",
+    "slug": "fl-fizik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-fizik"
+   },
+   {
+    "id": 25,
+    "baslik": "Fen Lisesi Kimya",
+    "kod": "FKIM",
+    "slug": "fl-kimya",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-kimya"
+   },
+   {
+    "id": 29,
+    "baslik": "Fen Lisesi Matematik",
+    "kod": "FMAT",
+    "slug": "fl-matematik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-matematik"
+   },
+   {
+    "id": 33,
+    "baslik": "Fizik",
+    "kod": "FIZ",
+    "slug": "fizik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "fizik"
+   },
+   {
+    "id": 41,
+    "baslik": "İngilizce",
+    "kod": "ING",
+    "slug": "ingilizce",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "ingilizce"
+   },
+   {
+    "id": 45,
+    "baslik": "Kimya",
+    "kod": "KIM",
+    "slug": "kimya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "kimya"
+   },
+   {
+    "id": 49,
+    "baslik": "Matematik",
+    "kod": "MAT",
+    "slug": "matematik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "matematik"
+   },
+   {
+    "id": 56,
+    "baslik": "Tarih",
+    "kod": "TAR",
+    "slug": "tarih",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "tarih"
+   },
+   {
+    "id": 59,
+    "baslik": "Türk Dili ve Edebiyatı",
+    "kod": "TDE",
+    "slug": "tde",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "turk-dili-edebiyat"
+   },
+   {
+    "id": 99,
+    "baslik": "Din Kültürü ve Ahlâk Bilgisi",
+    "kod": "DIKAB",
+    "slug": "dikab",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "din-kulturu"
+   }
+  ],
+  "8": [
+   {
+    "id": 7,
+    "baslik": "Biyoloji",
+    "kod": "BIY",
+    "slug": "biyoloji",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "biyoloji"
+   },
+   {
+    "id": 11,
+    "baslik": "Coğrafya",
+    "kod": "COG",
+    "slug": "cografya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "cografya"
+   },
+   {
+    "id": 15,
+    "baslik": "Felsefe",
+    "kod": "FEL",
+    "slug": "felsefe",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "felsefe"
+   },
+   {
+    "id": 18,
+    "baslik": "Fen Lisesi Biyoloji",
+    "kod": "FBIY",
+    "slug": "fl-biyoloji",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-biyoloji"
+   },
+   {
+    "id": 22,
+    "baslik": "Fen Lisesi Fizik",
+    "kod": "FFIZ",
+    "slug": "fl-fizik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-fizik"
+   },
+   {
+    "id": 26,
+    "baslik": "Fen Lisesi Kimya",
+    "kod": "FKIM",
+    "slug": "fl-kimya",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-kimya"
+   },
+   {
+    "id": 30,
+    "baslik": "Fen Lisesi Matematik",
+    "kod": "FMAT",
+    "slug": "fl-matematik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-matematik"
+   },
+   {
+    "id": 34,
+    "baslik": "Fizik",
+    "kod": "FIZ",
+    "slug": "fizik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "fizik"
+   },
+   {
+    "id": 42,
+    "baslik": "İngilizce",
+    "kod": "ING",
+    "slug": "ingilizce",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "ingilizce"
+   },
+   {
+    "id": 46,
+    "baslik": "Kimya",
+    "kod": "KIM",
+    "slug": "kimya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "kimya"
+   },
+   {
+    "id": 50,
+    "baslik": "Matematik",
+    "kod": "MAT",
+    "slug": "matematik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "matematik"
+   },
+   {
+    "id": 57,
+    "baslik": "Tarih",
+    "kod": "TAR",
+    "slug": "tarih",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "tarih"
+   },
+   {
+    "id": 60,
+    "baslik": "Türk Dili ve Edebiyatı",
+    "kod": "TDE",
+    "slug": "tde",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "turk-dili-edebiyat"
+   },
+   {
+    "id": 100,
+    "baslik": "Din Kültürü ve Ahlâk Bilgisi",
+    "kod": "DIKAB",
+    "slug": "dikab",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "din-kulturu"
+   }
+  ],
+  "9": [
+   {
+    "id": 8,
+    "baslik": "Biyoloji",
+    "kod": "BIY",
+    "slug": "biyoloji",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "biyoloji"
+   },
+   {
+    "id": 12,
+    "baslik": "Coğrafya",
+    "kod": "COG",
+    "slug": "cografya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "cografya"
+   },
+   {
+    "id": 19,
+    "baslik": "Fen Lisesi Biyoloji",
+    "kod": "FBIY",
+    "slug": "fl-biyoloji",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-biyoloji"
+   },
+   {
+    "id": 23,
+    "baslik": "Fen Lisesi Fizik",
+    "kod": "FFIZ",
+    "slug": "fl-fizik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-fizik"
+   },
+   {
+    "id": 27,
+    "baslik": "Fen Lisesi Kimya",
+    "kod": "FKIM",
+    "slug": "fl-kimya",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-kimya"
+   },
+   {
+    "id": 31,
+    "baslik": "Fen Lisesi Matematik",
+    "kod": "FMAT",
+    "slug": "fl-matematik",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "fl-matematik"
+   },
+   {
+    "id": 35,
+    "baslik": "Fizik",
+    "kod": "FIZ",
+    "slug": "fizik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "fizik"
+   },
+   {
+    "id": 43,
+    "baslik": "İngilizce",
+    "kod": "ING",
+    "slug": "ingilizce",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "ingilizce"
+   },
+   {
+    "id": 47,
+    "baslik": "Kimya",
+    "kod": "KIM",
+    "slug": "kimya",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "kimya"
+   },
+   {
+    "id": 51,
+    "baslik": "Matematik",
+    "kod": "MAT",
+    "slug": "matematik",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "matematik"
+   },
+   {
+    "id": 61,
+    "baslik": "Türk Dili ve Edebiyatı",
+    "kod": "TDE",
+    "slug": "tde",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "turk-dili-edebiyat"
+   },
+   {
+    "id": 63,
+    "baslik": "T.C. İnkılap Tarihi ve Atatürkçülük",
+    "kod": "INK",
+    "slug": "inkilap-tarihi",
+    "flows": [
+     "soru",
+     "fasikul",
+     "calisma"
+    ],
+    "vault_slug": "inkilap"
+   },
+   {
+    "id": 101,
+    "baslik": "Din Kültürü ve Ahlâk Bilgisi",
+    "kod": "DIKAB",
+    "slug": "dikab",
+    "flows": [
+     "soru"
+    ],
+    "vault_slug": "din-kulturu"
+   }
+  ]
+ }
+}
