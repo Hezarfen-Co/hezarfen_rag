@@ -1,0 +1,10 @@
+{
+ "exp": "EXP-009",
+ "utc": "2026-09-10T16:51:05.955236+00:00",
+ "golden": "golden_12bio_v1.json",
+ "seed": 20260910,
+ "base_url": "https://integrate.api.nvidia.com/v1",
+ "models": [
+  "nvidia/nemotron-3-super-120b-a12b"
+ ]
+}

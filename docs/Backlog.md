@@ -26,5 +26,50 @@
 - **Öneri:** paylaşılan parse cache / fixture; ya da adım-bazlı hedefli test.
 - **İlgili:** `hezarfen_rag/tests/integration/`.
 
+### BL-005 — EXP-009 eksik ölçümleri (üretici LLM adayları)
+- **Yapıldı:** NVIDIA NIM ücretsiz uçlarda 3 model tam ölçüldü (96 çağrı/model, ürünün
+  gerçek promptlarıyla); sağlayıcı env'den seçilebilir hale getirildi (`LLM_*`), 15 test.
+  Rapor: `reports/EXP-009-uretici-llm-karsilastirma.md`.
+- **Kalan:** (a) `moonshotai/kimi-k3` ölçümü — ilk koşumda paylaşılan NVIDIA kotası
+  yüzünden 0/96 tamamlandı, tek başına yeniden koşuluyor; (b) **asıl karar ölçümü**:
+  `data/` LFS'ten geri yüklendikten sonra aynı 200-item golden set'le TAM boru hattı
+  (`python -m src.eval.runner`, `.env`'de `LLM_MODEL` değiştirilerek) her aday için
+  koşulmalı — EXP-009 yalnız üreticiyi izole etti, retrieval ölçülmedi.
+- **Sonraki kesin adım:** `gh auth login` → `git lfs pull` → 3 aday için runner.
+- **İlgili:** `docs/OPTIMIZATION.md` §15 · `outputs/EXP-009-model-karsilastirma/`.
+
+### BL-006 — Bu makinede (Fedora) ortam farkları
+- **Yapıldı:** `.venv` kuruldu (Python **3.13**, CPU-torch 2.14, FlagEmbedding, deepeval);
+  `tests/unit` **434 yeşil**. `.env` anahtar adları ASCII'ye çevrildi.
+- **CPU embed ÖLÇÜLDÜ (2026-09-10):** BGE-M3 CPU'da **~4,1 chunk/s** (16 chunk / 3,9 s;
+  1024-dim, L2-norm 1,000 — GPU değeriyle aynı çıktı). Belgelenen GPU: 67 chunk/s →
+  **~16× yavaş**; 12-bio'nun 258 chunk'ı ≈ **63 s** (kabul edilebilir). Model ilk indirme
+  11,5 dk (2,3 GB). Reranker (cross-encoder, 40 aday × 200 sorgu) CPU'da asıl darboğaz olacak.
+- **Kalan/riskler:** (a) **NVIDIA sürücüsü yok** (`nvidia-smi` yok, donanım var) → BGE-M3 +
+  reranker **CPU'da** koşacak; ölçüm SÜRELERİ belgelenmiş GPU sayılarıyla KARŞILAŞTIRILAMAZ
+  (kalite metrikleri etkilenmez — aynı model, aynı çıktı).
+  (b) Proje 3.11 varsayıyordu, burada 3.11 paketi yok → 3.13 ile koşuluyor.
+  (c) `tesseract` kurulu değil → OCR yolu (Faz 0.8) bu makinede sınanamaz.
+  (d) HF model önbelleği Flatpak sandbox'ına düşüyor
+  (`~/.var/app/com.vscodium.codium/cache/huggingface`) → kalıcı bir `HF_HOME` verilmesi iyi olur.
+- **Sonraki kesin adım:** Kadir kararı — sürücü kurulsun mu (GPU ölçüm eşitliği için) yoksa
+  CPU'da mı ölçelim (yavaş ama kalite metrikleri aynı).
+
+### BL-007 — EXP-010 ürün-hazırlık denetimi: 62 bulgu, 36'sı MVP engeli
+- **Yapıldı:** 4 boyutlu düşmanca denetim (güvenlik · grounding/atıf · değerlendirme ·
+  operasyon), proje kuralı 18'e uygun ayrı `verifier`/`evaluator` bağlamlarında;
+  bulguların çoğu **koşarak/hesaplanarak** doğrulandı. Rapor + issue taslakları:
+  `reports/EXP-010-urun-hazirlik-denetimi.md`. Ürün kriterleri (iki kademe) Obsidian
+  `rag/benchmark.md §8`'e, literatür geliştirmeleri `OPTIMIZATION.md §I`'ye yazıldı.
+- **Kalan:** 36 MVP engelinin tamamı. Sıra: **M0** ölçüm güvenilirliği → **M1** güvenlik
+  → **M2** atıf/grounding → **M3** golden set + testler → **M4** operasyon →
+  **M5** kapı ölçümü + Kadir onayı (fazlar ve issue taslakları raporun §7'sinde).
+- **Sonraki kesin adım:** GitHub auth gelince EPIC + faz issue'ları açılır
+  (`gh issue create`), sonra **M0-1** (metriklere %95 CI) ile başlanır — çünkü o
+  düzelmeden hiçbir kapı kararı verilemez.
+- **Kadir'den bekleyen kararlar:** (a) `benchmark.md §8` kriterleri onayı,
+  (b) kriz hattı numarası/metni (#M1-4), (c) prompt↔metrik çelişkisi kararı (#M2-9),
+  (d) golden set v2 onayı (#M5-4), (e) NVIDIA sürücüsü kurulsun mu (CPU'da mı ölçelim).
+
 ## Ertelenen
 - **Faz 4 — Soru üretme + benzer soru:** ⏸️ Kadir kararıyla ertelendi (2026-08-31). Tasarım hazır: `soru-uretme.md`.

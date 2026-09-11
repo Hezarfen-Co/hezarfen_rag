@@ -5,6 +5,50 @@
 > generation) servisi + özet + guardrail burada; **aktif geliştirmede, uçtan uca
 > çalışan + ölçülen boru hattı VAR** (aşağı).
 
+## 0. YENİ MAKİNE + EXP-009 (2026-09-10) — ÖNCE BUNU OKU
+
+> Bu bölüm 2026-09-10 oturumunda eklendi; aşağıdaki §1 (2026-09-05) hâlâ geçerli
+> ama **o ölçümler Windows + RTX 4060 CUDA makinesinde** alındı. Şu anki makine
+> Fedora Linux ve TAZE bir geri-yükleme.
+
+**Makine durumu (Fedora, 2026-09-10):**
+- `data/` **BOŞ** — 2.463 LFS dosyası (15,6 GB) çekilmedi (`git status` hepsini " D" gösterir).
+  → ingest/retrieval/eval **koşamaz**; EXP-009 bu yüzden yalnız üreticiyi izole etti.
+- **Git kimlik doğrulaması ÇALIŞMIYOR:** 4 depo da private, `gh` CLI **kurulu değil** ama
+  git credential helper `!/usr/bin/gh auth git-credential`'a bakıyor → fetch/pull/push
+  başarısız. **Çözüm:** `sudo dnf install gh && gh auth login`, sonra `git lfs pull`.
+  → Bu yüzden front/back'in `origin/main` ile güncel olup olmadığı **doğrulanamadı**;
+  yerel HEAD'ler: backend `06fee28`, frontend `8087fda`, rag `1201eb7`, chatbot `559d04d`.
+- **`.venv` KURULDU:** Python **3.13** (3.11 paketi yok), **CPU**-torch 2.14, pymupdf,
+  pdfplumber, qdrant-client, rank-bm25, FlagEmbedding, deepeval, fastapi.
+  `python -m unittest discover -s tests/unit -t .` → **434 yeşil** (1 skip).
+- **NVIDIA sürücüsü YOK** (`nvidia-smi` yok; donanım RTX 4060 Max-Q var) → embed/rerank CPU'da.
+  **Ölçüldü:** BGE-M3 CPU **~4,1 chunk/s** (GPU 67 → ~16× yavaş; 258 chunk ≈ 63 s). Kalite aynı.
+- **`tesseract` yok** → OCR yolu (Faz 0.8) bu makinede sınanamaz.
+- **`.env` DÜZELTİLDİ:** anahtar adları `DEEP_SEEK_API_KEY ` (fazla `_` + sonda boşluk) ve
+  `NVİDİA_APİ_KEY` (Türkçe `İ`) idi → kod **hiçbirini okuyamıyordu**. Artık
+  `DEEPSEEK_API_KEY` + `NVIDIA_API_KEY` + `LLM_BASE_URL/LLM_MODEL/LLM_API_KEY/LLM_EXTRA_JSON`.
+  Yedek: oturum scratchpad'inde `.env.bak-20260910`.
+
+**EXP-009 — üretici LLM aday karşılaştırması** (rapor: `docs/reports/EXP-009-uretici-llm-karsilastirma.md`,
+ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet **$0**:
+- **Sağlayıcı artık env'den seçilir** (`LLM_BASE_URL`/`LLM_MODEL`/`LLM_API_KEY`/`LLM_EXTRA_JSON`)
+  → `src.eval.runner` dahil tüm sistem kod değişmeden başka bir OpenAI-uyumlu uca alınabilir.
+  +15 test (`tests/unit/test_provider_config.py`).
+- **`nvidia/nemotron-3-super-120b-a12b`** ve **`meta/muse-glimmer-30b`** başa baş birinci
+  (guard zararlı 15/15 + injection 12/12 + 0 yanlış-pozitif; atıf precision **1,000**).
+  Ayrım: nemotron **p50 1,94 s** (muse 10,44 s) · muse kaynak-yokken **8/8** çekimser (nemotron 7/8).
+- **`nvidia/nemotron-3.5-lightning-30b-a3b` REDDEDİLMELİ:** nefret söylemini "güvenli" saydı
+  (2/3), intihar sorusunda **bozuk JSON** → fail-safe allow, jailbreak kaçırdı, dil kirlenmesi
+  (`violence_凶手`, `促进하여`), kaynak yokken 7/8 item'da cevap uydurdu.
+- **NVIDIA'daki DeepSeek uçları kullanılamaz:** flash 300 s timeout ×3, pro 201,5 s
+  (DeepSeek'in kendi API'si 1,0 s).
+- **`moonshotai/kimi-k3` ÖLÇÜLEMEDİ:** bu makinede aynı NVIDIA anahtarını kullanan İKİNCİ bir
+  oturum (MedExam) kotayı tutuyor; tek çağrı bile anında 429. Tek başına yeniden koşulmalı.
+- **KARAR ÖNERİSİ:** üretim modeli ŞİMDİ değişmesin — EXP-009 retrieval'ı ölçmedi. `data/`
+  gelince aynı 200-item golden set'le TAM boru hattı üzerinde her aday için `src.eval.runner`.
+- **Durum: `İNSAN İNCELEMESİ BEKLİYOR`.**
+
 ## 1. Anlık Durum (2026-09-05, checkpoint)
 - Aktif branch: `main` (tek-branch, adım adım commit; feature-branch yok)
 - **Tek cümle:** Uçtan uca RAG + özet + guardrail + değerlendirme ÇALIŞIYOR ve 200-item

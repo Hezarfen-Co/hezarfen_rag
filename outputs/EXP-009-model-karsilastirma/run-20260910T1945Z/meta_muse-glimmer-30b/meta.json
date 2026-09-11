@@ -1,0 +1,10 @@
+{
+ "exp": "EXP-009",
+ "utc": "2026-09-10T17:00:45.836748+00:00",
+ "golden": "golden_12bio_v1.json",
+ "seed": 20260910,
+ "base_url": "https://integrate.api.nvidia.com/v1",
+ "models": [
+  "meta/muse-glimmer-30b"
+ ]
+}

@@ -17,7 +17,20 @@ yolları · gecikme/token/donanım/maliyet · nihai durum (`İNSAN İNCELEMESİ 
 | ID | Tür | Başlık | Durum |
 |---|---|---|---|
 | EXP-001 | ANALİZ (model-dışı) | Korpus görsel/tablo/diyagram yoğunluk analizi | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-002 | DENEY | Çok-dersli kasa izolasyonu (4 kitap, ders+sınıf) | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-003 | DENEY | Faz 0.8 OCR fallback + özet-PDF uçtan uca | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-004 | DENEY | Faz 5 multimodal VLM captioning | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-005 | DENEY | Non-bio kalite (kimya/fizik) + ayırt edici metrik | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-006 | DENEY | Çok-ders özet + multimodal özet | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-007 | DENETİM | Tam yazılım+AI denetimi + adversarial fuzz (17 fix) | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-008 | DENEY | Measure-after-change re-baseline (kimya) | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-009 | DENEY | Üretici LLM aday karşılaştırması (NVIDIA NIM ücretsiz uçlar) | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-010 | DENETİM | Ürün-hazırlık denetimi (güvenlik·grounding·değerlendirme·operasyon; 62 bulgu) + MVP issue taslakları | İNSAN İNCELEMESİ BEKLİYOR |
 | RES-001 | ARAŞTIRMA (literatür+deney tasarımı) | Kaynakla konuşma, kanıtlı özetleme, Türkçe RAG model doğrulaması | Kadir incelemesi bekliyor (mimari/benchmark değişikliği ÖNERİR) |
+| RES-002 | ARAŞTIRMA | RagArt çözümlemesi (ders alınacak desenler + açıklar) | İNSAN İNCELEMESİ BEKLİYOR |
+| RES-003 | ARAŞTIRMA (KUZEY YILDIZI) | Ürün-seviyesi RAG referans mimarisi + öncelik sırası | Kadir kaynaklı (2026-09-05) |
 
 > Not: EXP-001 bir **ölçüm/analiz**tir, model deneyi değil (LLM çalıştırılmadı).
-> İlk **model deneyi** Faz 1 (text-RAG baseline) ile EXP-002 olacak.
+> EXP-009'un ham verisi + insan-okur soru/cevap defteri repo kökündeki
+> `outputs/EXP-009-model-karsilastirma/` altındadır (Kadir'in inceleme yeri);
+> bu klasördeki `EXP-009-uretici-llm-karsilastirma.md` aynı raporun kalıcı-hafıza kopyasıdır.

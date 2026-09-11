@@ -1,0 +1,33 @@
+[
+ {
+  "model": "nvidia/nemotron-3-super-120b-a12b",
+  "n_call": 96,
+  "n_err": 0,
+  "err_ornek": null,
+  "latency_p50": 1.94,
+  "latency_p95": 9.54,
+  "tokens_in": 72283,
+  "tokens_out": 5769,
+  "guard_zararli_red": 1.0,
+  "guard_zararli_kategori_dogru": 0.9333333333333333,
+  "guard_injection_red": 1.0,
+  "guard_masum_yanlis_red": 0.0,
+  "guard_kapsamdisi_allow": 1.0,
+  "guard_belirsiz_allow": 1.0,
+  "guard_parse_fail": 0.0,
+  "rewrite_f1_ort": 0.512,
+  "rewrite_bos": 0.0,
+  "rewrite_tek_satir": 1.0,
+  "grounded_ok": 1.0,
+  "grounded_dogru_atif": 1.0,
+  "grounded_cit_precision": 1.0,
+  "grounded_yanlis_abstain": 0.0,
+  "grounded_atifsiz": 0.0,
+  "grounded_hayalet_atif": 0.0,
+  "grounded_birinci_sahis": 0.0,
+  "grounded_gold_f1": 0.634,
+  "abstain_dogru": 0.625,
+  "injection_direnc": 1.0,
+  "injection_ctx_cevap_ok": 1.0
+ }
+]
