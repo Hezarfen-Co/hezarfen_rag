@@ -172,8 +172,89 @@ def _select_judge_ids(items: list[dict]) -> set[str]:
     return ids
 
 
+# ---------------------------------------------------------------------------
+# M0-4 (#36) — UC OLCUM MODU (RES-003 §8 "3 testi ayir")
+#
+# Tek modla kosmak "hata parser/retriever'da mi generator'da mi?" sorusunu
+# cevaplanamaz kiliyordu (EXP-010/EVAL-09): olculen citation precision 0.645 ve
+# correctness 0.838 sayilarinda hangisinin payi oldugu bilinmiyordu.
+#
+#   retrieval_only  : LLM HIC cagrilmaz. Ucuz, deterministik, CI'da kosabilir.
+#                     Yalniz "gold kanit getirildi mi" sorusunu olcer.
+#   oracle_context  : Baglam = GOLD span'lari tasiyan chunk'lar. "Retrieval
+#                     kusursuz olsaydi uretim ne kadar iyi olurdu" UST SINIRI.
+#                     Uretim yolu (prompt/guard/atif eslemesi/cekimserlik)
+#                     BIREBIR ayni -- yalniz retriever+reranker stub'lanir, boylece
+#                     urun kodu degismez.
+#   end_to_end      : gercek boru hatti (onceki tek davranis).
+#
+# Rapora `hata_atfi = e2e - oracle` yazilir: fark generator'in degil retrieval'in
+# payidir.
+#
+# DURUST SINIR: oracle modunda parent genisletme DEVRE DISI (stub chunk'larda
+# parent_id=None) -- bu bilincli. (a) parent genisletme bir RETRIEVAL kararidir,
+# uretim kalitesini izole ederken karistirmamak gerekir; (b) ACC-03 gosterdi ki
+# parent metni atifi yanlis sayfaya kaydiriyor, oracle olcumu bu gurultuyu
+# tasimamali. Yani oracle sayilari "saf yaprak span" kosuludur.
+# ---------------------------------------------------------------------------
+EVAL_MODES = ("retrieval_only", "oracle_context", "end_to_end")
+
+
+class _OracleRetriever:
+    """Gercek retrieval yerine GOLD chunk'lari dondurur (skor 1.0).
+
+    Skorun 1.0 olmasi bilincli: oracle kosulunda kanit TANIMI GEREGI yeterli,
+    bu yuzden `abstain_score` fail-closed esigi tetiklenmemeli. Eger model yine
+    de cekimser kalirsa bu GENERATOR'IN karari olur -- olcmek istedigimiz de bu."""
+
+    def __init__(self, chunk_ids: list[str]):
+        self._ids = list(chunk_ids)
+
+    def retrieve(self, query, top_k: int = 20, **kwargs):
+        return [(cid, 1.0) for cid in self._ids[:top_k]]
+
+
+class _OracleReranker:
+    """Verilen sirayi korur, skoru 1.0 verir (siralama oracle'da anlamsiz)."""
+
+    def rerank(self, query, pairs):
+        return [(cid, 1.0) for cid, _text in pairs]
+
+
+def _oracle_chunk_ids(gold_spans: set, chunks_by_id: dict) -> list[str]:
+    """Gold span tasiyan CHILD chunk'lar, sayfa sirasinda (deterministik)."""
+    hits = [(ch.page_start, cid) for cid, ch in chunks_by_id.items()
+            if ch.level == "child" and set(ch.span_ids) & gold_spans]
+    return [cid for _page, cid in sorted(hits)]
+
+
+def _oracle_generator(pipeline: dict, gold_spans: set):
+    """Uretim Generator'inin AYNI ayarlariyla, yalniz retriever+reranker stub'li
+    bir kopyasini kurar. Urun kodu degismez; prompt/guard/atif yolu birebir ayni.
+    Parent genisletme dogal olarak devre disi kalir (stub chunks_by_id'de
+    parent_id=None) -- bkz. yukaridaki DURUST SINIR notu."""
+    import dataclasses
+
+    base = pipeline["generator"]
+    ids = _oracle_chunk_ids(gold_spans, pipeline["chunks_by_id"])
+    stub_chunks = {}
+    for cid in ids:
+        ch = pipeline["chunks_by_id"][cid]
+        stub_chunks[cid] = dataclasses.replace(ch, parent_id=None)
+    gen = Generator(_OracleRetriever(ids), _OracleReranker(), stub_chunks,
+                    pipeline["span_meta"], base.deepseek,
+                    ders=base.ders, abstain_score=base.abstain_score,
+                    module="eval-oracle", safety_classifier=base.safety_classifier,
+                    context_packing=base.context_packing,
+                    context_max_tokens=base.context_max_tokens,
+                    rewriter=base.rewriter)
+    return gen, ids
+
+
 def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
-              judge_ids: set[str]) -> dict:
+              judge_ids: set[str], mode: str = "end_to_end") -> dict:
+    if mode not in EVAL_MODES:
+        raise ValueError(f"bilinmeyen mod {mode!r}; secenekler: {EVAL_MODES}")
     item_id = item["id"]
     query = item["soru"]
     gold_spans = set(item.get("gold_kaynak_spanlar") or [])
@@ -182,17 +263,67 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
     generator = pipeline["generator"]
 
     retr_metrics = M.RetrievalMetrics()
+    retr_post_metrics = M.RetrievalMetrics()
     contexts_for_judge = []
     if gold_spans:
         hits = _retry(lambda: pipeline["retriever"].retrieve(query, top_k=RETRIEVE_TOP_K),
                      label=f"retrieve[{item_id}]")
         span_sets, page_sets = _ranked_sets_for_hits(hits, chunks_by_id)
         retr_metrics = M.compute_retrieval_metrics(span_sets, page_sets, gold_spans, gold_pages)
-        if item_id in judge_ids:
-            contexts_for_judge = _retry(
-                lambda: rerank_select(query, hits, chunks_by_id, pipeline["reranker"],
-                                      top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N),
-                label=f"rerank_select[{item_id}]")
+        # M0-3 (#35): rerank ARTIK HER item'da olculur. Eskiden yalniz
+        # `item_id in judge_ids` ise cagriliyordu -> 200 item'in 178'inde
+        # reranker'in etkisi hic olculmuyordu ve benchmark.md §5'in zorunlu
+        # ablation'i ("her bilesen kanitla girer") acik kaliyordu.
+        contexts_for_judge = _retry(
+            lambda: rerank_select(query, hits, chunks_by_id, pipeline["reranker"],
+                                  top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N),
+            label=f"rerank_select[{item_id}]")
+        post_span_sets = [set(c.span_ids) for c in contexts_for_judge]
+        post_page_sets = [M.page_range_set(chunks_by_id[c.chunk_id].page_start,
+                                           chunks_by_id[c.chunk_id].page_end)
+                          if c.chunk_id in chunks_by_id else set()
+                          for c in contexts_for_judge]
+        retr_post_metrics = M.compute_retrieval_metrics(
+            post_span_sets, post_page_sets, gold_spans, gold_pages)
+
+    # retrieval_only: LLM HIC cagrilmaz -> ucuz, deterministik, CI'da kosabilir.
+    if mode == "retrieval_only":
+        return {
+            "id": item_id, "mode": mode, "kategori": item["kategori"],
+            "unite": item.get("unite"), "kazanim_kod": item.get("kazanim_kod"),
+            "critical": bool(item.get("critical")),
+            "beklenen_davranis": item["beklenen_davranis"],
+            "zararli_kategori": item.get("zararli_kategori"), "soru": query,
+            "retrieval": vars(retr_metrics),
+            "retrieval_post_rerank": vars(retr_post_metrics),
+            "citation": vars(M.CitationMetrics()),
+            "guardrail": {"passed": None, "fail_closed": None,
+                          "abstained": None, "reason": "retrieval_only"},
+            "generation": {"text": "", "abstained": None, "reason": "retrieval_only",
+                           "n_citations": 0, "invalid_citations": [],
+                           "cost_usd": 0.0, "latency_s": 0.0},
+            "judge": None,
+        }
+
+    oracle_ids = None
+    if mode == "oracle_context":
+        if not gold_spans:
+            # gold'u olmayan item (kapsam-disi/zararli/belirsiz) oracle'da
+            # ANLAMSIZ -- atlanir, sayilara karismaz (0.0 ile karistirilmaz).
+            return {"id": item_id, "mode": mode, "kategori": item["kategori"],
+                    "beklenen_davranis": item["beklenen_davranis"],
+                    "skipped": "oracle_context: gold span yok", "soru": query,
+                    "retrieval": vars(retr_metrics),
+                    "retrieval_post_rerank": vars(retr_post_metrics),
+                    "citation": vars(M.CitationMetrics()),
+                    "guardrail": {"passed": None, "fail_closed": None,
+                                  "abstained": None, "reason": "oracle_skipped"},
+                    "generation": {"text": "", "abstained": None,
+                                   "reason": "oracle_skipped", "n_citations": 0,
+                                   "invalid_citations": [], "cost_usd": 0.0,
+                                   "latency_s": 0.0},
+                    "judge": None}
+        generator, oracle_ids = _oracle_generator(pipeline, gold_spans)
 
     t0 = time.time()
     # multi_turn item'larda konuşma geçmişini ver → history-aware rewrite devreye
@@ -240,12 +371,15 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
             }
 
     return {
-        "id": item_id, "kategori": item["kategori"], "unite": item.get("unite"),
+        "id": item_id, "mode": mode,
+        "kategori": item["kategori"], "unite": item.get("unite"),
         "kazanim_kod": item.get("kazanim_kod"), "critical": bool(item.get("critical")),
         "beklenen_davranis": item["beklenen_davranis"],
         "zararli_kategori": item.get("zararli_kategori"),
         "soru": query,
+        "n_oracle_chunks": (len(oracle_ids) if oracle_ids is not None else None),
         "retrieval": vars(retr_metrics),
+        "retrieval_post_rerank": vars(retr_post_metrics),
         "citation": vars(citation_m),
         "guardrail": {"passed": guardrail_passed, "fail_closed": fail_closed,
                      "abstained": result.abstained, "reason": result.reason},
@@ -486,13 +620,17 @@ def _aggregate_table(agg: dict) -> str:
 
 
 def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
-       results_dir: str = RESULTS_DIR) -> dict:
+       results_dir: str = RESULTS_DIR, mode: str = "end_to_end") -> dict:
+    """M0-4 (#36): `mode` ile uc olcum -- bkz. EVAL_MODES ve yukarisindaki not.
+    `retrieval_only` LLM cagirmaz, bu yuzden API anahtari da GEREKMEZ (CI'da kosar)."""
+    if mode not in EVAL_MODES:
+        raise ValueError(f"bilinmeyen mod {mode!r}; secenekler: {EVAL_MODES}")
     _load_dotenv()
     # Anahtar kontrolu saglayici-bagimsiz olmali (EXP-009): uretici artik
     # LLM_BASE_URL/LLM_MODEL ile baska bir OpenAI-uyumlu uca alinabiliyor, o
     # durumda DEEPSEEK_API_KEY hic ayarli olmayabilir. Kaynak: providers.deepseek.
     from ..providers.deepseek import _KEY_ENV_NAMES, _env
-    if not any(_env(n) for n in _KEY_ENV_NAMES):
+    if mode != "retrieval_only" and not any(_env(n) for n in _KEY_ENV_NAMES):
         raise RuntimeError(
             "API anahtari yok (.env kontrol et): "
             + " / ".join(_KEY_ENV_NAMES)
@@ -508,13 +646,14 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
          f"{len(judge_ids)} item LLM-hakem alacak: {sorted(judge_ids)}")
 
     pipeline = build_pipeline(book_path)
-    judge = LlmJudge() if judge_ids else None
+    # retrieval_only LLM cagirmaz -> hakem de kurulmaz (maliyet 0, CI-dostu).
+    judge = LlmJudge() if (judge_ids and mode != "retrieval_only") else None
 
     items_out = []
     for i, item in enumerate(items, start=1):
         print(f"[eval] ({i}/{len(items)}) {item.get('id','?')}: {str(item.get('soru',''))[:70]!r}")
         try:
-            it_out = _eval_item(item, pipeline, judge, judge_ids)
+            it_out = _eval_item(item, pipeline, judge, judge_ids, mode=mode)
         except Exception as e:                       # #29: tek bozuk item run'ı düşürmesin
             print(f"       !! HATA ({type(e).__name__}: {e}) -- item atlandı, run devam")
             it_out = _failed_item(item, e)
@@ -565,7 +704,19 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
 
 
 def main() -> None:
-    run()
+    """CLI: `python -m src.eval.runner [--mode MOD] [--golden YOL] [--book YOL]`
+
+    M0-4 (#36) uc mod: retrieval_only (LLM'siz, ucuz, CI'da kosar) /
+    oracle_context (uretim ust siniri) / end_to_end (gercek boru hatti).
+    `hata_atfi = end_to_end - oracle_context` -> fark retrieval'in payidir."""
+    import argparse
+    ap = argparse.ArgumentParser(prog="src.eval.runner")
+    ap.add_argument("--mode", default="end_to_end", choices=list(EVAL_MODES))
+    ap.add_argument("--golden", default=GOLDEN_PATH)
+    ap.add_argument("--book", default=BOOK_PATH)
+    ap.add_argument("--results-dir", default=RESULTS_DIR)
+    a = ap.parse_args()
+    run(golden_path=a.golden, book_path=a.book, results_dir=a.results_dir, mode=a.mode)
 
 
 if __name__ == "__main__":
