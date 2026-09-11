@@ -148,10 +148,18 @@ class RerankMeasuredAlwaysTests(unittest.TestCase):
         self.assertEqual(out["retrieval"]["all_evidence_recall_at_10"], 1.0)
         self.assertEqual(out["retrieval_post_rerank"]["all_evidence_recall_at_10"], 1.0)
 
-    def test_diversity_constraint_drops_second_gold_when_parents_abundant(self):
-        """ACC-06'nın gerçek koşulu: top_n'i dolduracak kadar FARKLI parent varsa
-        aynı parent'taki ikinci gold kanıt eleniyor ve fallback devreye girmiyor.
-        pre/post ayrımı (#35) bu kaybı artık sayıyla gösteriyor."""
+    def test_diversity_constraint_no_longer_drops_second_gold(self):
+        """ACC-06 DÜZELDİ (#59, 2026-09-12) — bu test sözleşmeyi çevirdi.
+
+        Eskiden: top_n'i dolduracak kadar FARKLI parent varsa aynı parent'taki
+        ikinci gold kanıt eleniyor, fallback de devreye girmiyordu; rerank
+        sonrası `all_evidence_recall` **0,0**'a düşüyordu (kısmi kredi veren
+        `recall` 0,5 diyerek kaybı gizliyordu).
+
+        Artık çeşitlilik kısıtı tavan değil TABAN: yuvaların bir kısmı saf skor
+        sırasına, kalanı yeni parent'lara ayrılıyor. İkinci gold kanıt hayatta
+        kalmalı. Kaybın gerçekten olduğu `diversity_share=1.0` ile ayrıca
+        `tests/unit/test_rerank.py`'de kayıtlı."""
         chunks = {
             "c1": _Chunk("c1", "child", "gold bir", ["d#10.0"], 10, 10, parent_id="p1"),
             "c2": _Chunk("c2", "child", "gold iki", ["d#11.0"], 11, 11, parent_id="p1"),
@@ -174,9 +182,9 @@ class RerankMeasuredAlwaysTests(unittest.TestCase):
               "generator": gen, "doc": None}
         out = R._eval_item(_ITEM, pl, None, set(), mode="retrieval_only")
         self.assertEqual(out["retrieval"]["all_evidence_recall_at_10"], 1.0)
-        self.assertEqual(out["retrieval_post_rerank"]["all_evidence_recall_at_10"], 0.0)
-        # kısmi kredi veren metrik bu kaybı GİZLİYOR (0.5 "fena değil" görünür)
-        self.assertAlmostEqual(out["retrieval_post_rerank"]["recall_at_10"], 0.5)
+        self.assertEqual(out["retrieval_post_rerank"]["all_evidence_recall_at_10"], 1.0,
+                         "ikinci gold kanıt rerank sonrası yine kayboldu")
+        self.assertAlmostEqual(out["retrieval_post_rerank"]["recall_at_10"], 1.0)
 
 
 class OracleContextTests(unittest.TestCase):

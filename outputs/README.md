@@ -26,12 +26,12 @@ vekil retrieval'de recall düşmedi, top-1 sayfa hassasiyeti 0,647 → 0,970.
 Bedel ölçüldü: top-5 bağlam hacmi −%16,6. **Kapı kararı #92'ye bağlı.**
 
 ## Korpus bütünlüğü — kitap ↔ kazanım müfredat uyuşmazlığı
-`korpus-butunluk/RAPOR.md` — 10. sınıf biyoloji kitabında **"mitoz" 0 kez**
+`corpus-integrity/RAPOR.md` — 10. sınıf biyoloji kitabında **"mitoz" 0 kez**
 geçiyor ama `kazanimlar.json` ünite 1 olarak "Mitozu açıklar" diyor. Kitap yeni
 (tema tabanlı) müfredattan, kazanım dosyası eskisinden. Kazanım kapsamı:
 biyoloji %71, fizik %92, coğrafya/felsefe %100.
 
 ## Öğrenci senaryosu (backend uyumlu)
-`ogrenci-senaryosu/` — backend kayıt biçiminde bir öğrenci (10-A, 19 ders,
+`student-scenario/` — backend kayıt biçiminde bir öğrenci (10-A, 19 ders,
 3 kendi notu, 11 ders notu) ve uçtan uca koşum çıktısı: kasa izolasyonu 4/4
 doğru, kendi dersinde 3 atıflı cevap.

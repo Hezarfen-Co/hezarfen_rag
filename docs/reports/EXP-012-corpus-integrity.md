@@ -60,7 +60,7 @@ Yalnız 7 derste `kazanimlar.json` var (19 dersin 7'si).
 
 ## 5. Yapılan
 
-`src/backend/senaryo.py` artık **yalnız kapsanan kazanımlardan** not üretiyor
+`src/demo/scenario.py` artık **yalnız kapsanan kazanımlardan** not üretiyor
 (`kapsanan_kazanimlar`). Kitap okunamazsa eleme yapılmaz — sessizce boş senaryo
 üretmek sebebi görünmez kılardı.
 
@@ -77,7 +77,7 @@ Yalnız 7 derste `kazanimlar.json` var (19 dersin 7'si).
 ## 7. Yeniden üretim
 
 ```
-.venv/bin/python outputs/korpus-butunluk/kazanim_kapsam.py OUT.json   # kazanım düzeyi
-.venv/bin/python outputs/korpus-butunluk/korpus_butunluk.py OUT.json  # ünite düzeyi
-.venv/bin/python outputs/korpus-butunluk/tani_gate.py                 # kapı skorları
+.venv/bin/python outputs/corpus-integrity/kazanim_kapsam.py OUT.json   # kazanım düzeyi
+.venv/bin/python outputs/corpus-integrity/korpus_butunluk.py OUT.json  # ünite düzeyi
+.venv/bin/python outputs/corpus-integrity/tani_gate.py                 # kapı skorları
 ```

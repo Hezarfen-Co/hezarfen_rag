@@ -29,7 +29,7 @@ AI_RAG_INDEX_CAPABILITY = "rag.index"
 AI_PROTOCOL = "hab/2"
 
 # Backend'in kabul ettiği okul rolleri (domain/role.rs — `ai` ATANAMAZ).
-ATANABILIR_ROLLER = ("parent", "student", "teacher", "manager", "admin")
+ASSIGNABLE_ROLES = ("parent", "student", "teacher", "manager", "admin")
 
 
 # --------------------------------------------------------------- chat.reply
@@ -170,7 +170,7 @@ class BlobRequest:
         return d
 
 
-class ApiHata(Exception):
+class ApiError(Exception):
     """Köprü düzeyinde red (yol izinli değil, kullanıcı bilinmiyor).
 
     Koşup 404 dönen bir API çağrısı hata DEĞİLDİR — o `outcome:"ok"` içinde
@@ -178,8 +178,8 @@ class ApiHata(Exception):
     """
 
 
-def api_cevabini_coz(frame: dict) -> tuple[int, object]:
+def decode_api_response(frame: dict) -> tuple[int, object]:
     """`ApiResponse` çerçevesini `(status, body)`'ye çevirir."""
     if frame.get("outcome") == "err":
-        raise ApiHata(f"{frame.get('code', '?')}: {frame.get('message', '')}")
+        raise ApiError(f"{frame.get('code', '?')}: {frame.get('message', '')}")
     return int(frame["status"]), frame.get("body")

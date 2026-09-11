@@ -120,10 +120,10 @@ yoksa eski müfredat kitapları mı? `eba_dl` yeniden koşulacaksa bu da alınma
 Geçici önlem uygulandı: `senaryo.kapsanan_kazanimlar()` kapsanmayanları eliyor.
 
 ### BL-010 — Köprü (hab/2) istemcisi yazılmadı
-**Kaynak:** `docs/BACKEND-ENTEGRASYON.md`, 2026-09-11 · **Durum:** AÇIK
+**Kaynak:** `docs/BACKEND-INTEGRATION.md`, 2026-09-11 · **Durum:** AÇIK
 
 Backend QUIC **sunucusudur**, AI servisleri ona dial eder. Mevcut FastAPI
-servisimizi backend çağırmaz. `src/backend/istemci.py` çerçeve kurma/çözme
+servisimizi backend çağırmaz. `src/bridge/client.py` çerçeve kurma/çözme
 kısmını taşımadan bağımsız hazır tutuyor; eksik olan QUIC taşıması,
 `Hello`/`Greeting` el sıkışması ve `Request` döngüsü.
 
@@ -131,7 +131,7 @@ kısmını taşımadan bağımsız hazır tutuyor; eksik olan QUIC taşıması,
 (compose'da `AI_QUIC_ADDR: 0.0.0.0:8090`).
 
 ### BL-011 — Veli (parent) görünürlüğü kurulmadı
-**Kaynak:** `src/backend/okul.py`, 2026-09-11 · **Durum:** AÇIK
+**Kaynak:** `src/demo/school.py`, 2026-09-11 · **Durum:** AÇIK
 
 Sahte okulda `parent_links` üretiliyor ama veli `/classes`, `/courses`,
 `/notes` uçlarından **hiçbir şey göremiyor** (ölçüldü: üçü de `total=0`).

@@ -17,7 +17,7 @@ import re
 import unicodedata
 
 # Korpus slug -> backend'de görülebilecek başlık biçimleri (küçük harf, katlanmış)
-_ESLESME: dict[str, tuple[str, ...]] = {
+_ALIASES: dict[str, tuple[str, ...]] = {
     "biyoloji":       ("biyoloji", "bio"),
     "fizik":          ("fizik",),
     "kimya":          ("kimya",),
@@ -49,7 +49,7 @@ _ESLESME: dict[str, tuple[str, ...]] = {
 }
 
 
-def katla(metin: str) -> str:
+def fold(metin: str) -> str:
     """Türkçe-duyarlı karşılaştırma biçimi: İ/ı katlaması + aksan atma.
 
     `str.lower()` TEK BAŞINA YETMEZ: "İNGİLİZCE".lower() Türkçe olmayan
@@ -64,14 +64,14 @@ def katla(metin: str) -> str:
     return re.sub(r"[^a-z0-9]+", " ", m).strip()
 
 
-_TERS: dict[str, str] = {}
-for _slug, _adlar in _ESLESME.items():
-    _TERS[katla(_slug)] = _slug
+_BY_ALIAS: dict[str, str] = {}
+for _slug, _adlar in _ALIASES.items():
+    _BY_ALIAS[fold(_slug)] = _slug
     for _ad in _adlar:
-        _TERS[katla(_ad)] = _slug
+        _BY_ALIAS[fold(_ad)] = _slug
 
 
-def ders_slug(backend_basligi: str | None) -> str | None:
+def subject_slug(backend_basligi: str | None) -> str | None:
     """Backend ders başlığı → korpus ders slug'ı. Tanınmazsa **None**.
 
     None dönmesi bir hata değil, bir KARARDIR: uydurma bir slug üretmek
@@ -80,10 +80,10 @@ def ders_slug(backend_basligi: str | None) -> str | None:
     """
     if not backend_basligi:
         return None
-    return _TERS.get(katla(backend_basligi))
+    return _BY_ALIAS.get(fold(backend_basligi))
 
 
-def korpus_dersleri(kok: str, kasa: str, sinif: str) -> list[str]:
+def corpus_subjects(kok: str, kasa: str, sinif: str) -> list[str]:
     """Diskte GERÇEKTEN bulunan ders slug'ları (`data/<kasa>/<sınıf>/*`).
 
     Eşleme tablosu değil, dosya sistemi gerçeği. İkisi ayrıştığında ölçüt
@@ -95,7 +95,7 @@ def korpus_dersleri(kok: str, kasa: str, sinif: str) -> list[str]:
     return sorted(a for a in os.listdir(yol) if os.path.isdir(os.path.join(yol, a)))
 
 
-def kasa_for(sinif: str | int) -> str | None:
+def vault_for(sinif: str | int) -> str | None:
     """Sınıf → kasa ("ortaokul" 5-8, "lise" 9-12). Dışındaysa None."""
     try:
         n = int(str(sinif).strip())

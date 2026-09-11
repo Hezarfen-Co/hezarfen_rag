@@ -1,15 +1,15 @@
 """Backend'den okuma istemcileri — üçü de aynı `.get()` arayüzünü sunar.
 
 Neden üç tane:
-  * `KopruOkuyucu`  — gerçek yol. hab/2 üzerinden `ApiRequest` yazar. Taşıma
+  * `BridgeReader`  — gerçek yol. hab/2 üzerinden `ApiRequest` yazar. Taşıma
     (QUIC akışı) DIŞARIDAN verilir; bu sınıf yalnız çerçeveyi kurar ve cevabı
     çözer, böylece ağ olmadan da test edilir.
-  * `RestOkuyucu`   — backend'in REST'ine doğrudan HTTP. Tohumlama ve elle
+  * `RestReader`   — backend'in REST'ine doğrudan HTTP. Tohumlama ve elle
     doğrulama için (Kadir giriş yapabiliyor). Köprü ayakta olmasa da çalışır.
-  * `SahteOkuyucu`  — sabit sözlükten okur. Testler ve senaryo üretimi.
+  * `FakeReader`  — sabit sözlükten okur. Testler ve senaryo üretimi.
 
 Üçü de aynı sözleşmeyi tutar: `get(path, *, query=None, on_behalf_of=None)`
-→ `(status, body)`. Böylece `ogrenci.baglam_kur` hangi taşımayla koştuğunu
+→ `(status, body)`. Böylece `ogrenci.build_context` hangi taşımayla koştuğunu
 BİLMEZ; ayrışma olamaz.
 """
 from __future__ import annotations
@@ -21,10 +21,10 @@ import urllib.parse
 import urllib.request
 import uuid
 
-from .sozlesme import ApiRequest, api_cevabini_coz
+from .contract import ApiRequest, decode_api_response
 
 
-class KopruOkuyucu:
+class BridgeReader:
     """hab/2 `ApiRequest` ile okur.
 
     `akis_ac`: çağrıldığında `(gonder, al)` çifti döndüren bir fonksiyon —
@@ -43,10 +43,10 @@ class KopruOkuyucu:
                            path=path, query=query, on_behalf_of=on_behalf_of)
         gonder, al = self._akis_ac()
         gonder(istek.to_wire())
-        return api_cevabini_coz(al())
+        return decode_api_response(al())
 
 
-class RestOkuyucu:
+class RestReader:
     """Doğrudan HTTP. Oturum çerezi (`session`) ile koşar.
 
     DÜRÜST SINIR: bu yol `on_behalf_of` TAŞIMAZ — HTTP'de kim giriş yaptıysa
@@ -56,20 +56,20 @@ class RestOkuyucu:
     """
 
     def __init__(self, base_url: str, *, school: str, session_token: str,
-                 kendi_user_id: str | None = None, timeout: float = 15.0):
+                 own_user_id: str | None = None, timeout: float = 15.0):
         self.base_url = base_url.rstrip("/")
         self.school = school
         self.session_token = session_token
-        self.kendi_user_id = kendi_user_id
+        self.own_user_id = own_user_id
         self.timeout = timeout
 
     def get(self, path: str, *, query: str | None = None,
             on_behalf_of: str | None = None) -> tuple[int, object]:
-        if on_behalf_of is not None and self.kendi_user_id is not None \
-                and on_behalf_of != self.kendi_user_id:
+        if on_behalf_of is not None and self.own_user_id is not None \
+                and on_behalf_of != self.own_user_id:
             raise ValueError(
-                "RestOkuyucu baskasi adina okuyamaz: oturum "
-                f"{self.kendi_user_id}, istenen {on_behalf_of}. Kopru (hab/2) kullan.")
+                "RestReader baskasi adina okuyamaz: oturum "
+                f"{self.own_user_id}, istenen {on_behalf_of}. Kopru (hab/2) kullan.")
         url = f"{self.base_url}{path}"
         if query:
             url = f"{url}?{query}"
@@ -86,7 +86,7 @@ class RestOkuyucu:
                 return e.code, govde
 
 
-class SahteOkuyucu:
+class FakeReader:
     """Sabit yanıt tablosundan okur — ağ YOK.
 
     Anahtar: `(path, query)`; `query=None` her sorguya uyan yedek kayıttır.
@@ -98,11 +98,11 @@ class SahteOkuyucu:
     def __init__(self, tablo: dict, *, varsayilan: tuple[int, object] = (404, None)):
         self.tablo = tablo
         self.varsayilan = varsayilan
-        self.cagrilar: list[tuple[str, str | None, str | None]] = []
+        self.calls: list[tuple[str, str | None, str | None]] = []
 
     def get(self, path: str, *, query: str | None = None,
             on_behalf_of: str | None = None) -> tuple[int, object]:
-        self.cagrilar.append((path, query, on_behalf_of))
+        self.calls.append((path, query, on_behalf_of))
         if (path, query) in self.tablo:
             return self.tablo[(path, query)]
         if (path, None) in self.tablo:
@@ -110,17 +110,17 @@ class SahteOkuyucu:
         return self.varsayilan
 
     @classmethod
-    def senaryodan(cls, yol: str) -> "SahteOkuyucu":
+    def from_snapshot(cls, yol: str) -> "FakeReader":
         """`outputs/ogrenci-senaryosu/*.json` dosyasından okuyucu kurar."""
         with open(yol, encoding="utf-8") as fh:
             veri = json.load(fh)
         tablo: dict = {}
-        for kayit in veri["yanitlar"]:
+        for kayit in veri["responses"]:
             tablo[(kayit["path"], kayit.get("query"))] = (kayit["status"], kayit["body"])
         return cls(tablo)
 
 
-def giris_yap(base_url: str, *, school: str, username: str, password: str,
+def login(base_url: str, *, school: str, username: str, password: str,
               timeout: float = 15.0) -> str:
     """`POST /auth/login` → oturum jetonu (`<school>.<token>` çerezinin jeton yarısı).
 
@@ -142,7 +142,7 @@ def giris_yap(base_url: str, *, school: str, username: str, password: str,
     raise ValueError("giris basarili ama `session` cerezi yok")
 
 
-def ortamdan_okuyucu():
+def reader_from_env():
     """Env'den bir okuyucu kurar; eksikse None (çağıran senaryoya düşer).
 
     HEZARFEN_BACKEND_URL, HEZARFEN_SCHOOL, HEZARFEN_USER, HEZARFEN_PASS
@@ -153,5 +153,5 @@ def ortamdan_okuyucu():
     sifre = os.environ.get("HEZARFEN_PASS")
     if not (url and okul and kul and sifre):
         return None
-    jeton = giris_yap(url, school=okul, username=kul, password=sifre)
-    return RestOkuyucu(url, school=okul, session_token=jeton)
+    jeton = login(url, school=okul, username=kul, password=sifre)
+    return RestReader(url, school=okul, session_token=jeton)

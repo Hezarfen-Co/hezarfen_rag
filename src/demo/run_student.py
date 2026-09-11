@@ -4,7 +4,7 @@ Bu bir DEMO değil, bir DOĞRULAMADIR: senaryodaki öğrencinin kendi notundaki
 kazanım metninden soru üretir ve ürünün tam yolunu koşturur. Çıktı
 `outputs/ogrenci-senaryosu/` altına yazılır ki insan incelemesi yapılabilsin.
 
-Koşum: .venv/bin/python -m src.backend.demo_ogrenci [ders] [soru]
+Koşum: .venv/bin/python -m src.bridge.demo_ogrenci [ders] [soru]
 """
 from __future__ import annotations
 
@@ -14,9 +14,9 @@ import sys
 import time
 
 from ..guard.roles import Role, RoleContext, can_access
-from .istemci import SahteOkuyucu
-from .ogrenci import baglam_kur
-from .senaryo import senaryo_kur, yaz
+from ..bridge.client import FakeReader
+from ..bridge.student import build_context
+from .scenario import build_scenario, write
 
 SENARYO = "outputs/ogrenci-senaryosu/lise-10-ogrenci1.json"
 CIKTI = "outputs/ogrenci-senaryosu/kosum-lise-10.json"
@@ -33,9 +33,9 @@ def _pipeline(sinif: str, ders: str):
 def main() -> None:
     ders = sys.argv[1] if len(sys.argv) > 1 else "biyoloji"
 
-    senaryo = senaryo_kur()
-    yaz(senaryo, SENARYO)
-    baglam = baglam_kur(SahteOkuyucu.senaryodan(SENARYO), senaryo.ogrenci["id"])
+    senaryo = build_scenario()
+    write(senaryo, SENARYO)
+    baglam = build_context(FakeReader.from_snapshot(SENARYO), senaryo.ogrenci["id"])
     print(f"[ogrenci] {baglam.ad} ({baglam.rol}) · {baglam.sube} · sinif "
           f"{baglam.sinif} · {len(baglam.dersler)} ders · {len(baglam.notlar)} not")
 

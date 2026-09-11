@@ -26,11 +26,11 @@ from __future__ import annotations
 from dataclasses import dataclass, field
 
 from ..guard.roles import Role, RoleContext
-from .ders_eslesme import ders_slug, kasa_for
+from .subject_map import subject_slug, vault_for
 
 
 @dataclass
-class OgrenciNotu:
+class PersonalNote:
     """Öğrencinin KENDİ notu (`Note` — `GET /notes`). Sahibi öğrencidir."""
     id: str
     title: str
@@ -38,7 +38,7 @@ class OgrenciNotu:
 
 
 @dataclass
-class DersNotu:
+class CourseNote:
     """Öğretmenin ders notu (`CourseNote` — `GET /course-notes?course=`).
     RAG'e indekslenen budur (`rag.index`)."""
     id: str
@@ -48,7 +48,7 @@ class DersNotu:
 
 
 @dataclass
-class OgrenciBaglami:
+class StudentContext:
     """Bir öğrencinin ürün tarafındaki tam bağlamı."""
     user_id: str
     username: str
@@ -58,9 +58,9 @@ class OgrenciBaglami:
     kasa: str | None                     # "ortaokul" | "lise"
     sube: str | None                     # ClassGroup.name
     dersler: list[str] = field(default_factory=list)       # korpus slug'ları
-    taninmayan_dersler: list[str] = field(default_factory=list)
-    notlar: list[OgrenciNotu] = field(default_factory=list)
-    ders_notlari: list[DersNotu] = field(default_factory=list)
+    unknown_subjects: list[str] = field(default_factory=list)
+    notlar: list[PersonalNote] = field(default_factory=list)
+    course_notes: list[CourseNote] = field(default_factory=list)
 
     def role_context(self) -> RoleContext | None:
         """Ürünün erişim kararında kullandığı bağlam. Rol tanınmazsa **None**
@@ -72,7 +72,7 @@ class OgrenciBaglami:
         return RoleContext(role=r, sinif=self.sinif, ders_list=list(self.dersler))
 
 
-def _ilk_sayfa(govde) -> list:
+def _page_items(govde) -> list:
     """Backend sayfalı uçları `{items, total, limit, offset}` döndürür; bazı
     uçlar düz liste. İkisini de kabul et, başka bir şeyse boş liste."""
     if isinstance(govde, dict):
@@ -82,7 +82,7 @@ def _ilk_sayfa(govde) -> list:
     return []
 
 
-def baglam_kur(okuyucu, user_id: str, *, ders_notu_getir: bool = True) -> OgrenciBaglami:
+def build_context(okuyucu, user_id: str, *, with_course_notes: bool = True) -> StudentContext:
     """`user_id` için tam öğrenci bağlamını backend'den okuyup kurar.
 
     `okuyucu`: `.get(path, *, query=None, on_behalf_of=None) -> (status, body)`
@@ -100,7 +100,7 @@ def baglam_kur(okuyucu, user_id: str, *, ders_notu_getir: bool = True) -> Ogrenc
     sinif = sube = None
     durum, govde = okuyucu.get("/classes", on_behalf_of=user_id)
     if durum == 200:
-        for sinif_kaydi in _ilk_sayfa(govde):
+        for sinif_kaydi in _page_items(govde):
             grade = (sinif_kaydi.get("grade") or "").strip()
             if grade:                      # grade'i OLAN ilk şube belirleyicidir
                 sinif, sube = grade, sinif_kaydi.get("name")
@@ -111,37 +111,37 @@ def baglam_kur(okuyucu, user_id: str, *, ders_notu_getir: bool = True) -> Ogrenc
     ders_id_ad: dict[str, str] = {}
     durum, govde = okuyucu.get("/courses", on_behalf_of=user_id)
     if durum == 200:
-        for kurs in _ilk_sayfa(govde):
+        for kurs in _page_items(govde):
             baslik = kurs.get("title") or ""
             ders_id_ad[str(kurs.get("id"))] = baslik
-            slug = ders_slug(baslik)
+            slug = subject_slug(baslik)
             if slug is None:
                 taninmayan.append(baslik)   # sessizce eşleme UYDURMA
             elif slug not in dersler:
                 dersler.append(slug)
 
-    notlar: list[OgrenciNotu] = []
+    notlar: list[PersonalNote] = []
     durum, govde = okuyucu.get("/notes", on_behalf_of=user_id)
     if durum == 200:
-        notlar = [OgrenciNotu(id=str(n.get("id")), title=n.get("title") or "",
+        notlar = [PersonalNote(id=str(n.get("id")), title=n.get("title") or "",
                               content=n.get("content") or "")
-                  for n in _ilk_sayfa(govde)]
+                  for n in _page_items(govde)]
 
-    ders_notlari: list[DersNotu] = []
-    if ders_notu_getir:
+    course_notes: list[CourseNote] = []
+    if with_course_notes:
         for kurs_id in ders_id_ad:
             durum, govde = okuyucu.get("/course-notes", query=f"course={kurs_id}",
                                        on_behalf_of=user_id)
             if durum != 200:
                 continue                   # erişimi yoksa backend zaten reddeder
-            ders_notlari.extend(
-                DersNotu(id=str(n.get("id")), course=str(n.get("course")),
+            course_notes.extend(
+                CourseNote(id=str(n.get("id")), course=str(n.get("course")),
                          title=n.get("title") or "", content=n.get("content") or "")
-                for n in _ilk_sayfa(govde))
+                for n in _page_items(govde))
 
-    return OgrenciBaglami(
+    return StudentContext(
         user_id=str(me.get("id") or user_id), username=me.get("username") or "",
         ad=" ".join(x for x in (me.get("name"), me.get("surname")) if x).strip(),
-        rol=me.get("role") or "", sinif=sinif, kasa=kasa_for(sinif) if sinif else None,
-        sube=sube, dersler=dersler, taninmayan_dersler=taninmayan,
-        notlar=notlar, ders_notlari=ders_notlari)
+        rol=me.get("role") or "", sinif=sinif, kasa=vault_for(sinif) if sinif else None,
+        sube=sube, dersler=dersler, unknown_subjects=taninmayan,
+        notlar=notlar, course_notes=course_notes)

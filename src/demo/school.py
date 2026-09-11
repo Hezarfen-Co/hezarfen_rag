@@ -6,7 +6,7 @@
 1. **Tohumlama.** Kayıtlar backend'in gerçek biçimindedir (`User`, `ClassGroup`,
    `ClassMember`, `Course`, `Enrollment`, `Note`, `CourseNote`), yani ayakta bir
    backend'e olduğu gibi POST edilebilir.
-2. **Çevrimdışı koşum.** `OkulSahtesi` bir kullanıcı adına okuma yapar ve
+2. **Çevrimdışı koşum.** `FakeSchool` bir kullanıcı adına okuma yapar ve
    **backend'in yetki davranışını taklit eder**: öğrenci yalnız kendi şubesini,
    kendi kayıtlı derslerini ve KENDİ notlarını görür.
 
@@ -23,20 +23,20 @@ import json
 import os
 from dataclasses import dataclass, field
 
-from .ders_eslesme import kasa_for, korpus_dersleri
-from .senaryo import _BASLIK, _kimlik, kapsanan_kazanimlar
+from ..bridge.subject_map import vault_for, corpus_subjects
+from .scenario import _TITLE, _record_key, covered_objectives
 
 # Öğrenci adları — senaryo sabiti; backend'deki `mockdata/people.json` ile
 # tutarlı tutuldu ki iki taraf aynı kişilerden söz etsin.
-_OGRENCILER = [("ogrenci1", "Zeynep", "Kaya"), ("ogrenci2", "Emre", "Şahin"),
+_STUDENTS = [("ogrenci1", "Zeynep", "Kaya"), ("ogrenci2", "Emre", "Şahin"),
                ("ogrenci3", "Elif", "Aydın"), ("ogrenci4", "Burak", "Çelik"),
                ("ogrenci5", "Deniz", "Arslan")]
-_OGRETMENLER = [("ogretmen1", "Ayşe", "Yılmaz"), ("ogretmen2", "Mehmet", "Demir")]
-_VELILER = [("veli1", "Hasan", "Kaya", "ogrenci1")]
+_TEACHERS = [("ogretmen1", "Ayşe", "Yılmaz"), ("ogretmen2", "Mehmet", "Demir")]
+_PARENTS = [("veli1", "Hasan", "Kaya", "ogrenci1")]
 
 
 @dataclass
-class Okul:
+class School:
     slug: str
     users: list[dict] = field(default_factory=list)
     classes: list[dict] = field(default_factory=list)
@@ -47,58 +47,58 @@ class Okul:
     course_notes: list[dict] = field(default_factory=list)
     parent_links: list[dict] = field(default_factory=list)
 
-    def kullanici(self, username: str) -> dict | None:
+    def user_by_name(self, username: str) -> dict | None:
         return next((u for u in self.users if u["username"] == username), None)
 
-    def ozet(self) -> dict:
-        return {"okul": self.slug, "kullanici": len(self.users),
+    def summary(self) -> dict:
+        return {"okul": self.slug, "user_by_name": len(self.users),
                 "sube": len(self.classes), "uyelik": len(self.class_members),
                 "ders": len(self.courses), "kayit": len(self.enrollments),
                 "kisisel_not": len(self.notes), "ders_notu": len(self.course_notes),
                 "veli_bagi": len(self.parent_links)}
 
     def to_dict(self) -> dict:
-        return {"okul": self.slug, "ozet": self.ozet(), "users": self.users,
+        return {"okul": self.slug, "summary": self.summary(), "users": self.users,
                 "classes": self.classes, "class_members": self.class_members,
                 "courses": self.courses, "enrollments": self.enrollments,
                 "notes": self.notes, "course_notes": self.course_notes,
                 "parent_links": self.parent_links}
 
 
-def okul_kur(*, kok: str = "data", okul: str = "demo", sinif: str = "10",
+def build_school(*, kok: str = "data", okul: str = "demo", sinif: str = "10",
              subeler: tuple[str, ...] = ("A", "B"),
-             sube_basina_ders: int = 6, ogrenci_basina_not: int = 3) -> Okul:
+             sube_basina_ders: int = 6, ogrenci_basina_not: int = 3) -> School:
     """Diskte GERÇEKTEN bulunan derslerden bir okul kurar.
 
     `sube_basina_ders`: her şube farklı bir ders kümesi alır (kaydırmalı), böylece
     "aynı sınıfta ama farklı derste" durumu da kurulur — izolasyon yalnız sınıfa
     değil derse de bakıyor, tek ders kümesiyle bu ölçülemezdi.
     """
-    kasa = kasa_for(sinif)
+    kasa = vault_for(sinif)
     if kasa is None:
         raise ValueError(f"sinif {sinif!r} icin kasa yok (5-12 bekleniyor)")
-    mevcut = korpus_dersleri(kok, kasa, sinif)
+    mevcut = corpus_subjects(kok, kasa, sinif)
     if not mevcut:
         raise ValueError(f"korpusta veri yok: {os.path.join(kok, kasa, str(sinif))}")
     # kazanımı OLAN dersler öne alınır: notu olmayan bir ders senaryoyu boşaltır
-    kazanimli = [d for d in mevcut if kapsanan_kazanimlar(kok, kasa, sinif, d)]
+    kazanimli = [d for d in mevcut if covered_objectives(kok, kasa, sinif, d)]
     sirali = kazanimli + [d for d in mevcut if d not in kazanimli]
 
-    o = Okul(slug=okul)
-    for kul, ad, soyad in _OGRETMENLER:
-        o.users.append({"id": _kimlik("user", okul, kul), "username": kul,
+    o = School(slug=okul)
+    for kul, ad, soyad in _TEACHERS:
+        o.users.append({"id": _record_key("user", okul, kul), "username": kul,
                         "name": ad, "surname": soyad, "role": "teacher"})
-    for kul, ad, soyad, _ in _VELILER:
-        o.users.append({"id": _kimlik("user", okul, kul), "username": kul,
+    for kul, ad, soyad, _ in _PARENTS:
+        o.users.append({"id": _record_key("user", okul, kul), "username": kul,
                         "name": ad, "surname": soyad, "role": "parent"})
 
-    ogretmen_id = o.kullanici("ogretmen1")["id"]
+    ogretmen_id = o.user_by_name("ogretmen1")["id"]
     ders_kayit: dict[str, str] = {}          # slug -> course id (okul genelinde tek)
 
     for i, sube_harfi in enumerate(subeler):
         sube_adi = f"{sinif}-{sube_harfi}"
-        sube_id = _kimlik("class", okul, sinif, sube_adi)
-        sube_ogretmeni = o.users[i % len(_OGRETMENLER)]["id"]
+        sube_id = _record_key("class", okul, sinif, sube_adi)
+        sube_ogretmeni = o.users[i % len(_TEACHERS)]["id"]
         o.classes.append({"id": sube_id, "name": sube_adi, "grade": str(sinif),
                           "creator": ogretmen_id, "teacher": sube_ogretmeni})
 
@@ -109,58 +109,58 @@ def okul_kur(*, kok: str = "data", okul: str = "demo", sinif: str = "10",
 
         for slug in sube_dersleri:
             if slug not in ders_kayit:
-                kurs_id = _kimlik("course", okul, sinif, slug)
+                kurs_id = _record_key("course", okul, sinif, slug)
                 ders_kayit[slug] = kurs_id
-                o.courses.append({"id": kurs_id, "title": _BASLIK.get(slug, slug),
-                                  "description": f"{sinif}. sınıf {_BASLIK.get(slug, slug)}",
+                o.courses.append({"id": kurs_id, "title": _TITLE.get(slug, slug),
+                                  "description": f"{sinif}. sınıf {_TITLE.get(slug, slug)}",
                                   "kind": "course", "creator": ogretmen_id,
                                   "teachers": [sube_ogretmeni]})
-                kz = kapsanan_kazanimlar(kok, kasa, sinif, slug)
+                kz = covered_objectives(kok, kasa, sinif, slug)
                 if kz:
                     ilk = kz[0].get("unite") or "Ünite 1"
                     grup = [k for k in kz if k.get("unite") == ilk]
                     o.course_notes.append({
-                        "id": _kimlik("cnote", okul, sinif, slug, ilk),
+                        "id": _record_key("cnote", okul, sinif, slug, ilk),
                         "course": kurs_id, "author": sube_ogretmeni,
                         "title": f"{ilk} — kazanımlar",
                         "content": "\n".join(f"{k['kod']} {k['metin']}" for k in grup)})
 
         # şubenin öğrencileri (dönüşümlü dağıtılır)
-        for j, (kul, ad, soyad) in enumerate(_OGRENCILER):
+        for j, (kul, ad, soyad) in enumerate(_STUDENTS):
             if j % len(subeler) != i:
                 continue
-            uid = _kimlik("user", okul, kul)
+            uid = _record_key("user", okul, kul)
             o.users.append({"id": uid, "username": kul, "name": ad,
                             "surname": soyad, "role": "student"})
-            o.class_members.append({"id": _kimlik("member", okul, sube_adi, kul),
+            o.class_members.append({"id": _record_key("member", okul, sube_adi, kul),
                                     "class": sube_id, "user": uid,
                                     "added_by": ogretmen_id})
             for slug in sube_dersleri:
                 o.enrollments.append({
-                    "id": _kimlik("enroll", okul, kul, slug),
+                    "id": _record_key("enroll", okul, kul, slug),
                     "course": ders_kayit[slug], "user": uid,
                     "enrolled_by": ogretmen_id, "source": sube_id})
             # öğrencinin KENDİ notları — her öğrenci FARKLI kazanımlardan
             kazanimli_dersler = [s for s in sube_dersleri
-                                 if kapsanan_kazanimlar(kok, kasa, sinif, s)]
+                                 if covered_objectives(kok, kasa, sinif, s)]
             for n, slug in enumerate(kazanimli_dersler[:ogrenci_basina_not]):
-                kz = kapsanan_kazanimlar(kok, kasa, sinif, slug)
+                kz = covered_objectives(kok, kasa, sinif, slug)
                 k = kz[(j + n) % len(kz)]          # öğrenciye göre kaydır
                 o.notes.append({
-                    "id": _kimlik("note", okul, kul, slug, str(k.get("kazanim_id"))),
+                    "id": _record_key("note", okul, kul, slug, str(k.get("kazanim_id"))),
                     "user": uid,
-                    "title": f"{_BASLIK.get(slug, slug)} — {k.get('unite', '')}".strip(" —"),
+                    "title": f"{_TITLE.get(slug, slug)} — {k.get('unite', '')}".strip(" —"),
                     "content": f"{k['kod']} {k['metin']}\n\n"
                                f"(Kendi notum: bunu tekrar etmeliyim.)"})
 
-    for kul, _ad, _soyad, cocuk in _VELILER:
-        o.parent_links.append({"id": _kimlik("plink", okul, kul, cocuk),
-                               "parent": _kimlik("user", okul, kul),
-                               "student": _kimlik("user", okul, cocuk)})
+    for kul, _ad, _soyad, cocuk in _PARENTS:
+        o.parent_links.append({"id": _record_key("plink", okul, kul, cocuk),
+                               "parent": _record_key("user", okul, kul),
+                               "student": _record_key("user", okul, cocuk)})
     return o
 
 
-class OkulSahtesi:
+class FakeSchool:
     """Bir kullanıcı adına okuyan sahte backend.
 
     Backend'in YETKİ davranışını taklit eder — her kullanıcıya her şeyi
@@ -185,15 +185,15 @@ class OkulSahtesi:
     izolasyon ölçümünü sessizce geçersiz kılardı. Bkz. `docs/Backlog.md` BL-011.
     """
 
-    def __init__(self, okul: Okul):
+    def __init__(self, okul: School):
         self.okul = okul
-        self.cagrilar: list[tuple[str, str | None, str | None]] = []
+        self.calls: list[tuple[str, str | None, str | None]] = []
 
     # -- yardımcılar ----------------------------------------------------
     def _user(self, uid):
         return next((u for u in self.okul.users if u["id"] == uid), None)
 
-    def _subeleri(self, u):
+    def _sections_of(self, u):
         if u["role"] in ("manager", "admin"):
             return list(self.okul.classes)
         if u["role"] == "teacher":
@@ -201,7 +201,7 @@ class OkulSahtesi:
         uyelik = {m["class"] for m in self.okul.class_members if m["user"] == u["id"]}
         return [c for c in self.okul.classes if c["id"] in uyelik]
 
-    def _dersleri(self, u):
+    def _courses_of(self, u):
         if u["role"] in ("manager", "admin"):
             return list(self.okul.courses)
         if u["role"] == "teacher":
@@ -210,13 +210,13 @@ class OkulSahtesi:
         return [c for c in self.okul.courses if c["id"] in kayitli]
 
     @staticmethod
-    def _sayfa(items):
+    def _page(items):
         return {"items": items, "total": len(items), "limit": 50, "offset": 0}
 
     # -- okuma ----------------------------------------------------------
     def get(self, path: str, *, query: str | None = None,
             on_behalf_of: str | None = None) -> tuple[int, object]:
-        self.cagrilar.append((path, query, on_behalf_of))
+        self.calls.append((path, query, on_behalf_of))
         if on_behalf_of is None:
             return 403, None            # `ai` görevlisi okul verisini göremez
         u = self._user(on_behalf_of)
@@ -225,24 +225,24 @@ class OkulSahtesi:
         if path == "/users/me":
             return 200, u
         if path == "/classes":
-            return 200, self._sayfa(self._subeleri(u))
+            return 200, self._page(self._sections_of(u))
         if path == "/courses":
-            return 200, self._sayfa(self._dersleri(u))
+            return 200, self._page(self._courses_of(u))
         if path == "/notes":
-            return 200, self._sayfa([n for n in self.okul.notes
+            return 200, self._page([n for n in self.okul.notes
                                      if n["user"] == u["id"]])
         if path == "/course-notes":
             kurs = (query or "").split("course=", 1)[-1] if query else ""
             if not kurs:
                 return 400, None
-            if kurs not in {c["id"] for c in self._dersleri(u)}:
+            if kurs not in {c["id"] for c in self._courses_of(u)}:
                 return 403, None        # erişimi olmayan dersin notu
-            return 200, self._sayfa([n for n in self.okul.course_notes
+            return 200, self._page([n for n in self.okul.course_notes
                                      if n["course"] == kurs])
         return 404, None
 
 
-def yaz(okul: Okul, dizin: str) -> list[str]:
+def write(okul: School, dizin: str) -> list[str]:
     """Okulu diske yazar: tam veri kümesi + kullanıcı başına okuma anlık görüntüsü."""
     os.makedirs(dizin, exist_ok=True)
     yazilan = []
@@ -251,22 +251,22 @@ def yaz(okul: Okul, dizin: str) -> list[str]:
         json.dump(okul.to_dict(), fh, ensure_ascii=False, indent=2)
     yazilan.append(tam)
 
-    sahte = OkulSahtesi(okul)
+    sahte = FakeSchool(okul)
     for u in okul.users:
-        yanitlar = []
+        responses = []
         for path, query in [("/users/me", None), ("/classes", None),
                             ("/courses", None), ("/notes", None)]:
             st, body = sahte.get(path, query=query, on_behalf_of=u["id"])
-            yanitlar.append({"path": path, "query": query, "status": st, "body": body})
+            responses.append({"path": path, "query": query, "status": st, "body": body})
         _, dersler = sahte.get("/courses", on_behalf_of=u["id"])
         for k in (dersler or {}).get("items", []):
             q = f"course={k['id']}"
             st, body = sahte.get("/course-notes", query=q, on_behalf_of=u["id"])
-            yanitlar.append({"path": "/course-notes", "query": q,
+            responses.append({"path": "/course-notes", "query": q,
                              "status": st, "body": body})
         yol = os.path.join(dizin, f"okuma-{u['username']}.json")
         with open(yol, "w", encoding="utf-8") as fh:
             json.dump({"okul": okul.slug, "user_id": u["id"], "rol": u["role"],
-                       "yanitlar": yanitlar}, fh, ensure_ascii=False, indent=2)
+                       "responses": responses}, fh, ensure_ascii=False, indent=2)
         yazilan.append(yol)
     return yazilan

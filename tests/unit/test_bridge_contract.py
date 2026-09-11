@@ -12,11 +12,11 @@ Backend deposuna DOKUNULMAZ — yalnız okunur.
 """
 import unittest
 
-from src.backend.sozlesme import (AI_CHAT_CAPABILITY, AI_PROTOCOL,
-                                  AI_RAG_INDEX_CAPABILITY, ApiHata, ApiRequest,
-                                  ATANABILIR_ROLLER, BlobRequest, ChatReplyPayload,
+from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_PROTOCOL,
+                                  AI_RAG_INDEX_CAPABILITY, ApiError, ApiRequest,
+                                  ASSIGNABLE_ROLES, BlobRequest, ChatReplyPayload,
                                   ChatRequestPayload, ChatTurn, RagFile,
-                                  RagIndexPayload, api_cevabini_coz)
+                                  RagIndexPayload, decode_api_response)
 
 
 class YetenekAdlariTests(unittest.TestCase):
@@ -29,8 +29,8 @@ class YetenekAdlariTests(unittest.TestCase):
 
     def test_ai_is_not_an_assignable_role(self):
         """`Role::try_from_str` ROLES üzerinde arar ve `Ai` o listede yoktur."""
-        self.assertNotIn("ai", ATANABILIR_ROLLER)
-        self.assertEqual(ATANABILIR_ROLLER,
+        self.assertNotIn("ai", ASSIGNABLE_ROLES)
+        self.assertEqual(ASSIGNABLE_ROLES,
                          ("parent", "student", "teacher", "manager", "admin"))
 
 
@@ -121,15 +121,15 @@ class ApiOkumaTests(unittest.TestCase):
     def test_404_is_an_ok_outcome_not_an_error(self):
         """"an API call that ran and answered 404 is an `Ok` carrying that
         status, because the service asked and the API replied." """
-        status, body = api_cevabini_coz({"outcome": "ok", "id": "1",
+        status, body = decode_api_response({"outcome": "ok", "id": "1",
                                          "school": "demo", "status": 404,
                                          "body": None})
         self.assertEqual(status, 404)
         self.assertIsNone(body)
 
     def test_bridge_refusal_raises(self):
-        with self.assertRaises(ApiHata):
-            api_cevabini_coz({"outcome": "err", "id": "1", "school": "demo",
+        with self.assertRaises(ApiError):
+            decode_api_response({"outcome": "err", "id": "1", "school": "demo",
                               "code": "forbidden_path", "message": "no"})
 
 

@@ -21,7 +21,7 @@ RAG servisi:
 
 > HTTP servisi yine de değerlidir (yerel geliştirme, backend-dışı entegrasyon,
 > ölçüm koşumları) — ama **köprünün yerine geçmez**. Köprü istemcisi
-> (QUIC taşıması) henüz yazılmadı; `src/backend/istemci.py` çerçeve kurma ve
+> (QUIC taşıması) henüz yazılmadı; `src/bridge/client.py` çerçeve kurma ve
 > cevap çözme kısmını taşımadan bağımsız hazır tutuyor.
 
 ## 2. Bugün ÇALIŞAN yol: `rag.index`
@@ -96,14 +96,20 @@ pub struct Citation { pub n: u32, pub pages: Vec<i64>, pub source: String }
 
 ## 5. Bu tarafta yapılanlar (bu depoda)
 
-| dosya | ne |
+| paket / dosya | ne |
 |---|---|
-| `src/backend/sozlesme.py` | Tel biçiminin Python karşılığı; anahtar adları **testle sabitlendi** (backend'in kendi testiyle aynı gerekçe) |
-| `src/backend/istemci.py` | `KopruOkuyucu` (hab/2), `RestOkuyucu` (doğrudan HTTP), `SahteOkuyucu` (test/senaryo) — üçü aynı `.get()` arayüzü |
-| `src/backend/ogrenci.py` | `/users/me` + `/classes` + `/courses` + `/notes` + `/course-notes` → `OgrenciBaglami` → `RoleContext` (kasa izolasyonu) |
-| `src/backend/ders_eslesme.py` | Backend ders başlığı ↔ korpus ders slug'ı (Türkçe İ/ı katlamalı) |
-| `src/backend/senaryo.py` | Gerçek korpustan öğrenci senaryosu (uydurma içerik yok) |
-| `src/backend/demo_ogrenci.py` | Uçtan uca doğrulama koşumu |
+| **`src/bridge/`** | **Üretimde koşan entegrasyon kodu.** Adı bilerek `backend` değil: bu paket backend DEĞİL, backend'e bağlanan taraftır (backend'in kendi terimi: `hab/2` = *hezarfen ai bridge*). |
+| `src/bridge/contract.py` | Tel biçiminin Python karşılığı; anahtar adları **testle sabitlendi** (backend'in kendi testiyle aynı gerekçe) |
+| `src/bridge/client.py` | `BridgeReader` (hab/2), `RestReader` (doğrudan HTTP), `FakeReader` (çevrimdışı) — üçü aynı `.get()` arayüzü |
+| `src/bridge/student.py` | `/users/me` + `/classes` + `/courses` + `/notes` + `/course-notes` → `StudentContext` → `RoleContext` (kasa izolasyonu) |
+| `src/bridge/subject_map.py` | Backend ders başlığı ↔ korpus ders slug'ı (Türkçe İ/ı katlamalı) |
+| **`src/demo/`** | **Ürün kodu DEĞİL** — örnek veri üretimi. `src/bridge`'den ayrı tutulur; karışırsa "hangi kod üretimde çalışıyor" sorusu cevapsız kalır. |
+| `src/demo/scenario.py` | Tek öğrenci senaryosu (gerçek korpustan, uydurma içerik yok) |
+| `src/demo/school.py` | Tam okul: şubeler, öğretmen, veli + backend yetki davranışını taklit eden `FakeSchool` |
+| `src/demo/run_student.py` | Uçtan uca doğrulama koşumu |
+| **`src/corpus/`** | **Korpus edinme.** `src/ingest/` ile karıştırılmamalı: orası bir PDF'i kanonik belgeye ÇEVİRİR, burası o PDF'lerin nereden GELDİĞİdir. |
+| `src/corpus/eba_catalog.py` | EBA SPA bundle'ından materyal envanteri (sınıf/ders/ünite/kazanım/pdf) |
+| `src/corpus/eba_download.py` | Katalogdan diske, devam ettirilebilir indirici |
 
 ### Neden `sinif` üç ayrı okumadan geliyor
 Backend bu üçlüyü tek yerde tutmuyor: rol `User.role`'da, **sınıf üyesi
@@ -123,5 +129,5 @@ Birleştirilmeden `can_access(sinif=, ders=)` kurulamaz.
 
 - Köprü istemcisi (QUIC/`hab/2` taşıması) yazılmadı.
 - `asker`/`citations` sözleşme değişikliği **backend ekibinin kararı**.
-- `RestOkuyucu` başkası adına okuyamaz (HTTP'de oturum sahibi kim ise o okur);
+- `RestReader` başkası adına okuyamaz (HTTP'de oturum sahibi kim ise o okur);
   bu bilinçli bir kısıttır, sessizce yanlış kullanıcıyı okumaktansa hata verir.
