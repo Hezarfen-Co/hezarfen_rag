@@ -40,6 +40,95 @@ def _as_set(xs) -> set:
 
 
 # --------------------------------------------------------------------------
+# 0) GÜVEN ARALIĞI + KAPI KARARI  (EXP-010 / EVAL-03)
+#
+# `benchmark.md`'nin açık kuralı: "ortalama skor DEĞİL, her kritik alt-görevde
+# %95 güven aralığının ALT sınırı kapıyı geçmeli". Bu kural bugüne kadar kodda
+# YOKTU; §H ve deney kayıtları nokta tahminleri raporluyordu. Ölçülen sonuç:
+# guardrail "33/33 = 1.000" görünüyor ama %95 CI alt sınırı **0.896** — yani
+# %10'a kadar gerçek hata oranıyla uyumlu. Sıfır hatayla CI-alt ≥0.99 için
+# n = 381 gerekiyor. Bu blok, "kapıyı geçti" iddiasını CI olmadan İMKÂNSIZ kılar.
+# --------------------------------------------------------------------------
+
+Z_95 = 1.959963984540054     # normal dağılım %95 iki-yanlı
+
+
+def wilson_ci(k: int, n: int, z: float = Z_95) -> tuple[float, float] | None:
+    """Oran (k başarı / n deneme) için Wilson skor aralığı.
+
+    Neden Wilson: küçük n ve uç oranlarda (k==n gibi) normal-yaklaşım aralığı
+    çöker (33/33 için [1.0, 1.0] verir — yanıltıcı). Wilson bu durumda bile
+    anlamlı bir alt sınır üretir (33/33 -> alt 0.896).
+    n == 0 -> None ("ölçülmedi", 0.0 ile KARIŞTIRILMAZ)."""
+    if n <= 0:
+        return None
+    if k < 0 or k > n:
+        raise ValueError(f"wilson_ci: 0 <= k <= n olmalı (k={k}, n={n})")
+    p = k / n
+    z2 = z * z
+    denom = 1.0 + z2 / n
+    center = (p + z2 / (2 * n)) / denom
+    half = (z / denom) * ((p * (1 - p) / n + z2 / (4 * n * n)) ** 0.5)
+    return (max(0.0, center - half), min(1.0, center + half))
+
+
+def bootstrap_ci(values: list, z_alpha: float = 0.05, n_boot: int = 20000,
+                 seed: int = 20260911) -> tuple[float, float] | None:
+    """Sürekli değerlerin ORTALAMASI için yüzdelik (percentile) bootstrap aralığı.
+
+    None'lar atılır (mean() ile aynı sözleşme). n < 2 -> None (tek gözlemden
+    aralık üretmek uydurma olurdu). `seed` sabit -> tekrar-üretilebilir."""
+    import random
+    vs = [float(v) for v in values if v is not None]
+    n = len(vs)
+    if n < 2:
+        return None
+    rnd = random.Random(seed)
+    means = []
+    for _ in range(n_boot):
+        s = 0.0
+        for _ in range(n):
+            s += vs[rnd.randrange(n)]
+        means.append(s / n)
+    means.sort()
+    lo_i = int((z_alpha / 2) * n_boot)
+    hi_i = min(n_boot - 1, int((1 - z_alpha / 2) * n_boot))
+    return (means[lo_i], means[hi_i])
+
+
+def gate_status(threshold: float, ci: tuple[float, float] | None, *,
+                higher_is_better: bool = True) -> str:
+    """Kapı kararı — SADECE güven aralığı üzerinden.
+
+    Döner: "GEÇTİ" | "GEÇMEDİ" | "ÖLÇÜLMEDİ".
+    `higher_is_better=True` ise CI **alt** sınırı eşiği geçmeli; hata-oranı gibi
+    "küçük iyidir" metriklerinde CI **üst** sınırı eşiğin altında olmalı.
+    ci None ise (n=0 ya da n<2) "ÖLÇÜLMEDİ" — nokta tahminine bakıp "GEÇTİ"
+    demek bu fonksiyonla mümkün DEĞİL (EVAL-03'ün kök nedeni buydu)."""
+    if ci is None:
+        return "ÖLÇÜLMEDİ"
+    lo, hi = ci
+    if higher_is_better:
+        return "GEÇTİ" if lo >= threshold else "GEÇMEDİ"
+    return "GEÇTİ" if hi <= threshold else "GEÇMEDİ"
+
+
+def n_needed_for_gate(threshold: float, z: float = Z_95) -> int:
+    """SIFIR hatayla (k == n) Wilson alt sınırının `threshold`'u geçmesi için
+    gereken en küçük n. "33/33 yeter mi?" sorusunun cevabı bu.
+    Örn. threshold=0.99 -> 381; 0.95 -> 73."""
+    if not (0.0 < threshold < 1.0):
+        raise ValueError("threshold 0 ile 1 arasında olmalı")
+    n = 1
+    while n < 1_000_000:
+        ci = wilson_ci(n, n, z)
+        if ci and ci[0] >= threshold:
+            return n
+        n += 1
+    raise RuntimeError("n_needed_for_gate: makul aralıkta çözüm yok")
+
+
+# --------------------------------------------------------------------------
 # 1) Retrieval: recall@k / precision@k / MRR — küme-tabanlı, span VEYA sayfa
 #    kümeleri üzerinde ÇALIŞAN TEK genel fonksiyon seti (kod tekrarını önler;
 #    aynı formül span_id kesişimi için de sayfa kesişimi için de geçerlidir).
