@@ -1,0 +1,52 @@
+{
+  "okul": "demo",
+  "user_id": "2MS543G4C78MT4WBHCM0M49X9C",
+  "rol": "parent",
+  "yanitlar": [
+    {
+      "path": "/users/me",
+      "query": null,
+      "status": 200,
+      "body": {
+        "id": "2MS543G4C78MT4WBHCM0M49X9C",
+        "username": "veli1",
+        "name": "Hasan",
+        "surname": "Kaya",
+        "role": "parent"
+      }
+    },
+    {
+      "path": "/classes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/courses",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/notes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    }
+  ]
+}

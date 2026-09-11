@@ -129,3 +129,18 @@ kısmını taşımadan bağımsız hazır tutuyor; eksik olan QUIC taşıması,
 
 **Bağımlılık:** `AI_SHARED_TOKEN`, TLS sertifikası ve ayakta bir backend
 (compose'da `AI_QUIC_ADDR: 0.0.0.0:8090`).
+
+### BL-011 — Veli (parent) görünürlüğü kurulmadı
+**Kaynak:** `src/backend/okul.py`, 2026-09-11 · **Durum:** AÇIK
+
+Sahte okulda `parent_links` üretiliyor ama veli `/classes`, `/courses`,
+`/notes` uçlarından **hiçbir şey göremiyor** (ölçüldü: üçü de `total=0`).
+Sebep: velinin çocuğunun verisine backend'de hangi uçtan eriştiği henüz
+doğrulanmadı (`domain/parent_link.rs` var, web yolu incelenmedi).
+
+Boş bırakmak bilinçli: uydurulmuş bir veli görünürlüğü, üzerine kurulacak her
+izolasyon ölçümünü sessizce geçersiz kılardı. Ürün hiyerarşisinde
+`parent < student` olduğu için veli yolu MVP kapsamındadır.
+
+**Yapılacak:** backend'de veli uçlarını okuyup `OkulSahtesi`'ne gerçek kuralı
+koymak; `can_access`'in veli dalını ölçümle doğrulamak.

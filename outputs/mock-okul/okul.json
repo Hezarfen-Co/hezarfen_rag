@@ -1,0 +1,571 @@
+{
+  "okul": "demo",
+  "ozet": {
+    "okul": "demo",
+    "kullanici": 8,
+    "sube": 2,
+    "uyelik": 5,
+    "ders": 8,
+    "kayit": 30,
+    "kisisel_not": 15,
+    "ders_notu": 8,
+    "veli_bagi": 1
+  },
+  "users": [
+    {
+      "id": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "username": "ogretmen1",
+      "name": "Ayşe",
+      "surname": "Yılmaz",
+      "role": "teacher"
+    },
+    {
+      "id": "2P7SMGT0NY22EQZS10KR92CGQA",
+      "username": "ogretmen2",
+      "name": "Mehmet",
+      "surname": "Demir",
+      "role": "teacher"
+    },
+    {
+      "id": "2MS543G4C78MT4WBHCM0M49X9C",
+      "username": "veli1",
+      "name": "Hasan",
+      "surname": "Kaya",
+      "role": "parent"
+    },
+    {
+      "id": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "username": "ogrenci1",
+      "name": "Zeynep",
+      "surname": "Kaya",
+      "role": "student"
+    },
+    {
+      "id": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "username": "ogrenci3",
+      "name": "Elif",
+      "surname": "Aydın",
+      "role": "student"
+    },
+    {
+      "id": "1JNAZK19DKP469C81NMDMNSGTY",
+      "username": "ogrenci5",
+      "name": "Deniz",
+      "surname": "Arslan",
+      "role": "student"
+    },
+    {
+      "id": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "username": "ogrenci2",
+      "name": "Emre",
+      "surname": "Şahin",
+      "role": "student"
+    },
+    {
+      "id": "2MHTZH3MN99K03ND71135DJNY6",
+      "username": "ogrenci4",
+      "name": "Burak",
+      "surname": "Çelik",
+      "role": "student"
+    }
+  ],
+  "classes": [
+    {
+      "id": "2G7FF0M5T5N0H0GEHQG3X613D2",
+      "name": "10-A",
+      "grade": "10",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teacher": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    },
+    {
+      "id": "3HJEXY79KB208FRR77STHNMQEW",
+      "name": "10-B",
+      "grade": "10",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teacher": "2P7SMGT0NY22EQZS10KR92CGQA"
+    }
+  ],
+  "class_members": [
+    {
+      "id": "1MARVV9SKHAFFCGZHJ8R4NPDZD",
+      "class": "2G7FF0M5T5N0H0GEHQG3X613D2",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "added_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    },
+    {
+      "id": "4DYXQMC2Z9MWX03MXHKB5CYCSD",
+      "class": "2G7FF0M5T5N0H0GEHQG3X613D2",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "added_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    },
+    {
+      "id": "6RZRQVASN7YWE2RCMM9DRGGM3H",
+      "class": "2G7FF0M5T5N0H0GEHQG3X613D2",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "added_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    },
+    {
+      "id": "2H0HC8142WMGRPXYMRHBQ66035",
+      "class": "3HJEXY79KB208FRR77STHNMQEW",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "added_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    },
+    {
+      "id": "1K8943ZR6EX2H1DP478E431V0W",
+      "class": "3HJEXY79KB208FRR77STHNMQEW",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "added_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+    }
+  ],
+  "courses": [
+    {
+      "id": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "title": "Biyoloji",
+      "description": "10. sınıf Biyoloji",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "title": "Coğrafya",
+      "description": "10. sınıf Coğrafya",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "title": "Din Kültürü ve Ahlak Bilgisi",
+      "description": "10. sınıf Din Kültürü ve Ahlak Bilgisi",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "title": "Felsefe",
+      "description": "10. sınıf Felsefe",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "title": "Fizik",
+      "description": "10. sınıf Fizik",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "title": "Fen Lisesi Biyoloji",
+      "description": "10. sınıf Fen Lisesi Biyoloji",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "title": "Fen Lisesi Fizik",
+      "description": "10. sınıf Fen Lisesi Fizik",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "2P7SMGT0NY22EQZS10KR92CGQA"
+      ]
+    },
+    {
+      "id": "193J0F8JP9A00K8TADX54Y5SF7",
+      "title": "Fen Lisesi Kimya",
+      "description": "10. sınıf Fen Lisesi Kimya",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "2P7SMGT0NY22EQZS10KR92CGQA"
+      ]
+    }
+  ],
+  "enrollments": [
+    {
+      "id": "30BFACQBKMJ7J534PF1XSR1F8P",
+      "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "0XC32YZQ85NJNQ3213B2TRBN6F",
+      "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "5KVWZ6TKYJEP91GX1SRH320KA0",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "5K68PKA7CQ8T9PJ6AW7RCSCXJF",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "0P8HYPBVETCZS2X748Y09DTYYE",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "2WKDMBF960R0KTS176B07HRREX",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "6N96ACX43Y7856F41ENGMQP607",
+      "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "179P7D422QAKTSAT3RB7V2M12P",
+      "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "1NZJZW5GX14FJR81GCC0TXAMVZ",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "2EH9YXRXHZDN3ZWWFPBJXAMT2T",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "5KQWNJRA9M1XE6MT3W3MG8GE9D",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "0FBGBX8D2630M1HK5KY2V29RGK",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "5R8XCRPKMQ2RMXY84SX72HTGKE",
+      "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "6K8A735EH82M63XTBX44C68ZSE",
+      "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "3XMPG8XND802ZHBPTBN0KXF556",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "0TARBNEPHK8YK5RRRCE1DFSPWF",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "3T7Y359PRE6JCH8B0CYX8QD19Z",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "6YC2408RJY0CATZA4MP1743X9P",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "2G7FF0M5T5N0H0GEHQG3X613D2"
+    },
+    {
+      "id": "6BPDNJWGNK9FMY6B9T057A6PF2",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "63VJE317RKQM51P856RBAZB8MQ",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "0VCZQ7ER0BET81QQMBK5A0GMX3",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "4TPAJHM61CGJE7RT9Q3YFEBEE5",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "2KK3BB3PD9X5D66PT05YYC337C",
+      "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "7XD2C73Q5NNF47DKPCVF8NMSFY",
+      "course": "193J0F8JP9A00K8TADX54Y5SF7",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "44Y8NJW4NR2SC8DS00GMWWCR13",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "7WWTKK9QYRJS7V685XAT3BWKJ8",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "7F9A2EGA0MBRSM7Y72N2S5PM1J",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "6CTW2Z74CEE17Y70MBRQMWGA3V",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "1ZDN3WJATEPMC638VVE735PT9H",
+      "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    },
+    {
+      "id": "16YPMW0CCHQ904H7D4PGGTBM0A",
+      "course": "193J0F8JP9A00K8TADX54Y5SF7",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "enrolled_by": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "source": "3HJEXY79KB208FRR77STHNMQEW"
+    }
+  ],
+  "notes": [
+    {
+      "id": "4KSEV81DCQY9DY7ZXT6FRTK0V6",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "title": "Biyoloji — Hücre Bölünmeleri",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "3W43N93A186G0J388657ZRT98C",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "title": "Coğrafya — Doğal Sistemler",
+      "content": "10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "12GAVFT5JWXE57EVCZFEF77DKY",
+      "user": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+      "content": "None 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "31EMFNKHZXVQDZN0XKMRDVCEC8",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "title": "Biyoloji — Ekosistem Ekolojisi ve Güncel Çevre Sorunları",
+      "content": "10.3.1.1 Ekosistemin canlı ve cansız bileşenleri arasındaki ilişkiyi açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "4H6D1E4J4DZ6Q9HYDC84D00PGV",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "title": "Coğrafya — Doğal Sistemler",
+      "content": "10.1.4 Kayaçların özellikleri ile yeryüzü şekillerinin oluşum süreçlerini ilişkilendirir.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "4Y688E6M7F7XMDFNRH15N3MMYD",
+      "user": "35ZMPCWV0702GN5EQFKZYW80QC",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+      "content": "None 10.1.5. İnsanın Allah ile irtibat yollarını fark eder.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "440CTH83GY68WS214SW61S9ZCN",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "title": "Biyoloji — Ekosistem Ekolojisi ve Güncel Çevre Sorunları",
+      "content": "10.3.1.3 Ekosistemde madde ve enerji akışını analiz eder.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "1YTP7N37JWWT1F1WDV6X1YWYDH",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "title": "Coğrafya — Doğal Sistemler",
+      "content": "10.1.6 Dış kuvvetleri yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "5KVPNQMTA26QGRB95CKMA88ABF",
+      "user": "1JNAZK19DKP469C81NMDMNSGTY",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Hz. Muhammed ve Gençlik",
+      "content": "None 10.2.1. Kur’an-ı Kerim’den gençlerle ilgili ayetlere örnekler verir.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "57TXSNWHC3PDPPX7R9R2DQDRZD",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+      "content": "None 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "6KM2EAHGXK1DGRHERWKSQB82E1",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "title": "Felsefe — Felsefeyi Tanıma",
+      "content": "10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "3HWE9MDG43VS62VK2XHQ0500QT",
+      "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+      "title": "Fizik — Elektrik ve Manyetizma",
+      "content": "10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "24VB66MBY31F43G8V2TEYYVZHM",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+      "content": "None 10.1.4. İnsanın özelliklerini ayetlerle açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "79T2D8R9CMB64B1CSVYRXE6XRK",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "title": "Felsefe — Felsefe ile Düşünme",
+      "content": "10.2.2 Düşünme ve akıl yürütmede dili doğru kullanmanın önemini açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    },
+    {
+      "id": "61B3CRMD6Q230RHDXBY6ZQM1QA",
+      "user": "2MHTZH3MN99K03ND71135DJNY6",
+      "title": "Fizik — Elektrik ve Manyetizma",
+      "content": "10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+    }
+  ],
+  "course_notes": [
+    {
+      "id": "4NXYQAYEJR8160QPC8VB9831P3",
+      "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Hücre Bölünmeleri — kazanımlar",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar."
+    },
+    {
+      "id": "6WQMG6N19XZ29FP786JEG0FSGG",
+      "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Doğal Sistemler — kazanımlar",
+      "content": "10.1.1 Dünya’nın tektonik oluşumunu açıklar.\n10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n10.1.3 İç kuvvetleri; yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.4 Kayaçların özellikleri ile yeryüzü şekillerinin oluşum süreçlerini ilişkilendirir.\n10.1.5 Türkiye’deki yer şekillerinin oluşum sürecine iç kuvvetlerin etkisini açıklar.\n10.1.6 Dış kuvvetleri yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.7 Türkiye’deki yer şekillerinin oluşum sürecine dış kuvvetlerin etkisini açıklar.\n10.1.8 Türkiye’deki ana yer şekillerini temel özellikleri ve dağılışları açısından değerlendirir.\n10.1.9 Yeryüzündeki su varlıklarını özelliklerine göre sınıflandırır.\n10.1.10 Türkiye’deki su varlıklarının genel özelliklerini ve dağılışını açıklar.\n10.1.11 Türkiye’deki su varlığını verimli kullanmanın ekonomik, sosyal ve kültürel etkilerini değerlendirir.\n10.1.12 Yeryüzündeki toprak çeşitliliğini oluşum süreçleri ile ilişkilendirir.\n10.1.13 Türkiye’deki toprakların dağılışını etkileyen faktörler ile toprak tiplerini ilişkilendirir.\n10.1.14 Türkiye topraklarının kullanımını verimlilik açısından değerlendirir.\n10.1.15 Bitki toplulukları ve türlerini genel özelliklerine göre sınıflandırır.\n10.1.16 Bitki topluluklarının dağılışı ile iklim ve yer şekillerini ilişkilendirir.\n10.1.17 Türkiye’deki doğal bitki topluluklarının dağılışını yetişme şartları açısından analiz eder."
+    },
+    {
+      "id": "347CPXTZ446VJJ272CHGR3BRMX",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Allah İnsan İlişkisi — kazanımlar",
+      "content": "None 10.1.1. Allah inancının insan hayatındaki yeri ve önemini yorumlar.\nNone 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\nNone 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\nNone 10.1.4. İnsanın özelliklerini ayetlerle açıklar.\nNone 10.1.5. İnsanın Allah ile irtibat yollarını fark eder.\nNone 10.1.6. Rûm suresi 18-27. ayetlerde verilen mesajları değerlendirir."
+    },
+    {
+      "id": "04Q9B71JZFJGB16HM2AP5P7PRC",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Felsefeyi Tanıma — kazanımlar",
+      "content": "10.1.1 Felsefenin anlamını açıklar.\n10.1.2 Felsefi düşüncenin özelliklerini açıklar.\n10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar."
+    },
+    {
+      "id": "64EVM86PT9RWTWAX4S7BMQWD9S",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Elektrik ve Manyetizma — kazanımlar",
+      "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+    },
+    {
+      "id": "6TJD5V1WCPTTMYYGYYSAR9EZYR",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Hücre Bölünmeleri — kazanımlar",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n10.1.1.2 Mitozu açıklar\n10.1.1.3 Eşeysiz üremeyi örneklerle açıklar.\n10.1.2.1 Mayozu açıklar\n10.1.2.2 Eşeyli üremeyi örneklerle açıklar."
+    },
+    {
+      "id": "2BYD6CNKJ2XW1D2DG62MRRYMWD",
+      "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "author": "2P7SMGT0NY22EQZS10KR92CGQA",
+      "title": "Elektrik ve Manyetizma — kazanımlar",
+      "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+    },
+    {
+      "id": "3EKVAMRCM6RDRMQKTDA6WHPEB4",
+      "course": "193J0F8JP9A00K8TADX54Y5SF7",
+      "author": "2P7SMGT0NY22EQZS10KR92CGQA",
+      "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+      "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+    }
+  ],
+  "parent_links": [
+    {
+      "id": "21N6QKAZX3SG02WNE2XCFY0J49",
+      "parent": "2MS543G4C78MT4WBHCM0M49X9C",
+      "student": "7T02J9T2KPSKP4ZNBD01KAMJ2E"
+    }
+  ]
+}

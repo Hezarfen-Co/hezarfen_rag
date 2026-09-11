@@ -1,0 +1,254 @@
+{
+  "okul": "demo",
+  "user_id": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+  "rol": "student",
+  "yanitlar": [
+    {
+      "path": "/users/me",
+      "query": null,
+      "status": 200,
+      "body": {
+        "id": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+        "username": "ogrenci2",
+        "name": "Emre",
+        "surname": "Şahin",
+        "role": "student"
+      }
+    },
+    {
+      "path": "/classes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "3HJEXY79KB208FRR77STHNMQEW",
+            "name": "10-B",
+            "grade": "10",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teacher": "2P7SMGT0NY22EQZS10KR92CGQA"
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/courses",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+            "title": "Din Kültürü ve Ahlak Bilgisi",
+            "description": "10. sınıf Din Kültürü ve Ahlak Bilgisi",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "7KZK78H3D6AK35R2PERV4ZVF68",
+            "title": "Felsefe",
+            "description": "10. sınıf Felsefe",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+            "title": "Fizik",
+            "description": "10. sınıf Fizik",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+            "title": "Fen Lisesi Biyoloji",
+            "description": "10. sınıf Fen Lisesi Biyoloji",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+            "title": "Fen Lisesi Fizik",
+            "description": "10. sınıf Fen Lisesi Fizik",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "2P7SMGT0NY22EQZS10KR92CGQA"
+            ]
+          },
+          {
+            "id": "193J0F8JP9A00K8TADX54Y5SF7",
+            "title": "Fen Lisesi Kimya",
+            "description": "10. sınıf Fen Lisesi Kimya",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "2P7SMGT0NY22EQZS10KR92CGQA"
+            ]
+          }
+        ],
+        "total": 6,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/notes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "57TXSNWHC3PDPPX7R9R2DQDRZD",
+            "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+            "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+            "content": "None 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+          },
+          {
+            "id": "6KM2EAHGXK1DGRHERWKSQB82E1",
+            "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+            "title": "Felsefe — Felsefeyi Tanıma",
+            "content": "10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+          },
+          {
+            "id": "3HWE9MDG43VS62VK2XHQ0500QT",
+            "user": "06XC9Y40FXWRNBMZJH5SGMSQQA",
+            "title": "Fizik — Elektrik ve Manyetizma",
+            "content": "10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n\n(Kendi notum: bunu tekrar etmeliyim.)"
+          }
+        ],
+        "total": 3,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "347CPXTZ446VJJ272CHGR3BRMX",
+            "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Allah İnsan İlişkisi — kazanımlar",
+            "content": "None 10.1.1. Allah inancının insan hayatındaki yeri ve önemini yorumlar.\nNone 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\nNone 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\nNone 10.1.4. İnsanın özelliklerini ayetlerle açıklar.\nNone 10.1.5. İnsanın Allah ile irtibat yollarını fark eder.\nNone 10.1.6. Rûm suresi 18-27. ayetlerde verilen mesajları değerlendirir."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=7KZK78H3D6AK35R2PERV4ZVF68",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "04Q9B71JZFJGB16HM2AP5P7PRC",
+            "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Felsefeyi Tanıma — kazanımlar",
+            "content": "10.1.1 Felsefenin anlamını açıklar.\n10.1.2 Felsefi düşüncenin özelliklerini açıklar.\n10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "64EVM86PT9RWTWAX4S7BMQWD9S",
+            "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Elektrik ve Manyetizma — kazanımlar",
+            "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "6TJD5V1WCPTTMYYGYYSAR9EZYR",
+            "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Hücre Bölünmeleri — kazanımlar",
+            "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n10.1.1.2 Mitozu açıklar\n10.1.1.3 Eşeysiz üremeyi örneklerle açıklar.\n10.1.2.1 Mayozu açıklar\n10.1.2.2 Eşeyli üremeyi örneklerle açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "2BYD6CNKJ2XW1D2DG62MRRYMWD",
+            "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+            "author": "2P7SMGT0NY22EQZS10KR92CGQA",
+            "title": "Elektrik ve Manyetizma — kazanımlar",
+            "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=193J0F8JP9A00K8TADX54Y5SF7",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "3EKVAMRCM6RDRMQKTDA6WHPEB4",
+            "course": "193J0F8JP9A00K8TADX54Y5SF7",
+            "author": "2P7SMGT0NY22EQZS10KR92CGQA",
+            "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+            "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    }
+  ]
+}
