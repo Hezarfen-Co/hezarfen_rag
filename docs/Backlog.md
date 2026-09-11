@@ -101,3 +101,31 @@ büyütmek doğru değil — maliyeti ve Lost-in-the-Middle riskini artırır. B
 **Kabul:** aynı golden set, `top_n ∈ {6, 8, 10}` × abstain eşiği taraması;
 `recall@k` ve `answer_correctness` yükselirken `precision_page` ve maliyet/istek
 kapı içinde kalmalı. Kapı kararı 95% CI alt sınırıyla verilir.
+
+### BL-009 — Korpus ↔ kazanım müfredat uyuşmazlığı
+**Kaynak:** EXP-012, 2026-09-11 · **Durum:** AÇIK · **Karar Kadir'de**
+
+`kitap.pdf` yeni müfredattan (tema tabanlı: "1. Tema ENERJİ"), `kazanimlar.json`
+eskisinden (ünite + `10.1.1.2` kodlaması). Ölçüldü: 10. sınıf biyoloji kitabında
+**"mitoz" 0 kez** geçiyor, kazanım dosyası ünite 1'de "Mitozu açıklar" diyor.
+Kazanım kapsamı: biyoloji %71, fizik %92, kimya %96, coğrafya/felsefe %100.
+
+**Neden engel:** kapsanmayan kazanımdan golden set item'ı ya da öğrenci notu
+üretilirse ürün doğru davranıp çekimser kalır, ama sonuç RAG başarısızlığı gibi
+okunur. Kazanım kodları ileride ilerleme takibinin omurgası olacak (EduKG /
+kişisel graf) — yanlış eşleşme haritayı baştan bozar.
+
+**Yapılacak (karar gerekiyor):** yeni müfredatın kazanımları mı indirilecek,
+yoksa eski müfredat kitapları mı? `eba_dl` yeniden koşulacaksa bu da alınmalı.
+Geçici önlem uygulandı: `senaryo.kapsanan_kazanimlar()` kapsanmayanları eliyor.
+
+### BL-010 — Köprü (hab/2) istemcisi yazılmadı
+**Kaynak:** `docs/BACKEND-ENTEGRASYON.md`, 2026-09-11 · **Durum:** AÇIK
+
+Backend QUIC **sunucusudur**, AI servisleri ona dial eder. Mevcut FastAPI
+servisimizi backend çağırmaz. `src/backend/istemci.py` çerçeve kurma/çözme
+kısmını taşımadan bağımsız hazır tutuyor; eksik olan QUIC taşıması,
+`Hello`/`Greeting` el sıkışması ve `Request` döngüsü.
+
+**Bağımlılık:** `AI_SHARED_TOKEN`, TLS sertifikası ve ayakta bir backend
+(compose'da `AI_QUIC_ADDR: 0.0.0.0:8090`).
