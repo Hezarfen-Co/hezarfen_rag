@@ -7,6 +7,7 @@ span'ında kalır (parent yalnız bağlam), mimari §0.1: cevap ham leaf span'la
 """
 from __future__ import annotations
 
+import os
 from dataclasses import dataclass, field
 
 
@@ -25,65 +26,80 @@ class RerankedContext:
     parent_span_ids: list = field(default_factory=list)
 
 
-# M2-7 (#59, EXP-010/ACC-06) -- CESITLILIK ARTIK TAVAN DEGIL TABAN.
+# M2-7 (#59, EXP-010/ACC-06) -- KISIT YAPISAL DEGIL, ILGILILIK TABANLI.
 #
 # Eski davranis: `per_parent=1` TUM yuvalara uygulaniyordu. Ayni parent'ta iki
 # gercek kanit varsa ikincisi -- skoru ne olursa olsun -- eleniyordu.
 # Kosulan kanit (4 aday: a1,a2 ayni parent=gold; b1,b2 alakasiz):
-#   top_n=2 -> ['a1','b1'], gold kapsama 1/2, recall 0,5
-#   top_n=6, 6 farkli parent varken -> ['a1','b1','b2','b3','b4','b5'];
-#   ikinci gold span (rerank skoru 0,94, 2. EN IYI) tamamen kayboldu, yerine
-#   0,89-0,85 skorlu ALAKASIZ chunk'lar geldi.
-# Yayginlik: golden set'te 133 cevaplanabilir item'in 70'i cok-span'li
-# (44 item 2-span, 16 item 3-span, 8 item >=4-span) -> kural, istisna degil.
+#   top_n=2 -> ['a1','b1'], gold kapsama 1/2
+#   top_n=6, 6 farkli parent varken -> ikinci gold span (skor 0,94, 2. EN IYI)
+#   tamamen kayboldu, yerine 0,89-0,85 skorlu ALAKASIZ chunk'lar geldi.
+# Yayginlik: golden set'te 133 cevaplanabilir item'in 70'i cok-span'li.
 #
-# Neden "skora duyarli per_parent" DEGIL: `ranked` skor-azalan sirali oldugu
-# icin "ayni parent'tan ikinci chunk, sonraki farkli-parent adayindan yuksek
-# skorluysa kabul et" kurali HER ZAMAN dogru cikar (sonraki eleman tanim
-# geregi daha dusuk skorlu) -> cesitlilik kisiti tumden islevsizlesir ve tek
-# bir parent butun yuvalari doldurabilir. Issue'daki ikinci secenek dogru
-# olani: kisiti yalnizca yuvalarin SON kismina uygula.
+# GERCEK KITAPLA ABLATION (10-biyoloji, 120 cift-igne sorgusu, top_n=6):
+#   diversity_share=1.0 (eski) -> all_evidence_recall 0,000  (!!)
+#   diversity_share=0.5        -> 0,242
+#   diversity_share=0.0        -> 0,483
+# Yani eski kural ayni parent'taki iki kaniti HIC birlikte getirmiyordu.
 #
-# Yeni davranis iki asamali:
-#   1. asama (ilk `top_n - ayrilan` yuva): saf skor sirasi, parent kisiti YOK
-#      -> ayni parent'taki ikinci gercek kanit artik hayatta kalir.
-#   2. asama (kalan `ayrilan` yuva): yalnizca HENUZ TEMSIL EDILMEMIS parent'lar
-#      -> tek bir parent baglami ele gecirip konu cesitliligini oldurmez.
-# `ayrilan = round(top_n * diversity_share)`, varsayilan yarisi.
-DIVERSITY_SHARE_DEFAULT = float(
-    __import__("os").environ.get("RAG_DIVERSITY_SHARE", "0.5"))
+# KARAR (Kadir, 2026-09-12): "birden fazla kanit getirebilir, 2'den de fazla
+# olabilir, konuyla ilgiliyse -- ama ILGILI OLMASI LAZIM." Yani dogru olcut
+# kac chunk'in ayni parent'tan geldigi DEGIL, ilgili olup olmadigi.
+#
+# ILGILILIK ESIGI VERIDEN SECILDI (ayni kitap, 23 gercek sorgu, top-40 rerank):
+#   tum skorlar : medyan 0,006  p90 0,619   -> dagilim IKI KUTUPLU
+#   1. siradaki : medyan 0,848
+#   2. siradaki : medyan 0,621
+#   10. siradaki: medyan 0,128
+# Yani ilgili olan yuksek, alakasiz olan ~0 aliyor. Esik iki parcali:
+#   score >= max(RELEVANCE_MIN, tepe_skor * RELEVANCE_REL)
+# Goreli parca sart: tepe skor sorguya gore 0,0025 ile 0,9999 arasinda
+# degisiyor, sabit esik kolay sorguda cok sey alir, zor sorguda hicbir sey.
+# Mutlak parca da sart: goreli esik tek basinaysa cop adaylarin orani
+# tepeye gore yuksek gorunebilir.
+# (Uretimde `abstain_score=0.30` kapisi zaten tepe skor <0,30 olan sorgulari
+#  hic buraya getirmiyor; yani burada tepe >= 0,30 varsayilabilir.)
+RELEVANCE_MIN = float(os.environ.get("RAG_RELEVANCE_MIN", "0.05"))
+RELEVANCE_REL = float(os.environ.get("RAG_RELEVANCE_REL", "0.10"))
+# Cesitlilik artik YALNIZ DOLGU: ilgili aday top_n'i doldurmazsa kalan yuvalar
+# yeni parent'lara verilir (bagalam genisligi bedava geliyorsa alinir).
+DIVERSITY_SHARE_DEFAULT = float(os.environ.get("RAG_DIVERSITY_SHARE", "0.0"))
 
 
 def rerank_select(query, hits, chunks_by_id, reranker, *, top_n: int = 10,
                   candidate_n: int = 40, per_parent: int = 1,
                   expand_parents: bool = True,
-                  diversity_share: float | None = None):
+                  diversity_share: float | None = None,
+                  relevance_min: float | None = None,
+                  relevance_rel: float | None = None):
     """hits: [(chunk_id, _skor)] (RRF çıkışı). chunks_by_id: {id -> Chunk}.
     reranker: .rerank(query, [(id,text)]) → [(id,skor)] olan nesne.
 
-    `diversity_share`: yuvaların ne kadarının **yeni parent'lara ayrıldığı**
-    (0 = çeşitlilik kısıtı yok, saf skor; 1 = eski davranış, kısıt her yuvada).
-    None → env varsayılanı (`RAG_DIVERSITY_SHARE`, 0.5).
-    `per_parent`: 2. aşamada bir parent'tan kaç chunk'a izin verildiği.
+    Seçim iki aşamalı:
+      1. **İlgili** adayların hepsi, skor sırasında, parent kısıtı OLMADAN.
+         "İlgili" = `score >= max(relevance_min, tepe * relevance_rel)`.
+         Aynı parent'tan 2, 3, 5 chunk gelebilir — konuyla ilgili olduğu
+         sürece bu bir kusur değil, çok-span'lı cevabın gereğidir.
+      2. Yuva kalırsa **dolgu**: eşiği geçmeyen adaylardan, parent başına en
+         çok `per_parent` olacak şekilde (bağlam genişliği bedavaysa alınır).
+
+    `diversity_share > 0` verilirse 1. aşamanın yuva sayısı kısıtlanır; bu
+    YALNIZ ablation içindir (`1.0` eski davranışı birebir üretir).
     """
     if diversity_share is None:
         diversity_share = DIVERSITY_SHARE_DEFAULT
     diversity_share = min(1.0, max(0.0, diversity_share))
+    r_min = RELEVANCE_MIN if relevance_min is None else relevance_min
+    r_rel = RELEVANCE_REL if relevance_rel is None else relevance_rel
+
     cand = [(cid, chunks_by_id[cid].text)
             for cid, _ in hits[:candidate_n] if cid in chunks_by_id]
     ranked = reranker.rerank(query, cand)
+    if not ranked:
+        return []
 
-    serbest = top_n - int(round(top_n * diversity_share))
-    if diversity_share < 1.0:
-        # EN AZ 2 SERBEST YUVA. Testle bulundu: `top_n=2` + `share=0.5` ile
-        # serbest yuva 1'e iniyor ve ikinci gold kanit YINE dusuyordu -- yani
-        # denetimin birinci senaryosu (top_n=2 -> recall 0,5) duzelmemis
-        # oluyordu. Tek yuva cok-span'li bir cevabi temsil EDEMEZ.
-        #
-        # `share == 1.0` BU TABANDAN MUAF: o deger "kisit her yuvada" yani
-        # ESKI DAVRANIS demektir ve ablation'da eski hali birebir yeniden
-        # uretebilmek icin bozulmamali.
-        serbest = max(min(2, top_n), serbest)
+    tepe = max(sc for _, sc in ranked)
+    esik = max(r_min, tepe * r_rel)
 
     selected, parent_count, used = [], {}, set()
 
@@ -93,31 +109,37 @@ def rerank_select(query, hits, chunks_by_id, reranker, *, top_n: int = 10,
         if ch.parent_id is not None:
             parent_count[ch.parent_id] = parent_count.get(ch.parent_id, 0) + 1
 
-    # 1. aşama — saf skor sırası, parent kısıtı YOK
+    # 1. aşama — İLGİLİ adaylar, parent kısıtı YOK
+    serbest = top_n - int(round(top_n * diversity_share))
+    if diversity_share < 1.0:
+        serbest = max(min(2, top_n), serbest)
     for cid, sc in ranked:
         if len(selected) >= serbest:
             break
+        if sc < esik:
+            break                      # sıralı liste: buradan sonrası da ilgisiz
         _al(cid, sc, chunks_by_id[cid])
 
-    # 2. aşama — yalnız `per_parent`'ı aşmayanlar (yeni parent'lara ayrılmış yuvalar)
+    # 2. aşama — DOLGU: kalan yuvalar, parent çeşitliliğiyle. Dolgu da MUTLAK
+    # ilgililik tabanını geçmek zorunda.
+    #
+    # `top_n` BİR KOTA DEĞİL, ÜST SINIRDIR. Eski kod yuvaları doldurmak için
+    # son çare olarak kısıtı tümden gevşetiyor ve skoru ~0 olan chunk'ları da
+    # alıyordu. Bu sadece zarar: bağlamı sulandırır (Lost-in-the-Middle),
+    # token maliyetini artırır ve üretici modele "bunlar da kaynak" der.
+    # Ölçüldü (aynı kitap, 23 gerçek sorgu): skor dağılımı iki kutuplu —
+    # tüm adayların medyanı 0,006, p90'ı 0,619. Yani eşiğin altı gerçekten
+    # alakasızdır, "biraz alakalı" değil.
     for cid, sc in ranked:
         if len(selected) >= top_n:
             break
-        if cid in used:
+        if cid in used or sc < r_min:
             continue
         ch = chunks_by_id[cid]
         pid = ch.parent_id
         if pid is not None and parent_count.get(pid, 0) >= per_parent:
             continue
         _al(cid, sc, ch)
-
-    if len(selected) < top_n:                      # fallback: çeşitlilik kısıtını gevşet
-        for cid, sc in ranked:
-            if cid in used:
-                continue
-            _al(cid, sc, chunks_by_id[cid])
-            if len(selected) >= top_n:
-                break
 
     results = []
     for cid, sc, ch in selected:

@@ -58,10 +58,14 @@ class RerankSelectTests(unittest.TestCase):
         res = rerank_select("DNA", hits, chunks, _StubReranker(),
                             top_n=2, per_parent=1, diversity_share=1.0)
         ids = [r.chunk_id for r in res]
-        self.assertEqual(len(ids), 2)
         self.assertIn("c1", ids)
-        self.assertNotIn("c2", ids)
-        self.assertEqual(len({chunks[i].parent_id for i in ids}), 2)
+        self.assertNotIn("c2", ids)          # aynı parent → dolgu aşaması eler
+        # DİKKAT: eski test burada `len(ids) == 2` bekliyordu. Artık ikinci yuva
+        # BOŞ kalıyor çünkü "DNA" sorgusunda c3/c4'ün skoru 0 ve ilgililik
+        # tabanını geçmiyor. `top_n` bir kota değil ÜST SINIR: alakasızla
+        # doldurmak bağlamı sulandırır ve token maliyeti ekler.
+        self.assertLessEqual(len(ids), 2)
+        self.assertTrue(all(chunks[i].parent_id == "P1" for i in ids))
 
     def test_parent_expansion(self):
         chunks, hits = _corpus()
@@ -77,13 +81,26 @@ class RerankSelectTests(unittest.TestCase):
                             top_n=1, expand_parents=False)
         self.assertIsNone(res[0].parent_text)
 
-    def test_fallback_fills_when_diversity_short(self):
-        # per_parent=1, ama top_n=3 ve yalnız 2 parent var → fallback c2'yi ekler
+    def test_same_parent_chunks_fill_when_relevant(self):
+        """SÖZLEŞME DEĞİŞTİ (#59, 2026-09-12).
+
+        Eski test `len(res) == 3` bekliyordu: kod yuvaları doldurmak için son
+        çare olarak kısıtı gevşetip skoru ~0 olan chunk'ları da alıyordu.
+        `top_n` artık bir KOTA değil ÜST SINIR: alakasızla doldurmak bağlamı
+        sulandırır, token maliyetini artırır ve modele "bu da kaynak" der.
+        Ölçüldü: skor dağılımı iki kutuplu (medyan 0,006 / p90 0,619), yani
+        eşiğin altı gerçekten alakasızdır.
+
+        Burada "DNA" sorgusunda c1 ve c2 ilgili (ikisi de P1), c3/c4 skoru 0 →
+        ilgili olan ikisi alınır, üçüncü yuva BOŞ kalır."""
         chunks, hits = _corpus()
         res = rerank_select("DNA", hits, chunks, _StubReranker(),
                             top_n=3, per_parent=1)
-        self.assertEqual(len(res), 3)
-        self.assertIn("c2", [r.chunk_id for r in res])   # gevşetilmiş kısıt
+        ids = [r.chunk_id for r in res]
+        self.assertIn("c1", ids)
+        self.assertIn("c2", ids)         # aynı parent, İLGİLİ → artık alınır
+        self.assertLessEqual(len(res), 3)
+        self.assertTrue(all(chunks[i].parent_id == "P1" for i in ids))
 
     def test_candidate_n_limits_pool(self):
         chunks, hits = _corpus()
@@ -146,26 +163,56 @@ class DiversityRegressionTests(unittest.TestCase):
                           rerank_select("q", hits, chunks, rr, top_n=top_n))
                 self.assertEqual(len({"a1", "a2"} & ids), 2)
 
-    def test_one_parent_cannot_take_every_slot(self):
-        """Kısıtı tümden kaldırmadık: ayrılmış yuvalar yeni parent'lara aittir.
-
-        Tek bir parent'ta 10 yüksek skorlu chunk varsa hepsini alsaydı bağlam
-        tek bir bölüme hapsolur, konu çeşitliliği ölürdü."""
+    @staticmethod
+    def _tek_parent(ikincil_skor):
+        """Bir parent'ta 10 chunk + 3 ayrı parent'ta birer chunk."""
         chunks = {"P": _Chunk("P", "parent", None, [])}
         skor = {}
         for i in range(10):
             cid = f"x{i}"
             chunks[cid] = _Chunk(cid, f"ayni parent {i}", "P", [f"sx{i}"])
-            skor[cid] = 0.99 - i * 0.001
+            skor[cid] = 0.99 if i == 0 else ikincil_skor
         for i in range(3):
             cid, pid = f"y{i}", f"PY{i}"
             chunks[cid] = _Chunk(cid, f"baska {i}", pid, [f"sy{i}"])
             chunks[pid] = _Chunk(pid, f"baska parent {i}", None, [f"sy{i}"])
-            skor[cid] = 0.50 - i * 0.01
-        hits = [(c, 1.0) for c in skor]
-        res = rerank_select("q", hits, chunks, _StubReranker(skor), top_n=6)
+            skor[cid] = 0.40 - i * 0.01
+        return chunks, [(c, 1.0) for c in skor], _StubReranker(skor)
+
+    def test_many_evidences_from_one_parent_are_allowed_when_relevant(self):
+        """KARAR (Kadir, 2026-09-12): "birden fazla kanıt getirebilir, 2'den de
+        fazla olabilir, konuyla ilgiliyse". Aynı parent'tan 3-5 chunk gelmesi
+        bir kusur DEĞİL, çok-span'lı cevabın gereğidir.
+
+        Eski test bunun tersini savunuyordu ("tek parent bütün yuvaları
+        alamaz") — o kural yapısaldı ve ölçümde `all_evidence_recall`'ı
+        0,000'a düşürüyordu."""
+        chunks, hits, rr = self._tek_parent(ikincil_skor=0.80)   # hepsi İLGİLİ
+        res = rerank_select("q", hits, chunks, rr, top_n=6)
+        ayni = sum(1 for r in res if chunks[r.chunk_id].parent_id == "P")
+        self.assertGreaterEqual(ayni, 5, "ilgili kanıtlar yine elendi")
+
+    def test_irrelevant_same_parent_chunks_are_rejected(self):
+        """Asıl koruma ilgililik eşiği: eşiğin ALTINDAki aynı-parent chunk'lar
+        alınmaz, yuvalar çeşitli dolguya gider."""
+        chunks, hits, rr = self._tek_parent(ikincil_skor=0.001)  # ilgisiz
+        res = rerank_select("q", hits, chunks, rr, top_n=6)
+        ayni = sum(1 for r in res if chunks[r.chunk_id].parent_id == "P")
+        self.assertEqual(ayni, 1, "ilgisiz aynı-parent chunk'lar alındı")
         parents = {chunks[r.chunk_id].parent_id for r in res}
-        self.assertGreater(len(parents), 1, "tek parent bütün yuvaları aldı")
+        self.assertGreater(len(parents), 1)
+
+    def test_relevance_threshold_is_relative_to_the_top_score(self):
+        """Tepe skor sorguya göre 0,0025–0,9999 arasında değişiyor; sabit eşik
+        kolay sorguda çok şey alır, zor sorguda hiçbir şey."""
+        chunks = {"P1": _Chunk("P1", "p", None, []), "P2": _Chunk("P2", "p", None, [])}
+        # tepe 0,40 -> esik = max(0.05, 0.04) = 0.05
+        skor = {"a": 0.40, "b": 0.20, "c": 0.01}
+        for cid, pid in (("a", "P1"), ("b", "P1"), ("c", "P2")):
+            chunks[cid] = _Chunk(cid, cid, pid, [cid])
+        hits = [(c, 1.0) for c in skor]
+        res = rerank_select("q", hits, chunks, _StubReranker(skor), top_n=2)
+        self.assertEqual([r.chunk_id for r in res], ["a", "b"])
 
     def test_share_zero_is_pure_score_order(self):
         chunks, hits, rr = self._kurgu()
@@ -197,7 +244,11 @@ class DiversityRegressionTests(unittest.TestCase):
                 self.assertEqual(m.DIVERSITY_SHARE_DEFAULT, 0.0)
         finally:
             importlib.reload(pipeline)          # env TEMİZ hâldeyken
-        self.assertEqual(pipeline.DIVERSITY_SHARE_DEFAULT, 0.5)
+        # Varsayılan 0.0: çeşitlilik artık YALNIZ DOLGU, birincil ölçüt
+        # ilgililik eşiği (#59 kararı).
+        self.assertEqual(pipeline.DIVERSITY_SHARE_DEFAULT, 0.0)
+        self.assertEqual(pipeline.RELEVANCE_MIN, 0.05)
+        self.assertEqual(pipeline.RELEVANCE_REL, 0.10)
 
     def test_share_is_clamped(self):
         chunks, hits, rr = self._kurgu()

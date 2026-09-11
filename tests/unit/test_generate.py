@@ -666,6 +666,133 @@ class AbstainDetectionTests(unittest.TestCase):
         self.assertEqual(res.reason, "ungrounded_no_citations")
 
 
+class SentenceCitationPolicyTests(unittest.TestCase):
+    """#56 (EXP-010/ACC-07) — cümle-başına atıf ölçümü ve politikası.
+
+    Denetimin kanıtı: 5 cümleli cevabın 4'ü atıfsızdı **ve** 3'ü olgusal
+    olarak yanlıştı (47 ATP, ribozom nükleusta, 48 kromozom); sistem bunu
+    `abstained=False, reason=''` ile temiz cevap olarak döndürdü çünkü kod
+    yalnız `if not citations` kontrolü yapıyordu.
+
+    Politika neden varsayılan `measure`: "atıf işareti yok" ile "dayanaksız"
+    aynı şey DEĞİL — model atıfı paragraf sonuna koyup önceki cümleleri
+    kapsıyor olabilir. `trim`i ölçmeden varsayılan yapmak **yanlış çekimserlik**
+    kapısını (C-03 ≤%5) sessizce bozabilirdi.
+    """
+
+    _CEVAP = ("Mitokondri enerji üretir [1]. Bir glikozdan 47 ATP üretilir. "
+              "Ribozom nükleusta bulunur.")
+
+    def _gen(self, policy, text=None):
+        """DİKKAT — `importlib.reload` KULLANILMAZ.
+
+        İlk sürüm politikayı env'e yazıp `reload(generator)` ediyordu. Bu,
+        modüldeki `_USE_INIT_ROLE` **nöbetçi nesnesini yeniden yaratıyor**;
+        `answer()`'ın `role_ctx is _USE_INIT_ROLE` kimlik karşılaştırması
+        artık tutmuyor ve rol verilmemiş çağrılarda `eff_role` None yerine
+        eski nöbetçi kalıyor. Sonuç: `test_memory` içindeki stub retriever
+        beklemediği `role_ctx=` argümanını alıp **TypeError** atıyordu —
+        yani testim başka bir test dosyasını düşürüyordu.
+
+        Politika `answer()` içinde global olarak okunduğu için attribute
+        yamalamak yeterli ve yan etkisiz."""
+        from unittest import mock
+        from src.generate import generator as G
+        ds = _StubDeepSeek(text=text or self._CEVAP)
+        chunks_by_id, span_meta, hits = _corpus()
+        with mock.patch.object(G, "SENTENCE_POLICY", policy):
+            gen = G.Generator(_StubRetriever(hits),
+                              _StubReranker({"c1": 0.9, "c2": 0.85}),
+                              chunks_by_id, span_meta, ds, ders="biyoloji",
+                              cost_recorder=_noop_recorder)
+            return gen.answer("soru")
+
+    def test_policy_is_read_at_call_time(self):
+        """Yama attribute üzerinden çalışıyor olmalı — yoksa yukarıdaki
+        testlerin hiçbiri gerçekten politikayı değiştirmiyor demektir."""
+        from src.generate import generator as G
+        self.assertEqual(G.SENTENCE_POLICY, "measure")
+        import inspect
+        self.assertIn("SENTENCE_POLICY", inspect.getsource(G.Generator.answer))
+
+    def test_role_sentinel_identity_survives(self):
+        """Bu sınıf bir kez `reload` yüzünden nöbetçi kimliğini bozmuştu;
+        bozulunca rolsüz çağrılar sessizce rol taşıyor gibi davranıyor."""
+        from src.generate import generator as G
+        chunks_by_id, span_meta, hits = _corpus()
+        gen = G.Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9}),
+                          chunks_by_id, span_meta, _StubDeepSeek(),
+                          cost_recorder=_noop_recorder)
+        import inspect
+        varsayilan = inspect.signature(gen.answer).parameters["role_ctx"].default
+        self.assertIs(varsayilan, G._USE_INIT_ROLE)
+
+    def test_measure_counts_without_changing_the_answer(self):
+        res = self._gen("measure")
+        self.assertFalse(res.abstained)
+        self.assertEqual(res.n_sentences, 3)
+        self.assertEqual(res.n_cited_sentences, 1)
+        self.assertEqual(res.dropped_sentences, [])
+        self.assertIn("47 ATP", res.text)      # measure KIRPMAZ
+
+    def test_off_does_not_even_change_fields(self):
+        res = self._gen("off")
+        self.assertIn("47 ATP", res.text)
+        self.assertEqual(res.dropped_sentences, [])
+
+    def test_trim_removes_uncited_sentences(self):
+        res = self._gen("trim")
+        self.assertFalse(res.abstained)
+        self.assertNotIn("47 ATP", res.text)
+        self.assertNotIn("nükleusta", res.text)
+        self.assertIn("Mitokondri enerji üretir [1].", res.text)
+        self.assertEqual(len(res.dropped_sentences), 2)
+
+    def test_trim_leaves_a_fully_grounded_answer(self):
+        res = self._gen("trim")
+        self.assertEqual(res.n_sentences, res.n_cited_sentences)
+
+    def test_trim_narrows_citations_to_what_survived(self):
+        """Kırpma sonrası metinde kalmayan bir atıf listede DURMAMALI —
+        yoksa kullanıcıya karşılığı olmayan kaynak gösterilir."""
+        res = self._gen("trim", text="A olur [1]. B olur. C olur [2].")
+        ns = {c["n"] for c in res.citations}
+        self.assertEqual(ns, {1, 2})
+        res2 = self._gen("trim", text="A olur [1]. B olur [2] ama kırpılacak mı.")
+        self.assertTrue(all(f"[{c['n']}]" in res2.text for c in res2.citations))
+
+    def test_abstain_policy_refuses_the_whole_answer(self):
+        res = self._gen("abstain")
+        self.assertTrue(res.abstained)
+        self.assertEqual(res.reason, "ungrounded_sentences")
+        self.assertEqual(res.citations, [])
+        self.assertEqual(len(res.dropped_sentences), 2)
+
+    def test_fully_cited_answer_is_untouched_by_every_policy(self):
+        temiz = "Mitokondri enerji üretir [1]. Ribozom protein üretir [2]."
+        for policy in ("off", "measure", "trim", "abstain"):
+            with self.subTest(policy=policy):
+                res = self._gen(policy, text=temiz)
+                self.assertFalse(res.abstained, policy)
+                self.assertIn("Ribozom", res.text)
+                self.assertEqual(res.dropped_sentences, [])
+
+    def test_trim_that_removes_everything_abstains(self):
+        """Kırpma her şeyi götürdüyse sunulacak cevap kalmadı — boş metin
+        göstermek yerine çekimser kalınır."""
+        res = self._gen("trim", text="Atıfsız bir cümle. Bir tane daha.")
+        self.assertTrue(res.abstained)
+        self.assertIn(res.reason, ("ungrounded_no_citations", "ungrounded_sentences"))
+
+    def test_cost_is_preserved_by_every_policy(self):
+        """LLM ÇAĞRILDI → maliyet gerçek; politika onu sıfırlamamalı."""
+        for policy in ("measure", "trim", "abstain"):
+            with self.subTest(policy=policy):
+                res = self._gen(policy)
+                self.assertIsNotNone(res.usage)
+                self.assertGreaterEqual(res.cost_usd, 0.0)
+
+
 class CostRecorderSpyTests(unittest.TestCase):
     """DOĞRULAYICI bulgusu #7: costlog.record'a (ya da enjekte edilen
     cost_recorder'a) doğru module/model/usage argümanlarıyla çağrı yapıldığını

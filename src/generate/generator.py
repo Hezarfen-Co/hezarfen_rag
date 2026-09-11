@@ -20,6 +20,7 @@ PDF'te bulabilsin (mimari §0.1: cevap ham leaf span'lara bağlı).
 """
 from __future__ import annotations
 
+import os
 import re
 from dataclasses import dataclass, field, replace
 
@@ -30,6 +31,7 @@ from ..providers.deepseek import DeepSeek
 from ..rerank.pipeline import rerank_select
 from .citations import (CITATION_RE, parse_citation_ns, parse_citations,
                         strip_phantom)
+from .sentences import citation_coverage, drop_uncited
 from .prompt import ABSTAIN_SENTENCE, build_grounded_prompt
 
 # answer(role_ctx=...) için sentinel: "verilmedi → __init__'teki role_ctx'i kullan"
@@ -39,6 +41,26 @@ _USE_INIT_ROLE = object()
 # Parantez içini yakalar ("1", "1, 2", "1,2" ...); virgül/boşlukla ayrılmış çoklu
 # atıfları TEK eşleşmede yakalamak için [\d,\s]+ kullanılır — [1][2] ve [1] [2]
 # gibi bitişik/ayrı parantezler ise doğal olarak iki ayrı eşleşme üretir.
+# M2-4 (#56, EXP-010/ACC-07) -- CUMLE-BASINA ATIF POLITIKASI.
+#
+# Urun sozu "cevabin HER cumlesi bir span'a bagli". Kod yalniz
+# `if not citations` kontrolu yapiyordu: BIR TEK atif varsa geri kalan tum
+# cumleler denetimsiz geciyordu. Kosulan kanit: 5 cumlenin 4'u atifsiz VE
+# 3'u olgusal yanlis (47 ATP, ribozom nukleusta, 48 kromozom); sistem bunu
+# `abstained=False, reason=''` ile TEMIZ CEVAP olarak dondurdu.
+#
+# POLITIKA NEDEN VARSAYILAN OLARAK "measure":
+# "atif isareti yok" ile "dayanaksiz" AYNI SEY DEGILDIR -- model atifi
+# paragraf sonuna koyup onceki cumleleri kapsiyor olabilir. `trim`i olcmeden
+# varsayilan yapmak, YANLIS CEKIMSERLIK kapisini (C-03 <=%5) sessizce
+# bozabilir. Issue'nun kabul kriteri de ikisinin BIRLIKTE raporlanmasini
+# sart kosuyor. Bu yuzden: her zaman OLC, politikayi olcumden sonra sec.
+#   off      -> hicbir sey yapma (eski davranis)
+#   measure  -> yalniz say (varsayilan)
+#   trim     -> atifsiz cumleleri kirp; hic atifli cumle kalmazsa cekimser
+#   abstain  -> atifsiz cumle varsa TUM cevabi cekimsere cevir
+SENTENCE_POLICY = os.environ.get("RAG_SENTENCE_POLICY", "measure")
+
 _ABSTAIN_MATCH_THRESHOLD = 0.90   # (#58 ile kullanımdan kalktı; geri uyum için duruyor)
 
 
@@ -48,6 +70,11 @@ class GroundedAnswer:
     citations: list = field(default_factory=list)          # [{n, chunk_id, span_ids, pages, ders}]
     used_source_ids: list = field(default_factory=list)    # atıf edilen chunk_id'ler (sırayla)
     invalid_citations: list = field(default_factory=list)  # hayalet [N] numaraları (int listesi)
+    # M2-4 (#56, EXP-010/ACC-07) — atıf bütünlüğü ölçümü. Kapı A-03 bunlardan
+    # hesaplanır (MVP ≤%10, TAM ≤%1 atıfsız cümle).
+    n_sentences: int = 0
+    n_cited_sentences: int = 0
+    dropped_sentences: list = field(default_factory=list)   # kırpılanlar (politika: trim)
     abstained: bool = False
     reason: str = ""
     usage: Usage | None = None
@@ -491,6 +518,40 @@ class Generator:
                                   usage=result.usage, cost_usd=usd,
                                   latency_s=result.latency_s)
 
+        # #56: ATIF BÜTÜNLÜĞÜ. Ölçüm HER ZAMAN yapılır; politika env'den gelir.
+        kapsama = citation_coverage(gosterim_metni)
+        n_sent = kapsama["n_sentences"]
+        n_cited = kapsama["n_cited_sentences"]
+        dropped: list = []
+        if citations and SENTENCE_POLICY in ("trim", "abstain") and n_sent > n_cited:
+            if SENTENCE_POLICY == "abstain":
+                _tr("decision", stage="generate", abstained=True,
+                    reason="ungrounded_sentences", n_sentences=n_sent,
+                    n_cited_sentences=n_cited)
+                return GroundedAnswer(
+                    text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                    invalid_citations=invalid_citations, abstained=True,
+                    reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
+                    latency_s=result.latency_s, n_sentences=n_sent,
+                    n_cited_sentences=n_cited,
+                    dropped_sentences=kapsama["uncited_sentences"])
+            kirpilmis, dropped = drop_uncited(gosterim_metni)
+            if not kirpilmis.strip():
+                # Kırpma her şeyi götürdüyse sunulacak bir cevap kalmadı.
+                return GroundedAnswer(
+                    text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                    invalid_citations=invalid_citations, abstained=True,
+                    reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
+                    latency_s=result.latency_s, n_sentences=n_sent,
+                    n_cited_sentences=n_cited, dropped_sentences=dropped)
+            gosterim_metni = kirpilmis
+            # kırpma sonrası atıf listesini metinde GERÇEKTEN kalanlarla daralt
+            kalan_ns = set(parse_citation_ns(gosterim_metni, len(numbered_sources)))
+            citations = [c for c in citations if c["n"] in kalan_ns]
+            used_source_ids = [c["chunk_id"] for c in citations]
+            kapsama = citation_coverage(gosterim_metni)
+            n_sent, n_cited = kapsama["n_sentences"], kapsama["n_cited_sentences"]
+
         # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
         # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
         if _looks_like_abstain(result.text) or (not citations and _is_effectively_empty(result.text)):
@@ -498,7 +559,9 @@ class Generator:
                                   used_source_ids=used_source_ids,
                                   invalid_citations=invalid_citations, abstained=True,
                                   reason="model_abstained", usage=result.usage,
-                                  cost_usd=usd, latency_s=result.latency_s)
+                                  cost_usd=usd, latency_s=result.latency_s,
+                                  n_sentences=n_sent, n_cited_sentences=n_cited,
+                                  dropped_sentences=dropped)
 
         # TEMELLENDİRME BÜTÜNLÜĞÜ (audit EXP-007 #C1): metin DOLU ama GEÇERLİ ATIF YOK
         # (model [N] hiç emitmedi YA DA hepsi hayalet) → kaynağa bağlanamamış =
@@ -516,9 +579,13 @@ class Generator:
                                       used_source_ids=used_source_ids,
                                       invalid_citations=invalid_citations, abstained=False,
                                       reason=reason, usage=result.usage, cost_usd=usd,
-                                      latency_s=result.latency_s)
+                                      latency_s=result.latency_s,
+                                      n_sentences=n_sent, n_cited_sentences=n_cited,
+                                      dropped_sentences=dropped)
         _tr("decision", stage="generate", abstained=False, reason=reason or "answer",
             n_citations=len(citations), n_phantom=len(invalid_citations),
+            # #56: kapi A-03 bu ikisinden hesaplanir
+            n_sentences=n_sent, n_cited_sentences=n_cited,
             # #57 telemetrisi: `[0,1]` gibi belirsiz gruplar atıf sayılmadı.
             # Sıklığı bilinmeden kuralın doğru eşikte olduğu iddia EDİLEMEZ.
             n_belirsiz_grup=len(belirsiz_gruplar),
