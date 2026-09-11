@@ -58,9 +58,16 @@ class RequestBoundsTests(unittest.TestCase):
     def setUp(self):
         self.c = _client()
 
-    def test_oversized_query_rejected(self):
-        r = self.c.post("/rag/chat", json={"query": "A" * 2_000_000})
+    def test_query_over_field_limit_rejected(self):
+        """Govde sinirinin ALTINDA ama alan sinirinin USTUNDE -> Pydantic 422."""
+        r = self.c.post("/rag/chat", json={"query": "A" * 5000})
         self.assertEqual(r.status_code, 422)
+
+    def test_oversized_query_rejected_before_parsing(self):
+        """2 MB govde artik AYRISTIRILMADAN once 413 ile reddedilir."""
+        r = self.c.post("/rag/chat", json={"query": "A" * 2_000_000})
+        self.assertEqual(r.status_code, 413)
+        self.assertEqual(r.json()["reason"], "payload_too_large")
 
     def test_absurd_top_n_rejected(self):
         r = self.c.post("/rag/chat",
@@ -81,6 +88,11 @@ class RequestBoundsTests(unittest.TestCase):
         hist = [{"role": "user", "content": "x"}] * 500
         r = self.c.post("/rag/chat", json={"query": "q", "history": hist})
         self.assertEqual(r.status_code, 422)
+
+    def test_oversized_scope_span_ids_rejected(self):
+        r = self.c.post("/rag/summarize",
+                        json={"scope": {"span_ids": [f"d#1.{i}" for i in range(2000)]}})
+        self.assertIn(r.status_code, (413, 422))
 
     def test_non_numeric_top_n_is_422_not_500(self):
         """Eskiden yakalanmamış ValueError → 500 dönüyordu."""
@@ -224,6 +236,148 @@ class ErrorContractTests(unittest.TestCase):
         r = _client().post("/rag/chat", json={"query": "q"},
                            headers={"X-Request-Id": "izlenebilir-123"})
         self.assertEqual(r.headers.get("X-Request-Id"), "izlenebilir-123")
+
+
+@unittest.skipUnless(_HAS_FASTAPI, "fastapi yok")
+class BodyLimitTests(unittest.TestCase):
+    """Ham govde siniri: Pydantic alan sinirlari govde AYRISTIRILDIKTAN sonra
+    calisir; 50 MB'lik bir JSON once tamamen okunup parse edilirdi."""
+
+    def test_content_length_header_is_enforced(self):
+        c = _client(max_body_bytes=1000)
+        r = c.post("/rag/chat", content=b"x" * 5000,
+                   headers={"Content-Type": "application/json"})
+        self.assertEqual(r.status_code, 413)
+
+    def test_chunked_body_without_content_length_is_enforced(self):
+        """`Content-Length` basligina GUVENILMEZ: chunked aktarimda gelmez.
+        Bu yuzden okunan bayt AKIS UZERINDE sayilir."""
+        def _parcali():
+            for _ in range(20):
+                yield b"x" * 500
+        c = _client(max_body_bytes=1000)
+        r = c.post("/rag/chat", content=_parcali(),
+                   headers={"Content-Type": "application/json"})
+        self.assertEqual(r.status_code, 413)
+
+    def test_error_body_follows_the_contract(self):
+        c = _client(max_body_bytes=100)
+        body = c.post("/rag/chat", json={"query": "A" * 500}).json()
+        self.assertTrue(body["abstained"])
+        self.assertEqual(body["reason"], "payload_too_large")
+        self.assertEqual(body["citations"], [])
+
+    def test_normal_body_passes(self):
+        c = _client(max_body_bytes=256 * 1024)
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 200)
+
+    def test_zero_disables_the_limit(self):
+        c = _client(max_body_bytes=0)
+        r = c.post("/rag/chat", json={"query": "A" * 5000})
+        self.assertEqual(r.status_code, 422)      # artik yalniz alan siniri
+
+
+@unittest.skipUnless(_HAS_FASTAPI, "fastapi yok")
+class DeadlineTests(unittest.TestCase):
+    def test_slow_request_returns_typed_504(self):
+        """Bir LLM cagrisi asilirsa istek sonsuza kadar asili kalmamali."""
+        class _Slow(_Service):
+            def chat(self, req):
+                import time
+                time.sleep(0.5)
+                return {"text": "gec", "abstained": False, "reason": ""}
+
+        c = TestClient(create_app(_Slow(), rate_limit_per_min=0,
+                                  request_timeout_s=0.05))
+        r = c.post("/rag/chat", json={"query": "q"})
+        self.assertEqual(r.status_code, 504)
+        body = r.json()
+        self.assertTrue(body["abstained"])
+        self.assertEqual(body["reason"], "timeout")
+        self.assertIn("request_id", body)
+
+    def test_fast_request_unaffected(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  request_timeout_s=5.0))
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 200)
+
+    def test_zero_disables_the_deadline(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  request_timeout_s=0))
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 200)
+
+
+@unittest.skipUnless(_HAS_FASTAPI, "fastapi yok")
+class HostAndCorsTests(unittest.TestCase):
+    def test_untrusted_host_rejected_when_configured(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  allowed_hosts=["rag.ic-ag"]))
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 400)
+
+    def test_trusted_host_passes(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  allowed_hosts=["testserver"]))
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 200)
+
+    def test_wildcard_keeps_backward_compatibility(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  allowed_hosts=["*"]))
+        self.assertEqual(c.post("/rag/chat", json={"query": "q"}).status_code, 200)
+
+    def test_cors_closed_by_default(self):
+        """Basligi HIC gondermemek en guvenli varsayilan: tarayici capraz-kaynak
+        cagriyi kendisi reddeder."""
+        r = _client().post("/rag/chat", json={"query": "q"},
+                           headers={"Origin": "https://kotu.example"})
+        self.assertIsNone(r.headers.get("access-control-allow-origin"))
+
+    def test_cors_only_for_declared_origin(self):
+        c = TestClient(create_app(_Service(), rate_limit_per_min=0,
+                                  cors_origins=["https://hezarfen.example"]))
+        ok = c.post("/rag/chat", json={"query": "q"},
+                    headers={"Origin": "https://hezarfen.example"})
+        self.assertEqual(ok.headers.get("access-control-allow-origin"),
+                         "https://hezarfen.example")
+        kotu = c.post("/rag/chat", json={"query": "q"},
+                      headers={"Origin": "https://kotu.example"})
+        self.assertIsNone(kotu.headers.get("access-control-allow-origin"))
+
+
+@unittest.skipUnless(_HAS_FASTAPI, "fastapi yok")
+class ConfigVisibilityTests(unittest.TestCase):
+    def test_ready_reports_which_brakes_are_on(self):
+        c = TestClient(create_app(_Service(), service_token="gizli",
+                                  rate_limit_per_min=30, max_body_bytes=1234,
+                                  request_timeout_s=45, allowed_hosts=["testserver"],
+                                  cors_origins=[]))
+        g = c.get("/ready").json()["guvenlik"]
+        self.assertTrue(g["token"])
+        self.assertEqual(g["oran_limiti"], 30)
+        self.assertEqual(g["govde_siniri"], 1234)
+        self.assertEqual(g["son_tarih_s"], 45)
+        self.assertFalse(g["docs_acik"])
+        self.assertTrue(g["host_siniri"])
+        self.assertFalse(g["cors"])
+
+    def test_secret_value_is_never_exposed(self):
+        c = TestClient(create_app(_Service(), service_token="cok-gizli-sir",
+                                  rate_limit_per_min=0))
+        self.assertNotIn("cok-gizli-sir", c.get("/ready").text)
+
+    def test_unsafe_defaults_are_announced_at_startup(self):
+        """Varsayilanlar geriye uyumlu (korumasiz) -- ama SESSIZ olmamali."""
+        import importlib
+        from unittest import mock
+        from src.service import http_app as m
+        with mock.patch.dict("os.environ", {"RAG_SERVICE_TOKEN": "",
+                                            "RAG_ALLOWED_HOSTS": "*"}, clear=False):
+            m2 = importlib.reload(m)
+            try:
+                u = " ".join(m2._yapilandirma_uyarilari())
+                self.assertIn("RAG_SERVICE_TOKEN", u)
+                self.assertIn("RAG_ALLOWED_HOSTS", u)
+            finally:
+                importlib.reload(m)
 
 
 if __name__ == "__main__":

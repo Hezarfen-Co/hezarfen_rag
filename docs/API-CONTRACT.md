@@ -62,6 +62,19 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   9. sınıf öğrencisi `scope={"sinif":"9",...}` yazarak 12. sınıf içeriğini
   özetletebiliyordu. Backend bu alanları ya hiç göndermemeli ya da doğru
   değerle göndermelidir.
+- **`payload_too_large`** (2026-09-11, #50) → HTTP **413**. Gövde
+  `RAG_MAX_BODY_BYTES`'ı aştı ve **ayrıştırılmadan** reddedildi. Backend
+  isteği küçültmeden tekrar denememelidir.
+- **`timeout`** (2026-09-11, #50) → HTTP **504**. İstek `RAG_REQUEST_TIMEOUT_S`
+  içinde bitmedi. Tekrar denenebilir (idempotent).
+- **`service_unavailable`** (2026-09-11, #50) → HTTP **503**. Yakalanmamış bir
+  hata oluştu. Eskiden bu durumda gövde çıplak `"Internal Server Error"` idi ve
+  backend sözleşmeye göre **parse edemiyordu** (OPS-06).
+- Ayrıca **401** (`X-Service-Token` eksik/yanlış, `RAG_SERVICE_TOKEN` doluysa) ve
+  **429** (`Retry-After: 60` başlığıyla oran sınırı) dönebilir; bu ikisi FastAPI
+  `detail` biçimindedir, gövde sözleşmesini taşımaz.
+- Her cevapta **`X-Request-Id`** başlığı vardır; istemci kendi değerini
+  gönderirse aynen yansıtılır (uçtan uca izleme).
 - boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
   (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
 

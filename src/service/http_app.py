@@ -17,6 +17,8 @@ import os
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
 from pydantic import BaseModel, Field
+from starlette.middleware.cors import CORSMiddleware
+from starlette.middleware.trustedhost import TrustedHostMiddleware
 
 # NOT: fastapi import'lari MODUL DUZEYINDE olmak ZORUNDA. `from __future__ import
 # annotations` ile tum anotasyonlar STRING olur ve FastAPI bunlari modulun global
@@ -87,6 +89,96 @@ SERVICE_TOKEN = os.environ.get("RAG_SERVICE_TOKEN") or None   # None -> auth KAP
 EXPOSE_DOCS = os.environ.get("RAG_EXPOSE_DOCS", "0") not in ("0", "", "false", "False")
 RATE_LIMIT_PER_MIN = int(os.environ.get("RAG_RATE_LIMIT_PER_MIN", "60"))
 
+# Ham govde siniri: Pydantic alan sinirlari govde AYRISTIRILDIKTAN sonra calisir,
+# yani 50 MB'lik bir JSON once tamamen okunur ve parse edilir (bellek + CPU).
+# Bu sinir okuma sirasinda, ayristirmadan ONCE uygulanir.
+MAX_BODY_BYTES = int(os.environ.get("RAG_MAX_BODY_BYTES", str(256 * 1024)))
+# Istek basina son tarih: bir LLM cagrisi asilirsa istek sonsuza kadar asili kalmasin.
+REQUEST_TIMEOUT_S = float(os.environ.get("RAG_REQUEST_TIMEOUT_S", "60"))
+# Host ve CORS. CORS varsayilan KAPALI: basligi hic gondermemek en guvenli
+# varsayilandir (tarayici capraz-kaynak cagriyi zaten reddeder).
+ALLOWED_HOSTS = [h.strip() for h in
+                 os.environ.get("RAG_ALLOWED_HOSTS", "*").split(",") if h.strip()]
+CORS_ORIGINS = [o.strip() for o in
+                os.environ.get("RAG_CORS_ORIGINS", "").split(",") if o.strip()]
+# Kapanis: uvicorn'a verilir; ucusta olan istekler bitirilir.
+GRACEFUL_SHUTDOWN_S = float(os.environ.get("RAG_GRACEFUL_SHUTDOWN_S", "20"))
+
+
+class _BodyLimit:
+    """Ham govde boyutu siniri (saf ASGI ara katmani).
+
+    NEDEN BaseHTTPMiddleware DEGIL: govdeyi ayristirmadan ONCE, okuma akisi
+    uzerinde saymak gerekiyor. `Content-Length` basligina GUVENILMEZ -- chunked
+    aktarimda bu baslik hic gelmez. Bu yuzden hem baslik kontrol edilir hem de
+    `receive` sarilarak gercekten okunan bayt sayilir; sinir asilirsa 413 doner.
+    """
+
+    def __init__(self, app, max_bytes: int):
+        self.app = app
+        self.max_bytes = max_bytes
+
+    async def __call__(self, scope, receive, send):
+        if scope["type"] != "http" or self.max_bytes <= 0:
+            await self.app(scope, receive, send)
+            return
+        for k, v in scope.get("headers", []):
+            if k == b"content-length":
+                try:
+                    if int(v) > self.max_bytes:
+                        await self._reddet(send)
+                        return
+                except ValueError:
+                    pass
+        okunan = 0
+        asildi = False
+        cevap_verildi = False
+
+        async def _receive():
+            # OLCULMUSTU: burada bir istisna FIRLATMAK ise yaramiyor -- FastAPI
+            # govde ayristirma hatalarini yakalayip 400 "There was an error
+            # parsing the body" donuyor, yani gercek sebep KAYBOLUYOR. Bu yuzden
+            # akis kesilir (disconnect) ve 413 cevabini ara katman kendisi yazar.
+            nonlocal okunan, asildi
+            msg = await receive()
+            if msg["type"] == "http.request":
+                okunan += len(msg.get("body", b""))
+                if okunan > self.max_bytes:
+                    asildi = True
+                    return {"type": "http.disconnect"}
+            return msg
+
+        async def _send(msg):
+            nonlocal cevap_verildi
+            if not asildi:
+                await send(msg)
+                return
+            if msg["type"] == "http.response.start" and not cevap_verildi:
+                cevap_verildi = True
+                await self._reddet(send)
+            # sinir asildiktan sonra asagidan gelen govde yutulur
+
+        try:
+            await self.app(scope, _receive, _send)
+        except Exception:
+            if not asildi:
+                raise            # gercek hatalar yukariya, tipli cevaba gitsin
+        if asildi and not cevap_verildi:
+            cevap_verildi = True
+            await self._reddet(send)
+
+    @staticmethod
+    async def _reddet(send):
+        import json as _json
+        govde = _json.dumps({"text": "İstek gövdesi çok büyük.", "abstained": True,
+                             "reason": "payload_too_large", "citations": [],
+                             "used_source_ids": [], "cost_usd": 0.0,
+                             "cache_hit": False}, ensure_ascii=False).encode("utf-8")
+        await send({"type": "http.response.start", "status": 413,
+                    "headers": [(b"content-type", b"application/json; charset=utf-8"),
+                                (b"content-length", str(len(govde)).encode())]})
+        await send({"type": "http.response.body", "body": govde})
+
 
 class _RateLimiter:
     """Cok basit, surec-ici kayan pencere sayaci.
@@ -120,7 +212,10 @@ class _RateLimiter:
 
 
 def create_app(service, *, service_token: str | None = None,
-               rate_limit_per_min: int | None = None, expose_docs: bool | None = None):
+               rate_limit_per_min: int | None = None, expose_docs: bool | None = None,
+               max_body_bytes: int | None = None, request_timeout_s: float | None = None,
+               allowed_hosts: list[str] | None = None,
+               cors_origins: list[str] | None = None):
     """RagService'i saran FastAPI uygulaması. `service` enjekte edilir (test'te stub;
     üretimde build_service()). Model yüklemez — yalnız HTTP↔handler eşlemesi.
 
@@ -132,6 +227,10 @@ def create_app(service, *, service_token: str | None = None,
     docs_on = EXPOSE_DOCS if expose_docs is None else expose_docs
     limiter = _RateLimiter(RATE_LIMIT_PER_MIN if rate_limit_per_min is None
                            else rate_limit_per_min)
+    body_cap = MAX_BODY_BYTES if max_body_bytes is None else max_body_bytes
+    deadline = REQUEST_TIMEOUT_S if request_timeout_s is None else request_timeout_s
+    hosts = ALLOWED_HOSTS if allowed_hosts is None else allowed_hosts
+    origins = CORS_ORIGINS if cors_origins is None else cors_origins
 
     app = FastAPI(title="Hezarfen RAG", version="1.0",
                   description="Kaynakla-konuşma + kanıtlı özet + benzer-soru (API-CONTRACT.md)",
@@ -140,24 +239,57 @@ def create_app(service, *, service_token: str | None = None,
                   redoc_url="/redoc" if docs_on else None,
                   openapi_url="/openapi.json" if docs_on else None)
 
+    def _tipli_hata(status: int, reason: str, metin: str, rid: str) -> JSONResponse:
+        """API-CONTRACT sozlesmesi: backend her durumda ayni alanlari bekler."""
+        return JSONResponse(
+            status_code=status,
+            content={"text": metin, "abstained": True, "reason": reason,
+                     "citations": [], "used_source_ids": [], "cost_usd": 0.0,
+                     "cache_hit": False, "request_id": rid},
+            headers={"X-Request-Id": rid})
+
     @app.middleware("http")
     async def _request_id_and_errors(request: Request, call_next):
         """#50: her istege `request_id`; yakalanmamis hata CIPLAK 500 yerine
         API-CONTRACT'a uygun tipli cevaba cevrilir (OPS-06: stub 429 -> govde
-        `"Internal Server Error"` doonuyordu, backend bunu parse edemiyordu)."""
+        `"Internal Server Error"` doonuyordu, backend bunu parse edemiyordu).
+        Ayrica istek basina SON TARIH uygulanir.
+
+        DURUST SINIR: uc noktalar senkron `def` oldugu icin thread havuzunda
+        kosar; zaman asimi istemciye zamaninda bir cevap DONER ama arkadaki
+        thread'i iptal ETMEZ (Python'da bir thread disaridan kesilemez). Gercek
+        iptal saglayici katmaninda timeout ile olur -- DeepSeek istemcisinde
+        `timeout=120` zaten var; buradaki sinir ondan KISA tutulmali."""
+        import asyncio
         rid = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:16]
         try:
-            resp = await call_next(request)
+            if deadline > 0:
+                resp = await asyncio.wait_for(call_next(request), timeout=deadline)
+            else:
+                resp = await call_next(request)
+        except (asyncio.TimeoutError, TimeoutError):
+            return _tipli_hata(504, "timeout",
+                               "Cevap zamaninda hazir olmadi, tekrar dener misin?", rid)
         except Exception:
-            return JSONResponse(
-                status_code=503,
-                content={"text": "Şu anda cevap üretemiyorum, biraz sonra tekrar dene.",
-                         "abstained": True, "reason": "service_unavailable",
-                         "citations": [], "used_source_ids": [], "cost_usd": 0.0,
-                         "cache_hit": False, "request_id": rid},
-                headers={"X-Request-Id": rid})
+            return _tipli_hata(503, "service_unavailable",
+                               "Şu anda cevap üretemiyorum, biraz sonra tekrar dene.", rid)
         resp.headers["X-Request-Id"] = rid
         return resp
+
+    # NOT: ara katman sirasi TERSTEN kurulur -- en son eklenen EN DISTA calisir.
+    # Istenen sira (distan ice): TrustedHost -> CORS -> govde siniri -> request_id.
+    if body_cap > 0:
+        app.add_middleware(_BodyLimit, max_bytes=body_cap)
+    if origins:
+        # Varsayilan KAPALI: baslik hic gonderilmezse tarayici capraz-kaynak
+        # cagriyi zaten reddeder. Yalnizca acikca istenirse acilir.
+        app.add_middleware(CORSMiddleware, allow_origins=origins,
+                           allow_methods=["POST", "GET"],
+                           allow_headers=["Content-Type", "X-Service-Token",
+                                          "X-Request-Id"],
+                           max_age=600)
+    if hosts and hosts != ["*"]:
+        app.add_middleware(TrustedHostMiddleware, allowed_hosts=hosts)
 
     def _auth(x_service_token: str | None, request: Request) -> None:
         if token:
@@ -182,7 +314,16 @@ def create_app(service, *, service_token: str | None = None,
         return JSONResponse(status_code=200 if hazir else 503,
                             content={"status": "ready" if hazir else "not_ready",
                                      "ozet": getattr(service, "doc", None) is not None,
-                                     "soru": getattr(service, "question_gen", None) is not None})
+                                     "soru": getattr(service, "question_gen", None) is not None,
+                                     # operator hangi frenlerin ACIK oldugunu
+                                     # gorebilsin (sirrin KENDISI yazilmaz)
+                                     "guvenlik": {"token": bool(token),
+                                                  "oran_limiti": limiter.per_min,
+                                                  "govde_siniri": body_cap,
+                                                  "son_tarih_s": deadline,
+                                                  "docs_acik": bool(docs_on),
+                                                  "host_siniri": hosts != ["*"],
+                                                  "cors": bool(origins)}})
 
     @app.post("/rag/chat")
     def chat(req: ChatRequest, request: Request,
@@ -265,17 +406,38 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
                       question_gen=QuestionGenerator(), ders=ders)
 
 
+def _yapilandirma_uyarilari() -> list[str]:
+    """#50: varsayilanlar GERIYE UYUMLU secildi (mevcut kurulum bozulmasin) ama
+    bu, uretimde sessizce korumasiz kalmak anlamina gelmemeli. Acilista acikca
+    soylenir; ayrica `/ready` bunlari makine-okunur bicimde raporlar."""
+    u = []
+    if not SERVICE_TOKEN:
+        u.append("RAG_SERVICE_TOKEN yok → uçlar kimlik doğrulamasız (yalnız iç ağda çalıştır)")
+    if ALLOWED_HOSTS == ["*"]:
+        u.append("RAG_ALLOWED_HOSTS='*' → Host başlığı doğrulanmıyor")
+    if EXPOSE_DOCS:
+        u.append("RAG_EXPOSE_DOCS açık → /docs ve /openapi.json dışarıya açık")
+    if RATE_LIMIT_PER_MIN <= 0:
+        u.append("RAG_RATE_LIMIT_PER_MIN=0 → oran sınırı kapalı")
+    return u
+
+
 def main() -> None:
     import uvicorn
     book = os.environ.get("BOOK_PATH", "data/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")
+    for uyari in _yapilandirma_uyarilari():
+        print(f"[http][UYARI] {uyari}")
     print(f"[http] pipeline kuruluyor: {book} ({sinif}/{ders}) — model yüklenecek...")
     service = build_service(book, sinif=sinif, ders=ders)
     app = create_app(service)
-    print("[http] hazır → http://127.0.0.1:8000  (/health, /rag/chat, /rag/summarize, /rag/questions)")
-    uvicorn.run(app, host=os.environ.get("HOST", "127.0.0.1"),
-                port=int(os.environ.get("PORT", "8000")))
+    host, port = os.environ.get("HOST", "127.0.0.1"), int(os.environ.get("PORT", "8000"))
+    print(f"[http] hazır → http://{host}:{port}  (/health, /ready, /rag/*)")
+    # #50/OPS-13: graceful shutdown yoktu -- SIGTERM ucusta olan istekleri
+    # kesiyordu. Artik acik sureli bekleme var.
+    uvicorn.run(app, host=host, port=port,
+                timeout_graceful_shutdown=int(GRACEFUL_SHUTDOWN_S))
 
 
 if __name__ == "__main__":
