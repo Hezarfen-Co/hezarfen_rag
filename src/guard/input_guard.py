@@ -23,6 +23,7 @@ kalıp listesinin kaçırdığı örnekleri göstermesi olacak (bkz. OPTIMIZATIO
 from __future__ import annotations
 
 import re
+import unicodedata
 from dataclasses import dataclass
 
 from ..text.tr_normalize import fold_for_match
@@ -41,6 +42,13 @@ class GuardVerdict:
     score: float = 0.0
 
 
+def _strip_accents(s: str) -> str:
+    """Aksanlari duser: "ölümcül" -> "olumcul", "şiddet" -> "siddet".
+    Hem KALIP hem METIN ayni uzaya indirgenir (bkz. `_compile`, `_fold_loose`)."""
+    return "".join(c for c in unicodedata.normalize("NFKD", s)
+                   if not unicodedata.combining(c))
+
+
 def _compile(patterns: list[str]) -> list[re.Pattern]:
     # 'ı' (dotless) -> 'i' (dotted) HEM kalıpta HEM eşleşme metninde uygulanır
     # (bkz. `_fold_loose`) — ASCII-only klavye/otomatik-düzeltme genelde
@@ -50,7 +58,13 @@ def _compile(patterns: list[str]) -> list[re.Pattern]:
     # kaçırmaktansa (yanlış-negatif) biraz daha geniş eşleşmeyi (yanlış-
     # pozitif) TERCİH EDERİZ — bu yüzden ı/i ayrımı kalıp eşleştirmede
     # kasıtlı olarak ORTADAN KALDIRILIR.
-    return [re.compile(p.replace("ı", "i")) for p in patterns]
+    # #46: AKSAN da kalip tarafinda dusurulur ve tarama metni de aksansiz
+    # katlanir -> "olumcul doz" / "kendimi oldurmek" gibi AKSANSIZ yazimlar
+    # artik kaliplari atlatamaz. Gerekce (test yazarken bulundu): kaliplar
+    # aksanli yazildigi icin aksansiz Turkce guard'i geciyordu; bu teorik bir
+    # kenar durum degil -- ASCII klavye yaygin ve EXP-009'da modellerin
+    # bozuk/aksansiz Turkce urettigi OLCULDU.
+    return [re.compile(_strip_accents(p.replace("ı", "i"))) for p in patterns]
 
 
 def _fold_loose(s: str) -> str:
@@ -58,7 +72,12 @@ def _fold_loose(s: str) -> str:
     (newline/tab dahil) tek boşluğa indirger. Newline-katlama güvenlik-kritik:
     aksi halde "bomba\\nnasıl yapılır" ya da "ignore\\nprevious instructions" gibi
     araya \\n konarak kalıp eşleşmesi ATLATILABİLİRDİ (normalize \\n'i korur)."""
-    return re.sub(r"\s+", " ", fold_for_match(s)).replace("ı", "i")
+    return _strip_accents(re.sub(r"\s+", " ", fold_for_match(s)).replace("ı", "i"))
+
+
+def _fold_variants(s: str) -> tuple[str]:
+    """Geriye-uyum: tek (aksansiz) bicim -- `_fold_loose` zaten aksani dusuruyor."""
+    return (_fold_loose(s),)
 
 
 # ---------------------------------------------------------------------------
@@ -232,12 +251,16 @@ _HARM_MESSAGES: dict[str, str] = {cat: msg for cat, _, msg in _HARM_CATEGORIES}
 def _scan_harm_categories(text: str) -> str | None:
     """Fold edilmiş metni tüm zararlı-içerik kategorilerine karşı tarar;
     ilk (öncelik sıralı) eşleşen kategori adını döner, yoksa None.
-    input_guard VE output_guard tarafından PAYLAŞILIR (aynı kalıp listesi)."""
-    folded = _fold_loose(text)
-    for category, patterns, _ in _HARM_CATEGORIES:
-        for pat in patterns:
-            if pat.search(folded):
-                return category
+    input_guard VE output_guard tarafından PAYLAŞILIR (aynı kalıp listesi).
+
+    #46: tarama hem AKSANLI hem AKSANSIZ biçimde koşulur — aksi halde
+    "olumcul doz" / "kendimi oldurmek" gibi aksansız yazımlar kalıpları
+    atlatıyordu (bkz. `_strip_accents` gerekçesi)."""
+    for folded in _fold_variants(text):
+        for category, patterns, _ in _HARM_CATEGORIES:
+            for pat in patterns:
+                if pat.search(folded):
+                    return category
     return None
 
 

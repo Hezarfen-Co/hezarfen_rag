@@ -15,7 +15,8 @@ from __future__ import annotations
 
 import re
 
-from .input_guard import GuardVerdict, _HARM_CATEGORIES, _fold_loose
+from .input_guard import (GuardVerdict, _HARM_CATEGORIES, _fold_loose,
+                          _fold_variants, _strip_accents)
 
 _OUTPUT_REFUSE_MESSAGE = (
     "Üretilen cevap güvenlik kontrolünden geçemedi; bu soruyu şu an "
@@ -33,7 +34,7 @@ _OUTPUT_REFUSE_MESSAGE = (
 # sozlugu eklendi. 3. sahis BETIMSEL ("sigara kendine zarar verir") HARIC
 # kalmaya devam ediyor: instruksiyonel isaret (yol/yontem/nasil/adim/tarif)
 # ya da acik yontem sozcugu araniyor (AUDIT #O1 yanlis-pozitifi korunur).
-_OUTPUT_SELF_HARM = re.compile(
+_OUTPUT_SELF_HARM = re.compile(_strip_accents(
     r"kendi(?:mi|me|ni|n)\b.{0,15}(?:öldür|as(?:mak|arak|ma\w*)|kes\b|yarala)"   # eylem
     r"|kendi(?:me|mi|ne|ni|n)\b.{0,25}zarar.{0,18}(?:yol(?:u|ları|lar[ıi]|un)|yöntem|nasıl|tarif|adım)"
     r"|kendi(?:me|mi|ne|ni|n)\b.{0,10}nasıl.{0,15}zarar"
@@ -47,7 +48,9 @@ _OUTPUT_SELF_HARM = re.compile(
     r"|(?:balkondan|köprüden|camdan|yüksekten)\s*atla(?:mak|yarak|r)?\b.{0,25}öl"
     r"|acısız\s*(?:ölüm|intihar)"
     r"|kill myself|hurt myself|end my life"
-)
+    # #46: kalip da AKSANSIZ uzaya indirgenir (metin `_fold_loose` ile zaten
+    # aksansiz) -> "olumcul doz", "kendimi oldurmek" gibi yazimlar kacamaz.
+))
 
 
 def check_output(text: str | None) -> GuardVerdict:
@@ -57,10 +60,10 @@ def check_output(text: str | None) -> GuardVerdict:
     if not text or not text.strip():
         return GuardVerdict(action="allow", category="", message="", score=0.0)
 
-    folded = _fold_loose(text)
+    variants = _fold_variants(text)   # #46: aksanli + aksansiz
     for cat, patterns, _ in _HARM_CATEGORIES:
         pats = [_OUTPUT_SELF_HARM] if cat == "self_harm" else patterns
-        if any(p.search(folded) for p in pats):
+        if any(p.search(folded) for folded in variants for p in pats):
             return GuardVerdict(action="refuse", category=cat,
                                 message=_OUTPUT_REFUSE_MESSAGE, score=1.0)
     return GuardVerdict(action="allow", category="", message="", score=0.0)

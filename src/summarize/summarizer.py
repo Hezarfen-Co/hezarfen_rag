@@ -124,12 +124,28 @@ class Summarizer:
             return self._abstain_empty_scope()
 
         if len(units) <= self.max_units_per_group:
-            return self._summarize_single_pass(units, scope_label=scope_label,
-                                               max_tokens=max_tokens, temperature=temperature,
-                                               hierarchical=False)
+            res = self._summarize_single_pass(units, scope_label=scope_label,
+                                              max_tokens=max_tokens, temperature=temperature,
+                                              hierarchical=False)
+        else:
+            res = self._summarize_hierarchical(units, scope_label=scope_label,
+                                               max_tokens=max_tokens, temperature=temperature)
+        return self._guard_output(res)
 
-        return self._summarize_hierarchical(units, scope_label=scope_label,
-                                            max_tokens=max_tokens, temperature=temperature)
+    # #46 (EXP-010/SEC-05): bu yolun ciktisi `check_output`tan HIC gecmiyordu
+    # (grep: check_output yalniz generator.py'da cagriliyordu). Yani ogretmenin
+    # yukledigi kaynaga gomulu zararli icerik ya da modelin uretttigi zararli
+    # metin ozet yuzeyinden hicbir denetime takilmadan ogrenciye gidiyordu.
+    def _guard_output(self, res: GroundedSummary) -> GroundedSummary:
+        from ..guard import check_output
+        v = check_output(res.text)
+        if v.action != "refuse":
+            return res
+        # Maliyet GERCEK (LLM cagrildi) -> korunur; metin ve atiflar dusurulur.
+        return GroundedSummary(text=v.message, citations=[], scope_pages=res.scope_pages,
+                               abstained=True, reason=f"guard_{v.category}",
+                               hierarchical=res.hierarchical, usage=res.usage,
+                               cost_usd=res.cost_usd, latency_s=res.latency_s)
 
     # ------------------------------------------------------------------ ortak
 
