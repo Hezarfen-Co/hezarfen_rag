@@ -88,14 +88,32 @@ class SummarizeTests(unittest.TestCase):
 
 
 class QuestionsTests(unittest.TestCase):
-    def test_generate_questions(self):
+    """#43 ile sözleşme DEĞİŞTİ: rolsüz istek artık fail-CLOSED.
+
+    Bu testin eski hâli `role` GÖNDERMEDEN soru üretilmesini bekliyordu — yani
+    EXP-010/SEC-02'deki fail-OPEN davranışının kaydıydı. Koşularak kanıtlanan
+    sömürü: tanınmayan rol (`manager`) ya da hiç rol göndermemek, özet/soru
+    yollarında erişim kontrolünü TAMAMEN atlatıyordu."""
+
+    def _svc(self):
         qres = GeneratedQuestionSet(items=[GeneratedQuestion("s1", "c1", "kolay")],
                                     span_ids=["d#10.0"], pages=[10], cost_usd=0.01)
-        svc = RagService(_GenStub(_ANS), doc=_doc(), question_gen=_QGStub(qres), ders="biyoloji")
-        out = svc.generate_questions({"scope": {"pages": [10]}, "n": 3})
+        return RagService(_GenStub(_ANS), doc=_doc(), question_gen=_QGStub(qres),
+                          ders="biyoloji")
+
+    def test_generate_questions(self):
+        out = self._svc().generate_questions(
+            {"scope": {"pages": [10]}, "n": 3,
+             "role": {"role": "student", "sinif": "12", "ders_list": ["biyoloji"]}})
         self.assertEqual(len(out["items"]), 1)
         self.assertEqual(out["items"][0]["soru"], "s1")
         self.assertEqual(out["pages"], [10])
+
+    def test_generate_questions_without_role_is_denied(self):
+        out = self._svc().generate_questions({"scope": {"pages": [10]}, "n": 3})
+        self.assertTrue(out["abstained"])
+        self.assertEqual(out["reason"], "role_required")
+        self.assertEqual(out["items"], [])
 
 
 if __name__ == "__main__":

@@ -23,9 +23,18 @@ from enum import Enum
 
 
 class Role(str, Enum):
+    """Urun rol hiyerarsisi: parent < student < teacher < manager < admin.
+
+    #43 (EXP-010/SEC-02): `MANAGER` bu enum'da EKSIKTI. Backend mesru bir mudur
+    icin {"role":"manager",...} urettiginde `Role("manager")` ValueError atiyor,
+    `_role_ctx` None donuyor ve ozet/soru yollarindaki `if role_ctx is not None:`
+    korumasi yuzunden erisim kontrolu TAMAMEN atlaniyordu (fail-OPEN). Yani
+    hiyerarsinin en yetkili rollerinden biri, kodda "taninmayan rol" olarak
+    sinirsiz yetkiye donusuyordu."""
+    PARENT = "parent"
     STUDENT = "student"
     TEACHER = "teacher"
-    PARENT = "parent"
+    MANAGER = "manager"
     ADMIN = "admin"
 
 
@@ -53,6 +62,10 @@ def can_access(role_ctx: RoleContext | None, *, sinif: str, ders: str) -> bool:
     if role_ctx is None:
         return False
     if role_ctx.role == Role.ADMIN:
+        return True
+    if role_ctx.role == Role.MANAGER:
+        # Mudur: kurum genelinde yetkili (backend'in urettigi rol zaten kurum
+        # kapsamli). ADMIN gibi kapsam-bagimsiz ALLOW; #43 ile eklendi.
         return True
     if role_ctx.role in (Role.STUDENT, Role.TEACHER, Role.PARENT):
         if not role_ctx.ders_list:          # derse hiç atanmamış -> no-leak deny

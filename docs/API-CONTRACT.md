@@ -52,6 +52,16 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   → `text` yaşa-uygun red mesajıdır; olduğu gibi göster (kaynak/atıf yok).
 - `insufficient_data` → kaynakta yok; "Kaynaklarda bulunamadı" + yönlendirme.
 - `model_abstained` → model kaynakta bulamadı.
+- **`role_required`** (2026-09-11, #43) → istek rol taşımıyor ya da rol
+  çözülemedi. **Fail-closed:** backend geçerli bir `role` göndermeden özet/soru
+  üretilmez. Eskiden bu durumda erişim kontrolü ATLANIYORDU (SEC-02).
+- **`scope_mismatch`** (2026-09-11, #42) → istemcinin gönderdiği
+  `scope.sinif`/`scope.ders` sunucudaki korpusun gerçek sınıf/dersiyle
+  uyuşmuyor. **İstemci kapsam etiketi bir yetki girdisi DEĞİL, yalnız eşleşme
+  şartıdır** — eskiden `can_access`'e nesne olarak veriliyordu (SEC-01) ve
+  9. sınıf öğrencisi `scope={"sinif":"9",...}` yazarak 12. sınıf içeriğini
+  özetletebiliyordu. Backend bu alanları ya hiç göndermemeli ya da doğru
+  değerle göndermelidir.
 - boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
   (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
 

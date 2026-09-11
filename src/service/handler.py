@@ -13,8 +13,12 @@ from ..guard.roles import RoleContext, Role, can_access
 
 
 def _role_ctx(role: dict | None):
-    """API role sözlüğü → RoleContext. Tanınmayan/eksik rol → None (no-leak: çağıran
-    strict modda ise Generator fail-closed olur)."""
+    """API role sözlüğü → RoleContext. Tanınmayan/eksik rol → None.
+
+    DİKKAT (#43): `None` "rol yok" demektir, "her şeye erişebilir" DEMEZ.
+    Çağıranın bunu fail-CLOSED yorumlaması ZORUNLUDUR (bkz. `_scope_denied`).
+    EXP-010/SEC-02'de tam bu yorum hatası vardı: `if role_ctx is not None:`
+    koruması yüzünden rol çözülemeyince kontrol TAMAMEN atlanıyordu."""
     if not role or not isinstance(role, dict):
         return None
     try:
@@ -23,6 +27,39 @@ def _role_ctx(role: dict | None):
         return None
     return RoleContext(role=r, sinif=role.get("sinif"),
                        ders_list=list(role.get("ders_list") or []))
+
+
+# #42/#43 — TEK YETKİ KAPISI (özet + soru yolları). Gerekçe EXP-010:
+#   SEC-01 (KRİTİK): erişim kararı istemcinin gönderdiği `scope.sinif`/`scope.ders`
+#     ile veriliyordu → saldırgan `can_access`'e hem özneyi hem NESNEYİ kendisi
+#     bildiriyordu. Koşularak kanıtlandı: 9. sınıf matematik öğrencisi gerçek
+#     rolüyle `scope={"sinif":"9","ders":"matematik"}` gönderip 12-biyoloji
+#     içeriğini özetletti.
+#   SEC-02 (KRİTİK): rol çözülemezse (`manager` enum'da yok, `"Öğrenci"`, boş)
+#     kontrol tamamen atlanıyordu (fail-OPEN).
+# Çözüm: kapsamın sınıf/dersi YALNIZ sunucu gerçeğinden (`self.doc`) alınır;
+# istemcinin bildirdiği değer varsa DOĞRULAMA GİRDİSİ değil, sunucu gerçeğiyle
+# EŞLEŞME ŞARTI olarak kullanılır (uyuşmazsa red). Rol yoksa red.
+def _scope_denied(service, scope: dict, role: dict | None) -> str | None:
+    """Yetki reddi gerekçesi ya da None (erişim serbest).
+
+    Dönen değerler: "role_required" | "role_denied" | "scope_mismatch" | None
+    """
+    role_ctx = _role_ctx(role)
+    if role_ctx is None:
+        return "role_required"            # fail-CLOSED (#43)
+    # SUNUCU GERÇEĞİ — istemci bunu değiştiremez (#42)
+    srv_sinif = getattr(service.doc, "sinif", None)
+    srv_ders = service.ders or getattr(service.doc, "ders", None)
+    # İstemci kapsam etiketi gönderdiyse sunucu gerçeğiyle EŞLEŞMELİ; yoksa red.
+    cli_sinif, cli_ders = scope.get("sinif"), scope.get("ders")
+    if cli_sinif is not None and str(cli_sinif) != str(srv_sinif):
+        return "scope_mismatch"
+    if cli_ders is not None and str(cli_ders) != str(srv_ders):
+        return "scope_mismatch"
+    if not can_access(role_ctx, sinif=srv_sinif, ders=srv_ders):
+        return "role_denied"
+    return None
 
 
 def _answer_to_dict(a) -> dict:
@@ -76,15 +113,12 @@ class RagService:
         if not pages and not span_ids:
             return {"text": "", "abstained": True, "reason": "empty_scope",
                     "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
-        # ERİŞİM YENİDEN DOĞRULAMA (API-CONTRACT §4): rol verilmişse kapsamın ders/
-        # sınıfına erişebilmeli — aksi halde red (kasa izolasyonu özet yolunda da).
-        role_ctx = _role_ctx(req.get("role"))
-        if role_ctx is not None:
-            sinif = scope.get("sinif") or getattr(self.doc, "sinif", None)
-            ders = scope.get("ders") or self.ders or getattr(self.doc, "ders", None)
-            if not can_access(role_ctx, sinif=sinif, ders=ders):
-                return {"text": "", "abstained": True, "reason": "role_denied",
-                        "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
+        # ERİŞİM YENİDEN DOĞRULAMA (API-CONTRACT §4) — #42/#43: karar YALNIZ
+        # sunucu gerçeğinden; rol yoksa fail-closed.
+        denied = _scope_denied(self, scope, req.get("role"))
+        if denied:
+            return {"text": "", "abstained": True, "reason": denied,
+                    "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
         from ..summarize.scope import resolve_scope
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
         res = self.summarizer.summarize(units, scope_label=scope.get("scope_label", ""))
@@ -103,13 +137,10 @@ class RagService:
                     "span_ids": [], "pages": [], "cost_usd": 0.0}
         scope = req.get("scope") or {}
         pages, span_ids = scope.get("pages"), scope.get("span_ids")
-        role_ctx = _role_ctx(req.get("role"))
-        if role_ctx is not None:
-            sinif = scope.get("sinif") or getattr(self.doc, "sinif", None)
-            ders = scope.get("ders") or self.ders or getattr(self.doc, "ders", None)
-            if not can_access(role_ctx, sinif=sinif, ders=ders):
-                return {"items": [], "abstained": True, "reason": "role_denied",
-                        "span_ids": [], "pages": [], "cost_usd": 0.0}
+        denied = _scope_denied(self, scope, req.get("role"))
+        if denied:
+            return {"items": [], "abstained": True, "reason": denied,
+                    "span_ids": [], "pages": [], "cost_usd": 0.0}
         from ..summarize.scope import resolve_scope
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
         res = self.question_gen.generate(units, n=int(req.get("n", 5)),
