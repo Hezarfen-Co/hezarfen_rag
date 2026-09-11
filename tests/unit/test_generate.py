@@ -153,7 +153,9 @@ class BuildGroundedPromptTests(unittest.TestCase):
         self.assertIn("DNA çift sarmaldır.", user)
         self.assertIn("[Kaynak 2 | biyoloji s.25]", user)
         self.assertIn("Fotosentez ışığa bağlıdır.", user)
-        self.assertIn("SORU: DNA nedir?", user)
+        # #47: sorgu artık kendi sınırlayıcısında (sahte kaynak enjeksiyonu
+        # `SORU:` etiketinin hemen ardına yazılarak yapılabiliyordu).
+        self.assertIn("<<<ÖĞRENCİ SORUSU>>>\nDNA nedir?\n<<<SORU SONU>>>", user)
         # sistem promptu: kaynak-dışı bilgi yasak + [N] atıf formatı + çekimser cümle
         self.assertIn("[1]", system)
         self.assertIn("Kaynaklarda bu bilgi bulunamadı.", system)
