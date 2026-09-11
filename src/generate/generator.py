@@ -3,9 +3,10 @@ Faz 1.7b — guardrail entegrasyonu (bkz. src/guard/): `answer()` EN BAŞINDA
 `check_input` çağrılır (zararlı/injection ise LLM hiç çağrılmadan red);
 üretimden SONRA `check_output` çağrılır (üretilen metin zararlıysa cevap red
 mesajıyla değiştirilir). Rol-türevli erişim (`RoleContext`/`can_access`)
-SUNUCU-TARAFI türetilir (bkz. src/guard/roles.py) — opsiyonel `role_ctx`
-burada yalnız TAŞINIR; retrieval-seviyesi filtre Faz 1.6 kapsamındadır, bu
-generator HENÜZ retrieval'i role_ctx'e göre filtrelemez (ileriki hook).
+SUNUCU-TARAFI türetilir (bkz. src/guard/roles.py). Faz 1.6 (commit 299681b, #22)
+ile `role_ctx` artık yalnız taşınmıyor: `answer()` onu `retriever.retrieve()`'e
+geçirir → yetkisiz sınıf/ders chunk'ları RRF sonrası, trim ÖNCESİ elenir
+(bkz. src/retrieve/hybrid.py `_allowed`; `meta` yoksa fail-closed boş sonuç).
 
 Akış: [guard: check_input] → hibrit retrieval (1.4) → rerank + parent
 genişletme (1.5) → FAIL-CLOSED eşiği (kanıt yetersizse LLM'i hiç ÇAĞIRMA,
@@ -179,7 +180,8 @@ class Generator:
         self._record = cost_recorder if cost_recorder is not None else costlog.record
         # Opsiyonel — SUNUCU-TARAFI türetilmiş RoleContext (bkz. src/guard/roles.py).
         # İSTEMCİ header'ından ASLA doğrudan kurulmamalı (çağıran taraf/auth katmanı
-        # sorumlu). Şu an yalnız TAŞINIR; retrieval-seviyesi filtre Faz 1.6 hook'u.
+        # sorumlu). Faz 1.6'dan beri retrieval'e GEÇİRİLİR (kasa izolasyonu);
+        # istek-başına `answer(role_ctx=...)` ile ezilebilir.
         self.role_ctx = role_ctx
         # Opsiyonel ResponseCache (bkz. src/cache/response_cache.py). None ise
         # davranış ÖNCEKİYLE BİREBİR AYNI (mevcut testler bozulmaz). Hit olursa
