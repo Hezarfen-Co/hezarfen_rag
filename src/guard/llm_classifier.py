@@ -61,7 +61,7 @@ class LLMSafetyClassifier:
         global _warned_no_key
         if not getattr(self.deepseek, "_api_key", None) and not _warned_no_key:
             import warnings
-            warnings.warn("LLMSafetyClassifier: DEEPSEEK_API_KEY yok → 2. güvenlik "
+            warnings.warn("LLMSafetyClassifier: LLM API anahtarı yok → 2. güvenlik "
                           "katmanı (semantik zararlı/prompt-injection) DEVRE DIŞI "
                           "(yalnız regex kalır). Üretimde anahtar sağlanmalı.", stacklevel=2)
             _warned_no_key = True

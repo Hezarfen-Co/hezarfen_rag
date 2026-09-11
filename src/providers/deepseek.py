@@ -1,4 +1,4 @@
-"""DeepSeek LLM sağlayıcı (OpenAI-uyumlu /chat/completions).
+"""OpenAI-uyumlu /chat/completions LLM sağlayıcı (varsayılan: DeepSeek).
 
 Amaç: metin üret + TOKEN KULLANIMINI döndür ki maliyet hesaplanabilsin.
 API anahtarı env `DEEPSEEK_API_KEY`'den okunur; anahtar OLMADAN da import edilir
@@ -8,6 +8,23 @@ Dönen: ChatResult(text, usage: pricing.Usage, model, raw). Maliyet için:
     from src.pricing import cost_usd
     r = DeepSeek().chat("Özetle: ...")
     usd = cost_usd(r.model, r.usage)
+
+## Sağlayıcı değiştirme (KOD DEĞİŞMEZ) — EXP-009
+`mimari.md §0.1`: DeepSeek-V4-Flash "kanıtlanmış varsayılan" DEĞİL, **ADAY**.
+Aday karşılaştırması yapabilmek için uç nokta/model/anahtar **env'den** gelir:
+
+    LLM_BASE_URL   OpenAI-uyumlu taban (ör. https://integrate.api.nvidia.com/v1)
+    LLM_MODEL      model id (ör. moonshotai/kimi-k3)
+    LLM_API_KEY    o sağlayıcının anahtarı (yoksa DEEPSEEK_API_KEY/NVIDIA_API_KEY)
+    LLM_EXTRA_JSON her istek gövdesine eklenecek JSON (sağlayıcıya özgü parametre)
+
+`LLM_EXTRA_JSON` NEDEN var (ampirik, 2026-09-10): reasoning modelleri
+`max_tokens` bütçesinin tamamını düşünmeye harcayıp **boş içerik** döndürüyor
+(EXP-006'daki `deepseek-v4-flash-vision-exp` hatasının aynısı). Çözüm sağlayıcıya
+göre değişiyor: DeepSeek/Kimi/Muse → `{"reasoning_effort": "none"}`,
+NVIDIA Nemotron → `{"chat_template_kwargs": {"thinking": false}}`. Bunu koda
+gömmek yerine env'e almak, sağlayıcı-bağımsızlığı bozmadan çözer.
+Açık `extra=` argümanı env'in ÜSTÜNE yazar (çağrı-başına kontrol korunur).
 """
 from __future__ import annotations
 import json
@@ -21,6 +38,35 @@ from ..pricing import Usage
 DEFAULT_BASE = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"   # API model id — pricing.MODEL_ALIASES ile fiyata eşlenir
 
+# Anahtar arama sırası. `.env`'de anahtar adı Türkçe `İ` / fazla `_` / sonda
+# boşlukla yazılmış olabiliyor (bu makinede öyleydi) — o durumda `.env` DÜZELTİLİR;
+# burada yalnız meşru ad varyantları denenir, unicode tahmini YAPILMAZ.
+_KEY_ENV_NAMES = ("LLM_API_KEY", "DEEPSEEK_API_KEY", "NVIDIA_API_KEY")
+
+
+def _env(name: str) -> str | None:
+    """Env değeri; BOŞ string = ayarlanmamış (`.env` boş satır bırakabiliyor)."""
+    val = os.environ.get(name)
+    return val.strip() if val and val.strip() else None
+
+
+def _env_extra() -> dict:
+    """`LLM_EXTRA_JSON` → dict. Bozuk JSON sessizce yutulmaz: uyarı + {}."""
+    raw = _env("LLM_EXTRA_JSON")
+    if not raw:
+        return {}
+    try:
+        data = json.loads(raw)
+    except Exception:
+        import warnings
+        warnings.warn("LLM_EXTRA_JSON geçerli JSON değil → yok sayıldı.", stacklevel=2)
+        return {}
+    if not isinstance(data, dict):
+        import warnings
+        warnings.warn("LLM_EXTRA_JSON bir JSON nesnesi olmalı → yok sayıldı.", stacklevel=2)
+        return {}
+    return data
+
 
 @dataclass
 class ChatResult:
@@ -32,20 +78,32 @@ class ChatResult:
 
 
 class DeepSeek:
-    def __init__(self, model: str = DEFAULT_MODEL, base_url: str = DEFAULT_BASE,
-                 api_key: str | None = None, timeout: float = 120.0):
-        self.model = model
-        self.base_url = base_url.rstrip("/")
+    """OpenAI-uyumlu sohbet istemcisi.
+
+    Öncelik: açık argüman > env (`LLM_*`) > DeepSeek varsayılanı. Böylece mevcut
+    çağıranların (Generator/Summarizer/guard/rewrite/judge) hiçbiri değişmeden
+    tüm sistem başka bir sağlayıcıya alınabilir (aday karşılaştırması, EXP-009).
+    """
+
+    def __init__(self, model: str | None = None, base_url: str | None = None,
+                 api_key: str | None = None, timeout: float = 120.0,
+                 extra: dict | None = None):
+        self.model = model or _env("LLM_MODEL") or DEFAULT_MODEL
+        base = base_url or _env("LLM_BASE_URL") or DEFAULT_BASE
+        self.base_url = base.rstrip("/")
         self.timeout = timeout
+        # Her isteğe eklenecek sağlayıcıya-özgü gövde parametreleri.
+        self.extra = dict(extra) if extra is not None else _env_extra()
         # Anahtar burada ZORUNLU değil — yalnız chat() sırasında gerekir.
-        self._api_key = api_key or os.environ.get("DEEPSEEK_API_KEY")
+        self._api_key = api_key or next((v for v in map(_env, _KEY_ENV_NAMES) if v), None)
 
     def chat(self, prompt: str, system: str | None = None, *,
              temperature: float = 0.2, max_tokens: int | None = None,
              extra: dict | None = None) -> ChatResult:
         if not self._api_key:
             raise RuntimeError(
-                "DEEPSEEK_API_KEY yok. `setx DEEPSEEK_API_KEY <key>` ya da "
+                "API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir "
+                "sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da "
                 "DeepSeek(api_key=...) ile ver.")
         messages = []
         if system:
@@ -55,6 +113,11 @@ class DeepSeek:
                    "temperature": temperature, "stream": False}
         if max_tokens:
             payload["max_tokens"] = max_tokens
+        # Sağlayıcı-geneli parametreler (env/ctor) ÖNCE, çağrı-başına `extra`
+        # SONRA → tek bir çağrı (ör. guard'ın response_format'ı) env'i geçersiz
+        # kılabilsin.
+        if self.extra:
+            payload.update(self.extra)
         if extra:
             payload.update(extra)
 

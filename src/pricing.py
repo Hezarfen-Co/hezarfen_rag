@@ -21,14 +21,29 @@ PRICING: dict[str, dict[str, float]] = {
     "deepseek-v4-pro":   {"in_hit": 0.044, "in_miss": 1.32, "out": 3.96},
     # görsel varyant flash ile aynı fiyat (doğrula):
     "deepseek-v4-flash-vision-exp": {"in_hit": 0.014, "in_miss": 0.44, "out": 1.32},
+    # NVIDIA NIM "Free Endpoint" — aday karşılaştırması (EXP-009) buradan koşar.
+    # ⚠️ 0.0 = ÜCRETSİZ UÇ; kalıcı bir fiyat DEĞİL. Ücretsiz uçta kota/gecikme
+    # riski var (ölçüldü: model başına eşzamanlılık ~1). Üretime alınırsa
+    # sağlayıcının gerçek fiyatı buraya YAZILMALI, yoksa maliyet eksik sayılır.
+    "nim-free": {"in_hit": 0.0, "in_miss": 0.0, "out": 0.0},
 }
 OFFPEAK_FACTOR = 0.5
 
 # API model id'si ile fiyat-tablosu anahtarı FARKLI olabilir. Buradan eşle.
-# DeepSeek API'nin beklediği model id'sini doğrula ve gerekirse düzelt.
+# DeepSeek canlı /models kataloğu (doğrulandı 2026-09-10): ['deepseek-flash',
+# 'deepseek-v4-pro']; 'deepseek-chat'/'deepseek-reasoner' hâlâ kabul ediliyor.
 MODEL_ALIASES: dict[str, str] = {
     "deepseek-chat": "deepseek-v4-flash",
+    "deepseek-flash": "deepseek-v4-flash",
     "deepseek-reasoner": "deepseek-v4-pro",
+    # NVIDIA NIM ücretsiz uç noktalar (LLM_BASE_URL=integrate.api.nvidia.com/v1)
+    "deepseek-ai/deepseek-v4-flash-0731": "nim-free",
+    "deepseek-ai/deepseek-v4-pro-0813": "nim-free",
+    "moonshotai/kimi-k3": "nim-free",
+    "meta/muse-glimmer-30b": "nim-free",
+    "nvidia/nemotron-3.5-lightning-30b-a3b": "nim-free",
+    "nvidia/nemotron-3-super-120b-a12b": "nim-free",
+    "nvidia/nemotron-3-ultra-550b-a55b": "nim-free",
 }
 
 

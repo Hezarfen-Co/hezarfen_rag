@@ -440,8 +440,15 @@ def _aggregate_table(agg: dict) -> str:
 def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
        results_dir: str = RESULTS_DIR) -> dict:
     _load_dotenv()
-    if not os.environ.get("DEEPSEEK_API_KEY"):
-        raise RuntimeError("DEEPSEEK_API_KEY yok (.env kontrol et) -- gercek eval kosusu icin gerekli.")
+    # Anahtar kontrolu saglayici-bagimsiz olmali (EXP-009): uretici artik
+    # LLM_BASE_URL/LLM_MODEL ile baska bir OpenAI-uyumlu uca alinabiliyor, o
+    # durumda DEEPSEEK_API_KEY hic ayarli olmayabilir. Kaynak: providers.deepseek.
+    from ..providers.deepseek import _KEY_ENV_NAMES, _env
+    if not any(_env(n) for n in _KEY_ENV_NAMES):
+        raise RuntimeError(
+            "API anahtari yok (.env kontrol et): "
+            + " / ".join(_KEY_ENV_NAMES)
+            + " -- gercek eval kosusu icin gerekli.")
     if not os.path.exists(book_path):
         raise FileNotFoundError(f"golden set kaynak PDF'i yok: {book_path}")
 
