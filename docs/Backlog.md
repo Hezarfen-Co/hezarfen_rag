@@ -41,7 +41,14 @@
 ### BL-006 — Bu makinede (Fedora) ortam farkları
 - **Yapıldı:** `.venv` kuruldu (Python **3.13**, CPU-torch 2.14, FlagEmbedding, deepeval);
   `tests/unit` **434 yeşil**. `.env` anahtar adları ASCII'ye çevrildi.
-- **CPU embed ÖLÇÜLDÜ (2026-09-10):** BGE-M3 CPU'da **~4,1 chunk/s** (16 chunk / 3,9 s;
+- **GPU ÇALIŞIYOR (2026-09-11).** Sürücü zaten kuruluydu (NVRM 610.57.04, RTX 4060
+  Laptop 8 GB, CUDA UMD 13.3); `nvidia-smi` görünmüyordu çünkü kabuk Flatpak
+  sandbox'ında ve host `/run/host` altında. `.venv`'e `torch==2.14.0+cu130` kuruldu
+  (`/tmp` 1,6 GB tmpfs olduğu için ilk deneme `Errno 28` ile çöktü → `TMPDIR`
+  `/home`'a alındı). **Ölçülen:** embed **49,8 chunk/s** (CPU 4,1 → 12×),
+  rerank **1,90 s**/40 aday, `build_canonical` 194 sayfa **31,0 s**, VRAM tepe
+  2.627 MB. `LD_LIBRARY_PATH` gerekmiyor.
+- **CPU embed ÖLÇÜLDÜ (2026-09-10, artık tarihsel):** BGE-M3 CPU'da **~4,1 chunk/s** (16 chunk / 3,9 s;
   1024-dim, L2-norm 1,000 — GPU değeriyle aynı çıktı). Belgelenen GPU: 67 chunk/s →
   **~16× yavaş**; 12-bio'nun 258 chunk'ı ≈ **63 s** (kabul edilebilir). Model ilk indirme
   11,5 dk (2,3 GB). Reranker (cross-encoder, 40 aday × 200 sorgu) CPU'da asıl darboğaz olacak.

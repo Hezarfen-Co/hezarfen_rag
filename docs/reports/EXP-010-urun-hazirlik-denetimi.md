@@ -148,6 +148,15 @@ servis-servis kimlik doğrulama · geri bildirim yakalama.
 | S-07 | Golden gold span'ların **içerik doğruluğu** (span soruyu gerçekten cevaplıyor mu) | Örneklem incelemesi yapılmadı; `benchmark.md §1` "iki uzman doğrulaması" istiyor | Kadir + öğretmen örneklem incelemesi |
 | S-08 | `kolay/orta/zor` etiketlerinin gerçek zorlukla ilişkisi | Madde güçlüğü (p) ölçülmedi | Pilot sonrası psikometri |
 | S-09 | Çok-süreçli cache/costlog yarışları (WAL yok) | Yük testi yapılmadı | Eşzamanlılık testi (T-04) |
+
+**ÇÖZÜLEN ŞÜPHELER (2026-09-11, GPU kurulduktan sonra ölçüldü):**
+
+| # | Şüphe | ÖLÇÜLEN SONUÇ |
+|---|---|---|
+| S-02 | Sayfa sınırını aşan child chunk oranı (ACC-02'nin nicel payı) | **%63,4** (147/232, 10-biyoloji 194 sayfa) — atıf precision tavanının kök nedeni artık sayıyla kanıtlı |
+| — | Reranker gecikmesi (OPS "ölçülemedi" demişti) | **1,90 s** / 40 aday (RTX 4060, fp16). Kapı O-05 (p50 ≤6 s MVP, ≤3 s TAM) için tek başına bütçenin büyük kısmı → **top-k/aday sayısı ayarı artık bir maliyet kararı** |
+| — | GPU embed hızı | **49,8 chunk/s** (CPU 4,1 → 12×; belgelenen 67'ye yakın). VRAM tepe 2.627 MB / 7,65 GB |
+| — | `build_canonical` (194 sayfa) | **31,0 s** — soğuk başlangıç bütçesine (#82) eklenir |
 | S-10 | Boş/bozuk/çok büyük PDF testlerinin yokluğu grep tabanlı | Farklı adlandırılmış test gözden kaçmış olabilir | Test envanteri |
 
 ---

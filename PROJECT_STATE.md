@@ -22,8 +22,11 @@
 - **`.venv` KURULDU:** Python **3.13** (3.11 paketi yok), **CPU**-torch 2.14, pymupdf,
   pdfplumber, qdrant-client, rank-bm25, FlagEmbedding, deepeval, fastapi.
   `python -m unittest discover -s tests/unit -t .` → **434 yeşil** (1 skip).
-- **NVIDIA sürücüsü YOK** (`nvidia-smi` yok; donanım RTX 4060 Max-Q var) → embed/rerank CPU'da.
-  **Ölçüldü:** BGE-M3 CPU **~4,1 chunk/s** (GPU 67 → ~16× yavaş; 258 chunk ≈ 63 s). Kalite aynı.
+- **GPU ÇALIŞIYOR (2026-09-11 düzeltmesi).** Sürücü baştan beri kuruluydu
+  (NVRM 610.57.04, RTX 4060 Laptop 8 GB, CUDA 13.3); `nvidia-smi` Flatpak
+  sandbox'ı yüzünden görünmüyordu (host `/run/host` altında). `torch 2.14.0+cu130`
+  kuruldu. **Ölçülen:** embed **49,8 chunk/s**, rerank **1,90 s**/40 aday,
+  `build_canonical` (194 sayfa) 31,0 s, VRAM tepe 2.627 MB.
 - **`tesseract` yok** → OCR yolu (Faz 0.8) bu makinede sınanamaz.
 - **`.env` DÜZELTİLDİ:** anahtar adları `DEEP_SEEK_API_KEY ` (fazla `_` + sonda boşluk) ve
   `NVİDİA_APİ_KEY` (Türkçe `İ`) idi → kod **hiçbirini okuyamıyordu**. Artık
