@@ -1,6 +1,0 @@
-[
-  { "code": "MAT101", "name": "Matematik I", "teacher": "ogretmen1", "students": ["ogrenci1", "ogrenci2", "ogrenci3"] },
-  { "code": "FIZ101", "name": "Fizik I", "teacher": "ogretmen1", "students": ["ogrenci1", "ogrenci4"] },
-  { "code": "TAR101", "name": "Tarih", "teacher": "ogretmen2", "students": ["ogrenci2", "ogrenci3", "ogrenci5"] },
-  { "code": "BIY101", "name": "Biyoloji", "teacher": "ogretmen2", "students": ["ogrenci4", "ogrenci5"] }
-]

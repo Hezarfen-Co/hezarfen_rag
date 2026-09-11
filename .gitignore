@@ -16,3 +16,12 @@ C:/
 .hezarfen/
 runs.jsonl
 runs.jsonl.lock
+
+# --- Veri ve yardimci klasorler depoda TUTULMAZ (Kadir, 2026-09-11) ---
+# `data/` 1,9 GB ders kitabi PDF'i (LFS ile yedeklenmisti) -- depoda tasinmaz,
+# yerelde durur. Yol ayari: BOOK_PATH / DATA_ROOT.
+data/
+# EBA indirme betikleri + log'lari; urun kodunun parcasi degil.
+eba_dl/
+# Backend tarafinin sahte verisi; bu depoya ait degil.
+mockdata/

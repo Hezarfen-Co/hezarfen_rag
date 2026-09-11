@@ -42,8 +42,15 @@ from .pricing import (Usage, cost_usd, price_table_rows,
 # `./C:/Users/w/...` klasoru olusuyordu (olculdu) -- `.gitignore`da karsiligi
 # olmadigi icin maliyet defteri (ve icindeki her sey) REPOYA SIZABILIYORDU.
 # Konteynerde ise imaj katmanina yazip restart'ta kayboluyordu.
-VAULT = os.environ.get("HEZARFEN_COST_VAULT") or os.path.join(
-    os.path.expanduser("~"), ".hezarfen", "cost")
+# Defterin GERCEK yeri Obsidian kasasidir ve ORADA KALIR (Kadir, 2026-09-11).
+# Env ile ezilebilir olmasi sart: konteynerde/CI'da kasa yoktur ve #49'un asil
+# sebebi buydu -- yol SABIT oldugu icin yazilamayan yere yaziliyordu.
+# TESTLER bu degeri EZMEK ZORUNDA (bkz. tests/__init__.py): aksi halde birim
+# testleri gercek maliyet defterine stub kayitlari yaziyor (olculdu: 27 satir).
+OBSIDIAN_VAULT = os.path.join(
+    os.path.expanduser("~"), "Masaüstü", "Obsidian Vault", "Hezarfen-Vault",
+    "Hezarfen", "rag")
+VAULT = os.environ.get("HEZARFEN_COST_VAULT") or OBSIDIAN_VAULT
 LEDGER = os.path.join(VAULT, "runs.jsonl")
 MALIYET = os.path.join(VAULT, "Maliyet.md")
 
