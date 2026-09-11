@@ -1,0 +1,62 @@
+[
+  {
+    "ders": "biyoloji",
+    "unite": 3,
+    "kitapta_var": 2,
+    "oran": 0.67,
+    "eksik": [
+      "Kalıtımın Genel İlkeleri"
+    ],
+    "sayfa": 402901
+  },
+  {
+    "ders": "cografya",
+    "unite": 4,
+    "kitapta_var": 4,
+    "oran": 1.0,
+    "eksik": [],
+    "sayfa": 406692
+  },
+  {
+    "ders": "din-kulturu",
+    "unite": 5,
+    "kitapta_var": 5,
+    "oran": 1.0,
+    "eksik": [],
+    "sayfa": 433318
+  },
+  {
+    "ders": "felsefe",
+    "unite": 4,
+    "kitapta_var": 4,
+    "oran": 1.0,
+    "eksik": [],
+    "sayfa": 412261
+  },
+  {
+    "ders": "fizik",
+    "unite": 4,
+    "kitapta_var": 4,
+    "oran": 1.0,
+    "eksik": [],
+    "sayfa": 575833
+  },
+  {
+    "ders": "ingilizce",
+    "unite": 10,
+    "kitapta_var": 9,
+    "oran": 0.9,
+    "eksik": [
+      "Traditions"
+    ],
+    "sayfa": 249796
+  },
+  {
+    "ders": "kimya",
+    "unite": 4,
+    "kitapta_var": 4,
+    "oran": 1.0,
+    "eksik": [],
+    "sayfa": 443708
+  }
+]

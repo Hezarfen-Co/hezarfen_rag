@@ -1,0 +1,869 @@
+{
+  "okul": "demo",
+  "ogrenci": {
+    "id": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+    "username": "ogrenci1",
+    "name": "Zeynep",
+    "surname": "Kaya",
+    "role": "student"
+  },
+  "sube": {
+    "id": "2G7FF0M5T5N0H0GEHQG3X613D2",
+    "name": "10-A",
+    "grade": "10",
+    "teacher": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+  },
+  "ogretmen": {
+    "id": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+    "username": "ogretmen1",
+    "name": "Ayşe",
+    "surname": "Yılmaz",
+    "role": "teacher"
+  },
+  "dersler": [
+    {
+      "id": "6TP750EH91H2542PBWVRSHDZHW",
+      "title": "Almanca",
+      "description": "10. sınıf Almanca",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "25Q5FS0C5WBWC5VSYWEK0WN3VC",
+      "title": "Arapça",
+      "description": "10. sınıf Arapça",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "2C6KV394402EA42EZBXNET78SP",
+      "title": "Beden Eğitimi",
+      "description": "10. sınıf Beden Eğitimi",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "6WM66KRHYNDQEZX661X36C7XSJ",
+      "title": "Bilişim Teknolojileri",
+      "description": "10. sınıf Bilişim Teknolojileri",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "title": "Biyoloji",
+      "description": "10. sınıf Biyoloji",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "360NFGTFKGY58NM6PY67J99ZPN",
+      "title": "Çevre Eğitimi",
+      "description": "10. sınıf Çevre Eğitimi",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "title": "Coğrafya",
+      "description": "10. sınıf Coğrafya",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "title": "Din Kültürü ve Ahlak Bilgisi",
+      "description": "10. sınıf Din Kültürü ve Ahlak Bilgisi",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "title": "Felsefe",
+      "description": "10. sınıf Felsefe",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "title": "Fizik",
+      "description": "10. sınıf Fizik",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "title": "Fen Lisesi Biyoloji",
+      "description": "10. sınıf Fen Lisesi Biyoloji",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "title": "Fen Lisesi Fizik",
+      "description": "10. sınıf Fen Lisesi Fizik",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "193J0F8JP9A00K8TADX54Y5SF7",
+      "title": "Fen Lisesi Kimya",
+      "description": "10. sınıf Fen Lisesi Kimya",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "6K4F08XESEJX5YFPA2ZYGVJ62J",
+      "title": "Fen Lisesi Matematik",
+      "description": "10. sınıf Fen Lisesi Matematik",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "5JYCM7YD2CX5G6EGBTVKFAEJZ0",
+      "title": "Fransızca",
+      "description": "10. sınıf Fransızca",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "0212W6936R3FNK4YF67054KSVK",
+      "title": "Geometri",
+      "description": "10. sınıf Geometri",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "6G16PX3XW4ANX9PCJJM5059DCC",
+      "title": "Görsel Sanatlar",
+      "description": "10. sınıf Görsel Sanatlar",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "0NBWNS17N1WJG9A2HNH15XJECB",
+      "title": "İngilizce",
+      "description": "10. sınıf İngilizce",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    },
+    {
+      "id": "15RK7QP9K7ENADA4F55G4AQRSY",
+      "title": "Kimya",
+      "description": "10. sınıf Kimya",
+      "kind": "course",
+      "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "teachers": [
+        "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+      ]
+    }
+  ],
+  "notlar": [
+    {
+      "id": "4KSEV81DCQY9DY7ZXT6FRTK0V6",
+      "title": "Biyoloji — Hücre Bölünmeleri",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+    },
+    {
+      "id": "3W43N93A186G0J388657ZRT98C",
+      "title": "Coğrafya — Doğal Sistemler",
+      "content": "10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+    },
+    {
+      "id": "12GAVFT5JWXE57EVCZFEF77DKY",
+      "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+      "content": "None 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+    }
+  ],
+  "ders_notlari": [
+    {
+      "id": "4NXYQAYEJR8160QPC8VB9831P3",
+      "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Hücre Bölünmeleri — kazanımlar",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar."
+    },
+    {
+      "id": "6WQMG6N19XZ29FP786JEG0FSGG",
+      "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Doğal Sistemler — kazanımlar",
+      "content": "10.1.1 Dünya’nın tektonik oluşumunu açıklar.\n10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n10.1.3 İç kuvvetleri; yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.4 Kayaçların özellikleri ile yeryüzü şekillerinin oluşum süreçlerini ilişkilendirir.\n10.1.5 Türkiye’deki yer şekillerinin oluşum sürecine iç kuvvetlerin etkisini açıklar.\n10.1.6 Dış kuvvetleri yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.7 Türkiye’deki yer şekillerinin oluşum sürecine dış kuvvetlerin etkisini açıklar.\n10.1.8 Türkiye’deki ana yer şekillerini temel özellikleri ve dağılışları açısından değerlendirir.\n10.1.9 Yeryüzündeki su varlıklarını özelliklerine göre sınıflandırır.\n10.1.10 Türkiye’deki su varlıklarının genel özelliklerini ve dağılışını açıklar.\n10.1.11 Türkiye’deki su varlığını verimli kullanmanın ekonomik, sosyal ve kültürel etkilerini değerlendirir.\n10.1.12 Yeryüzündeki toprak çeşitliliğini oluşum süreçleri ile ilişkilendirir.\n10.1.13 Türkiye’deki toprakların dağılışını etkileyen faktörler ile toprak tiplerini ilişkilendirir.\n10.1.14 Türkiye topraklarının kullanımını verimlilik açısından değerlendirir.\n10.1.15 Bitki toplulukları ve türlerini genel özelliklerine göre sınıflandırır.\n10.1.16 Bitki topluluklarının dağılışı ile iklim ve yer şekillerini ilişkilendirir.\n10.1.17 Türkiye’deki doğal bitki topluluklarının dağılışını yetişme şartları açısından analiz eder."
+    },
+    {
+      "id": "347CPXTZ446VJJ272CHGR3BRMX",
+      "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Allah İnsan İlişkisi — kazanımlar",
+      "content": "None 10.1.1. Allah inancının insan hayatındaki yeri ve önemini yorumlar.\nNone 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\nNone 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\nNone 10.1.4. İnsanın özelliklerini ayetlerle açıklar.\nNone 10.1.5. İnsanın Allah ile irtibat yollarını fark eder.\nNone 10.1.6. Rûm suresi 18-27. ayetlerde verilen mesajları değerlendirir."
+    },
+    {
+      "id": "04Q9B71JZFJGB16HM2AP5P7PRC",
+      "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Felsefeyi Tanıma — kazanımlar",
+      "content": "10.1.1 Felsefenin anlamını açıklar.\n10.1.2 Felsefi düşüncenin özelliklerini açıklar.\n10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar."
+    },
+    {
+      "id": "64EVM86PT9RWTWAX4S7BMQWD9S",
+      "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Elektrik ve Manyetizma — kazanımlar",
+      "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+    },
+    {
+      "id": "6TJD5V1WCPTTMYYGYYSAR9EZYR",
+      "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Hücre Bölünmeleri — kazanımlar",
+      "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n10.1.1.2 Mitozu açıklar\n10.1.1.3 Eşeysiz üremeyi örneklerle açıklar.\n10.1.2.1 Mayozu açıklar\n10.1.2.2 Eşeyli üremeyi örneklerle açıklar."
+    },
+    {
+      "id": "2BYD6CNKJ2XW1D2DG62MRRYMWD",
+      "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Elektrik ve Manyetizma — kazanımlar",
+      "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+    },
+    {
+      "id": "3EKVAMRCM6RDRMQKTDA6WHPEB4",
+      "course": "193J0F8JP9A00K8TADX54Y5SF7",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+      "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+    },
+    {
+      "id": "1VRZ01P9XMFTSVQDNJX0D2RSQE",
+      "course": "6K4F08XESEJX5YFPA2ZYGVJ62J",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Sayma ve Olasılık — kazanımlar",
+      "content": "10.1.1.1 Olayların gerçekleşme sayısını toplama ve çarpma yöntemlerini kullanarak hesaplar.\n10.1.1.2 n çeşit nesne ile oluşturulabilecek r li dizilişlerin (permütasyonların) kaç farklı şekilde yapılabileceğini hesaplar.\n10.1.1.3 Sınırlı sayıda tekrarlayan nesnelerin dizilişlerini (permütasyonlarını) açıklayarak problemler çözer.\n10.1.1.4 Dönel (dairesel) permütasyonu örneklerle açıklar.\n10.1.1.5 n elemanlı bir kümenin r tane elemanının kaç farklı şekilde seçilebileceğini hesaplar.\n10.1.1.6 Pascal üçgenini açıklar.\n10.1.1.7 Binom açılımını yapar.\n10.1.2.1 Örnek uzay, deney, çıktı, bir olayın tümleyeni, kesin olay, imkânsız olay, ayrık olay ve ayrık olmayan olay kavramlarını açıklar.\n10.1.2.2 Olasılık kavramı ile ilgili uygulamalar yapar."
+    },
+    {
+      "id": "5G76JHJ1A8TG38K0KACQ2KWEEJ",
+      "course": "0NBWNS17N1WJG9A2HNH15XJECB",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "School Life — kazanımlar",
+      "content": "None .- Exchanging personal information in both formal and informal language\nNone .- Taking part in a conversation in everyday life situations\nNone Students will be able to identify expressions related to school/everyday life and free time activities.\nNone Students will be able to practice intonation in asking and answering questions in daily conversations.\nNone E10.1.S1. Students will be able to introduce themselves and others individually/in pairs or small groups.\nNone E10.1.S2. Students will be able to exchange personal information in both formal and informal situations.\nNone Students will be able to diagrammatize a text about everyday life into a graphic organizer.\nNone E10.1.W1. Students will be able to describe themselves, their family and their habits in a short descriptive paragraph with the help of cues and/or guiding questions."
+    },
+    {
+      "id": "2H82VEW84JVR7KY4A9QYEV73SC",
+      "course": "15RK7QP9K7ENADA4F55G4AQRSY",
+      "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+      "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+      "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+    }
+  ],
+  "yanitlar": [
+    {
+      "path": "/users/me",
+      "query": null,
+      "status": 200,
+      "body": {
+        "id": "7T02J9T2KPSKP4ZNBD01KAMJ2E",
+        "username": "ogrenci1",
+        "name": "Zeynep",
+        "surname": "Kaya",
+        "role": "student"
+      }
+    },
+    {
+      "path": "/classes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "2G7FF0M5T5N0H0GEHQG3X613D2",
+            "name": "10-A",
+            "grade": "10",
+            "teacher": "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/courses",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "6TP750EH91H2542PBWVRSHDZHW",
+            "title": "Almanca",
+            "description": "10. sınıf Almanca",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "25Q5FS0C5WBWC5VSYWEK0WN3VC",
+            "title": "Arapça",
+            "description": "10. sınıf Arapça",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "2C6KV394402EA42EZBXNET78SP",
+            "title": "Beden Eğitimi",
+            "description": "10. sınıf Beden Eğitimi",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "6WM66KRHYNDQEZX661X36C7XSJ",
+            "title": "Bilişim Teknolojileri",
+            "description": "10. sınıf Bilişim Teknolojileri",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+            "title": "Biyoloji",
+            "description": "10. sınıf Biyoloji",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "360NFGTFKGY58NM6PY67J99ZPN",
+            "title": "Çevre Eğitimi",
+            "description": "10. sınıf Çevre Eğitimi",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "32JW6EAJZKT0N59Q1ZX40387S7",
+            "title": "Coğrafya",
+            "description": "10. sınıf Coğrafya",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+            "title": "Din Kültürü ve Ahlak Bilgisi",
+            "description": "10. sınıf Din Kültürü ve Ahlak Bilgisi",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "7KZK78H3D6AK35R2PERV4ZVF68",
+            "title": "Felsefe",
+            "description": "10. sınıf Felsefe",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+            "title": "Fizik",
+            "description": "10. sınıf Fizik",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+            "title": "Fen Lisesi Biyoloji",
+            "description": "10. sınıf Fen Lisesi Biyoloji",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+            "title": "Fen Lisesi Fizik",
+            "description": "10. sınıf Fen Lisesi Fizik",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "193J0F8JP9A00K8TADX54Y5SF7",
+            "title": "Fen Lisesi Kimya",
+            "description": "10. sınıf Fen Lisesi Kimya",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "6K4F08XESEJX5YFPA2ZYGVJ62J",
+            "title": "Fen Lisesi Matematik",
+            "description": "10. sınıf Fen Lisesi Matematik",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "5JYCM7YD2CX5G6EGBTVKFAEJZ0",
+            "title": "Fransızca",
+            "description": "10. sınıf Fransızca",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "0212W6936R3FNK4YF67054KSVK",
+            "title": "Geometri",
+            "description": "10. sınıf Geometri",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "6G16PX3XW4ANX9PCJJM5059DCC",
+            "title": "Görsel Sanatlar",
+            "description": "10. sınıf Görsel Sanatlar",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "0NBWNS17N1WJG9A2HNH15XJECB",
+            "title": "İngilizce",
+            "description": "10. sınıf İngilizce",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          },
+          {
+            "id": "15RK7QP9K7ENADA4F55G4AQRSY",
+            "title": "Kimya",
+            "description": "10. sınıf Kimya",
+            "kind": "course",
+            "creator": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "teachers": [
+              "7CAZ3R8WNETS7EW2TM9CXTB0D2"
+            ]
+          }
+        ],
+        "total": 19,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/notes",
+      "query": null,
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "4KSEV81DCQY9DY7ZXT6FRTK0V6",
+            "title": "Biyoloji — Hücre Bölünmeleri",
+            "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+          },
+          {
+            "id": "3W43N93A186G0J388657ZRT98C",
+            "title": "Coğrafya — Doğal Sistemler",
+            "content": "10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+          },
+          {
+            "id": "12GAVFT5JWXE57EVCZFEF77DKY",
+            "title": "Din Kültürü ve Ahlak Bilgisi — Allah İnsan İlişkisi",
+            "content": "None 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\n\n(Tekrar et: bu kazanımı anlamadım, örnek soru çözmeliyim.)"
+          }
+        ],
+        "total": 3,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6TP750EH91H2542PBWVRSHDZHW",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=25Q5FS0C5WBWC5VSYWEK0WN3VC",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=2C6KV394402EA42EZBXNET78SP",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6WM66KRHYNDQEZX661X36C7XSJ",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=2AG79X0X2H6PQTV1VJ7A90XF9K",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "4NXYQAYEJR8160QPC8VB9831P3",
+            "course": "2AG79X0X2H6PQTV1VJ7A90XF9K",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Hücre Bölünmeleri — kazanımlar",
+            "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=360NFGTFKGY58NM6PY67J99ZPN",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=32JW6EAJZKT0N59Q1ZX40387S7",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "6WQMG6N19XZ29FP786JEG0FSGG",
+            "course": "32JW6EAJZKT0N59Q1ZX40387S7",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Doğal Sistemler — kazanımlar",
+            "content": "10.1.1 Dünya’nın tektonik oluşumunu açıklar.\n10.1.2 Jeolojik zamanların özelliklerini tektonik olaylarla ilişkilendirerek açıklar.\n10.1.3 İç kuvvetleri; yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.4 Kayaçların özellikleri ile yeryüzü şekillerinin oluşum süreçlerini ilişkilendirir.\n10.1.5 Türkiye’deki yer şekillerinin oluşum sürecine iç kuvvetlerin etkisini açıklar.\n10.1.6 Dış kuvvetleri yer şekillerinin oluşum sürecine etkileri açısından açıklar.\n10.1.7 Türkiye’deki yer şekillerinin oluşum sürecine dış kuvvetlerin etkisini açıklar.\n10.1.8 Türkiye’deki ana yer şekillerini temel özellikleri ve dağılışları açısından değerlendirir.\n10.1.9 Yeryüzündeki su varlıklarını özelliklerine göre sınıflandırır.\n10.1.10 Türkiye’deki su varlıklarının genel özelliklerini ve dağılışını açıklar.\n10.1.11 Türkiye’deki su varlığını verimli kullanmanın ekonomik, sosyal ve kültürel etkilerini değerlendirir.\n10.1.12 Yeryüzündeki toprak çeşitliliğini oluşum süreçleri ile ilişkilendirir.\n10.1.13 Türkiye’deki toprakların dağılışını etkileyen faktörler ile toprak tiplerini ilişkilendirir.\n10.1.14 Türkiye topraklarının kullanımını verimlilik açısından değerlendirir.\n10.1.15 Bitki toplulukları ve türlerini genel özelliklerine göre sınıflandırır.\n10.1.16 Bitki topluluklarının dağılışı ile iklim ve yer şekillerini ilişkilendirir.\n10.1.17 Türkiye’deki doğal bitki topluluklarının dağılışını yetişme şartları açısından analiz eder."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "347CPXTZ446VJJ272CHGR3BRMX",
+            "course": "6Z4HHSHH2T1D60Y5YV2K7HTFGK",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Allah İnsan İlişkisi — kazanımlar",
+            "content": "None 10.1.1. Allah inancının insan hayatındaki yeri ve önemini yorumlar.\nNone 10.1.2. Allah’ın varlığı ve birliği konusunda akli ve naklî delilleri analiz eder.\nNone 10.1.3. İsim ve sıfatlarının yansımalarıyla Allah’ı tanır.\nNone 10.1.4. İnsanın özelliklerini ayetlerle açıklar.\nNone 10.1.5. İnsanın Allah ile irtibat yollarını fark eder.\nNone 10.1.6. Rûm suresi 18-27. ayetlerde verilen mesajları değerlendirir."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=7KZK78H3D6AK35R2PERV4ZVF68",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "04Q9B71JZFJGB16HM2AP5P7PRC",
+            "course": "7KZK78H3D6AK35R2PERV4ZVF68",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Felsefeyi Tanıma — kazanımlar",
+            "content": "10.1.1 Felsefenin anlamını açıklar.\n10.1.2 Felsefi düşüncenin özelliklerini açıklar.\n10.1.3 Felsefenin insan ve toplum hayatı üzerindeki rolünü örneklerle açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=3SEW1HWQN63MB1E1ACCNBZSNGS",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "64EVM86PT9RWTWAX4S7BMQWD9S",
+            "course": "3SEW1HWQN63MB1E1ACCNBZSNGS",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Elektrik ve Manyetizma — kazanımlar",
+            "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "6TJD5V1WCPTTMYYGYYSAR9EZYR",
+            "course": "1BNVSVZWX2ZVQ60FBWMHDEWH5Q",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Hücre Bölünmeleri — kazanımlar",
+            "content": "10.1.1.1 Canlılarda hücre bölünmesinin gerekliliğini açıklar.\n10.1.1.2 Mitozu açıklar\n10.1.1.3 Eşeysiz üremeyi örneklerle açıklar.\n10.1.2.1 Mayozu açıklar\n10.1.2.2 Eşeyli üremeyi örneklerle açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=4VW5PNNFSTPKWBQ9H66HSGC37E",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "2BYD6CNKJ2XW1D2DG62MRRYMWD",
+            "course": "4VW5PNNFSTPKWBQ9H66HSGC37E",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Elektrik ve Manyetizma — kazanımlar",
+            "content": "10.1.1.1 Elektrik akımı, direnç ve potansiyel farkı kavramlarını açıklar.\n10.1.1.2 Katı bir iletkenin direncinin bağlı olduğu değişkenleri analiz eder.\n10.1.2.1 Elektrik Akımı, direnç ve potansiyel farkı arasındaki ilişkiyi analiz eder.\n10.1.2.2 Üreteçlerin seri ve paralel bağlanma gerekçelerini açıklar.\n10.1.2.3 Elektrik enerjisi ve elektriksel güç kavramlarını ilişkilendirir.\n10.1.2.4 Elektrik akımının oluşturabileceği tehlikelere karşı alınması gereken sağlık ve güvenlik önlemlerini açıklar.\n10.1.3.1 Mıknatısların oluşturduğu manyetik alanı ve özelliklerini açıklar.\n10.1.4.1 Üzerinden akım geçen düz bir iletken telin oluşturduğu manyetik alanı etkileyen değişkenleri analiz eder.\n10.1.4.2 Dünya’nın manyetik alanının sonuçlarını açıklar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=193J0F8JP9A00K8TADX54Y5SF7",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "3EKVAMRCM6RDRMQKTDA6WHPEB4",
+            "course": "193J0F8JP9A00K8TADX54Y5SF7",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+            "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6K4F08XESEJX5YFPA2ZYGVJ62J",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "1VRZ01P9XMFTSVQDNJX0D2RSQE",
+            "course": "6K4F08XESEJX5YFPA2ZYGVJ62J",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Sayma ve Olasılık — kazanımlar",
+            "content": "10.1.1.1 Olayların gerçekleşme sayısını toplama ve çarpma yöntemlerini kullanarak hesaplar.\n10.1.1.2 n çeşit nesne ile oluşturulabilecek r li dizilişlerin (permütasyonların) kaç farklı şekilde yapılabileceğini hesaplar.\n10.1.1.3 Sınırlı sayıda tekrarlayan nesnelerin dizilişlerini (permütasyonlarını) açıklayarak problemler çözer.\n10.1.1.4 Dönel (dairesel) permütasyonu örneklerle açıklar.\n10.1.1.5 n elemanlı bir kümenin r tane elemanının kaç farklı şekilde seçilebileceğini hesaplar.\n10.1.1.6 Pascal üçgenini açıklar.\n10.1.1.7 Binom açılımını yapar.\n10.1.2.1 Örnek uzay, deney, çıktı, bir olayın tümleyeni, kesin olay, imkânsız olay, ayrık olay ve ayrık olmayan olay kavramlarını açıklar.\n10.1.2.2 Olasılık kavramı ile ilgili uygulamalar yapar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=5JYCM7YD2CX5G6EGBTVKFAEJZ0",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=0212W6936R3FNK4YF67054KSVK",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=6G16PX3XW4ANX9PCJJM5059DCC",
+      "status": 200,
+      "body": {
+        "items": [],
+        "total": 0,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=0NBWNS17N1WJG9A2HNH15XJECB",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "5G76JHJ1A8TG38K0KACQ2KWEEJ",
+            "course": "0NBWNS17N1WJG9A2HNH15XJECB",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "School Life — kazanımlar",
+            "content": "None .- Exchanging personal information in both formal and informal language\nNone .- Taking part in a conversation in everyday life situations\nNone Students will be able to identify expressions related to school/everyday life and free time activities.\nNone Students will be able to practice intonation in asking and answering questions in daily conversations.\nNone E10.1.S1. Students will be able to introduce themselves and others individually/in pairs or small groups.\nNone E10.1.S2. Students will be able to exchange personal information in both formal and informal situations.\nNone Students will be able to diagrammatize a text about everyday life into a graphic organizer.\nNone E10.1.W1. Students will be able to describe themselves, their family and their habits in a short descriptive paragraph with the help of cues and/or guiding questions."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    },
+    {
+      "path": "/course-notes",
+      "query": "course=15RK7QP9K7ENADA4F55G4AQRSY",
+      "status": 200,
+      "body": {
+        "items": [
+          {
+            "id": "2H82VEW84JVR7KY4A9QYEV73SC",
+            "course": "15RK7QP9K7ENADA4F55G4AQRSY",
+            "author": "7CAZ3R8WNETS7EW2TM9CXTB0D2",
+            "title": "Kimyanın Temel Kanunları ve Kimyasal Hesaplamalar — kazanımlar",
+            "content": "10.1.1.1 Kimyanın temel kanunlarını açıklar.\n10.1.2.1 Mol kavramını açıklar.\n10.1.3.1 Kimyasal tepkimeleri açıklar.\n10.1.4.1 Kütle, mol sayısı, molekül sayısı, atom sayısı ve gazlar için normal şartlarda hacim kavramlarını birbirleriyle ilişkilendirerek hesaplamalar yapar."
+          }
+        ],
+        "total": 1,
+        "limit": 50,
+        "offset": 0
+      }
+    }
+  ]
+}

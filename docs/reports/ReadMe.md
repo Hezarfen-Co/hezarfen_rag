@@ -27,6 +27,7 @@ yolları · gecikme/token/donanım/maliyet · nihai durum (`İNSAN İNCELEMESİ 
 | EXP-009 | DENEY | Üretici LLM aday karşılaştırması (NVIDIA NIM ücretsiz uçlar) | İNSAN İNCELEMESİ BEKLİYOR |
 | EXP-010 | DENETİM | Ürün-hazırlık denetimi (güvenlik·grounding·değerlendirme·operasyon; 62 bulgu) + MVP issue taslakları | İNSAN İNCELEMESİ BEKLİYOR |
 | EXP-011 | ABLATION | Sayfa hizalı chunk'lama (#53): sayfa aşan child %63,4→%0, `precision_page` tavanı 0,723→1,000, vekil recall düşmedi, bağlam hacmi −%16,6 | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-012 | BULGU | Korpus bütünlüğü: kitap ile `kazanimlar.json` farklı müfredattan (biyoloji kazanım kapsamı %71; "mitoz" kitapta 0 kez) | İNSAN İNCELEMESİ BEKLİYOR |
 | RES-001 | ARAŞTIRMA (literatür+deney tasarımı) | Kaynakla konuşma, kanıtlı özetleme, Türkçe RAG model doğrulaması | Kadir incelemesi bekliyor (mimari/benchmark değişikliği ÖNERİR) |
 | RES-002 | ARAŞTIRMA | RagArt çözümlemesi (ders alınacak desenler + açıklar) | İNSAN İNCELEMESİ BEKLİYOR |
 | RES-003 | ARAŞTIRMA (KUZEY YILDIZI) | Ürün-seviyesi RAG referans mimarisi + öncelik sırası | Kadir kaynaklı (2026-09-05) |

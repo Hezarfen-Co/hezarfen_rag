@@ -1,0 +1,91 @@
+{
+  "ogrenci": {
+    "ad": "Zeynep Kaya",
+    "rol": "student",
+    "sinif": "10",
+    "sube": "10-A",
+    "ders_sayisi": 19
+  },
+  "soru": "Ekosistemin canlı ve cansız bileşenleri nelerdir?",
+  "kaynak_not": "Biyoloji — Hücre Bölünmeleri",
+  "senaryolar": [
+    {
+      "senaryo": "kendi dersi (IZIN bekleniyor)",
+      "hedef_ders": "biyoloji",
+      "izin": true,
+      "sure_s": 10.6,
+      "abstained": false,
+      "reason": "",
+      "metin": "Ekosistem, varlığını sürdürebilmek için gerekli olan cansız (abiyotik) ve canlı (biyotik) tüm bileşenleri içeren bir birimdir [1]. Ekosistemler canlı ve cansız bileşenlerden oluşan bütünlerdir [2].\n\nEkosistemi oluşturan cansız bileşenler; ışık, sıcaklık gibi iklim elemanları ile su, pH ve topraktır [1].\n\nEkosistemi oluşturan canlı bileşenler ise işlevlerine göre üreticiler, tüketiciler ve ayrıştırıcılar olmak üzere üç gruba ayrılır [1][3]. Üreticiler ototrof organizmalardır ve besin üretimleri fotosentez veya kemosentezle gerçekleşir [3]. Tüketiciler heterotrof organizmalardır; besinlerini kendileri üretmez, dış ortamdan hazır olarak alır [3].\n\nEkosistemlerde cansız ve canlı ögeler birbirine besin zinciri ve madde döngüleri ile bağlıdır [1].",
+      "atiflar": [
+        {
+          "n": 1,
+          "chunk_id": "534db77d8289:c155",
+          "span_ids": [
+            "534db77d8289#102.3",
+            "534db77d8289#102.2",
+            "534db77d8289#102.8",
+            "534db77d8289#102.9",
+            "534db77d8289#102.4",
+            "534db77d8289#102.10"
+          ],
+          "pages": [
+            102
+          ],
+          "ders": "biyoloji"
+        },
+        {
+          "n": 2,
+          "chunk_id": "534db77d8289:c150",
+          "span_ids": [
+            "534db77d8289#99.7",
+            "534db77d8289#99.8",
+            "534db77d8289#99.9",
+            "534db77d8289#99.10"
+          ],
+          "pages": [
+            99
+          ],
+          "ders": "biyoloji"
+        },
+        {
+          "n": 3,
+          "chunk_id": "534db77d8289:c161",
+          "span_ids": [
+            "534db77d8289#105.2",
+            "534db77d8289#105.3",
+            "534db77d8289#105.4",
+            "534db77d8289#105.5",
+            "534db77d8289#105.10",
+            "534db77d8289#105.11",
+            "534db77d8289#105.12",
+            "534db77d8289#105.13",
+            "534db77d8289#105.14",
+            "534db77d8289#105.15"
+          ],
+          "pages": [
+            105
+          ],
+          "ders": "biyoloji"
+        }
+      ],
+      "gecersiz_atiflar": [],
+      "maliyet_usd": 0.002409
+    },
+    {
+      "senaryo": "kayitli olmadigi ders (RED bekleniyor)",
+      "hedef_ders": "astronomi",
+      "izin": false
+    },
+    {
+      "senaryo": "baska sinif (RED bekleniyor)",
+      "hedef_ders": "biyoloji",
+      "izin": false
+    },
+    {
+      "senaryo": "rol yok (RED bekleniyor)",
+      "hedef_ders": "biyoloji",
+      "izin": false
+    }
+  ]
+}

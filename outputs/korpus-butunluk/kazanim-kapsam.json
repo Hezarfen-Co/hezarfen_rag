@@ -1,0 +1,75 @@
+[
+  {
+    "ders": "biyoloji",
+    "kazanim": 17,
+    "kapsanan": 12,
+    "oran": 0.706,
+    "eksik_ornek": [
+      "10.1.1.2 Mitozu açıklar.",
+      "10.1.1.3 Eşeysiz üremeyi örneklerle açıklar.",
+      "10.1.2.1 Mayozu açıklar.",
+      "10.1.2.2 Eşeyli üremeyi örneklerle açıklar.",
+      "10.2.1.1 Kalıtımın genel esaslarını açıklar."
+    ],
+    "eksik_sayi": 5
+  },
+  {
+    "ders": "cografya",
+    "kazanim": 34,
+    "kapsanan": 34,
+    "oran": 1.0,
+    "eksik_ornek": [],
+    "eksik_sayi": 0
+  },
+  {
+    "ders": "din-kulturu",
+    "kazanim": 29,
+    "kapsanan": 28,
+    "oran": 0.966,
+    "eksik_ornek": [
+      "None 10.2.2. Hz. Muhammed’in gençlik yıllarındaki erdemli"
+    ],
+    "eksik_sayi": 1
+  },
+  {
+    "ders": "felsefe",
+    "kazanim": 18,
+    "kapsanan": 18,
+    "oran": 1.0,
+    "eksik_ornek": [],
+    "eksik_sayi": 0
+  },
+  {
+    "ders": "fizik",
+    "kazanim": 39,
+    "kapsanan": 36,
+    "oran": 0.923,
+    "eksik_ornek": [
+      "10.4.7.1 Merceklerin özelliklerini ve mercek çeşitlerini açık",
+      "10.4.7.2 Merceklerin oluşturduğu görüntünün özelliklerini açı",
+      "10.4.8.1 Işık prizmalarının özelliklerini açıklar."
+    ],
+    "eksik_sayi": 3
+  },
+  {
+    "ders": "ingilizce",
+    "kazanim": 109,
+    "kapsanan": 107,
+    "oran": 0.982,
+    "eksik_ornek": [
+      "None .- Booking",
+      "None .- Asking for approvals and/or confirmations"
+    ],
+    "eksik_sayi": 2
+  },
+  {
+    "ders": "kimya",
+    "kazanim": 23,
+    "kapsanan": 22,
+    "oran": 0.957,
+    "eksik_ornek": [
+      "10.4.1.3 Polimer, kâğıt, cam ve metal malzemelerin geri dönüş"
+    ],
+    "eksik_sayi": 1
+  }
+]
