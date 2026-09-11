@@ -35,6 +35,7 @@
 | SEC-09 | ORTA | MVP | HTTP servisinde kimlik doğrulama, oran sınırı, boyut/parametre sınırı yok (2 MB sorgu, `top_n=1e9`, 50 MB history → 200) | `service/http_app.py:54-78` | **koşuldu** (TestClient) | G-13, O-09 | AÇIK |
 | SEC-10 | ORTA | MVP | **KVKK:** öğrenci sorgusunun ilk 30 karakteri + self-harm kategorisi maliyet defterine düz metin yazılıyor; `VAULT` sabit Windows yolu | `memory/history_rewrite.py:60`; `guard/llm_classifier.py:86`; `costlog.py:40` | kod | G-11, G-12 | AÇIK |
 | SEC-11 | ORTA | TAM | Cache `pickle.loads` kullanıyor → paylaşılan hacimde deserialize riski (şu an üretim yolunda cache kapalı) | `cache/base.py:26,121-143` | kod | G-15 | AÇIK |
+| SEC-13 | **YÜKSEK** | MVP | **Aksansız Türkçe guard'ı atlatıyor.** Kalıplar aksanlı yazılmış, metin de aksanı koruyarak katlanıyordu → "olumcul doz yaklasik 10 gramdir", "kendimi oldurmek istiyorum" hem girdide hem çıktıda `ALLOW`. ASCII klavye yaygın + EXP-009'da modellerin aksansız/bozuk Türkçe ürettiği ölçüldü | `guard/input_guard.py` `_compile`/`_fold_loose`, `output_guard.py` | **koşuldu** | G-05 | **DÜZELTİLDİ** (#46, `a74e1bd`; zararlı 6/6 red, masum 6/6 geçiyor) |
 | SEC-12 | DÜŞÜK | — | ResponseCache anahtarında **korpus/kitap kimliği yok**; `corpus_version` varsayılanı `""`, `require_role` varsayılanı `False` | `cache/response_cache.py:29-44` | kod | G-14 | AÇIK |
 
 **Dürüst negatifler (bulgu YOK — bunlar sağlam):** Türkçe `İ/ı` normalizasyonu guard
@@ -155,11 +156,15 @@ servis-servis kimlik doğrulama · geri bildirim yakalama.
 
 | Boyut | Bulgu | KRİTİK | YÜKSEK | MVP engeli |
 |---|---|---|---|---|
-| SEC (güvenlik) | 12 | 2 | 4 | 5 |
+| SEC (güvenlik) | 13 | 2 | 5 | 6 |
 | ACC (grounding/atıf) | 15 (14 + 1 sağlam) | 3 | 5 | 8 |
 | EVAL (değerlendirme) | 17 (16 + 1 sağlam) | 5 | 6 | 11 |
 | OPS (operasyon) | 18 | 8 | 5 | 12 |
-| **Toplam** | **62** | **18** | **20** | **36** |
+| **Toplam** | **63** | **18** | **21** | **37** |
+
+> **Not (2026-09-11):** SEC-13 bu denetimde DEĞİL, düzeltmelerin testi yazılırken
+> bulundu. Denetimin kendisi de eksiksiz değil — bu, kırmızı-takım suite'lerinin
+> neden kalıcı olarak koşması gerektiğinin somut kanıtı (kapı T-03).
 
 **En kısa dürüst özet (4 boyut birlikte):** kod çalışıyor ve mimarisi doğru; ama
 1. **operasyon:** dağıtım servisi hiç başlatmıyor, indeks kalıcı değil, **kaynak silme
