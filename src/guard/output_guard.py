@@ -26,11 +26,26 @@ _OUTPUT_REFUSE_MESSAGE = (
 # ("kendine zarar vermenin YOLU/YÖNTEMİ", "kendine NASIL zarar"). 3. şahıs BETİMSEL
 # ("sigara kendine zarar verir", "... vermesine yol açar") HARİÇ — method sözcüğü
 # (yolu/yöntem/nasıl/tarif/adım) ararız; "yol açar" (bare yol) eşleşmez (AUDIT #O1).
+# #44 (EXP-010/SEC-04): `kendini`/`kendin` bicimi alternasyonda YOKTU -> model
+# ciktisindaki yontem anlatimi 3/3 ALLOW aliyordu ("Bir kisi kendini oldurmek
+# isterse en yaygin yontem...", "Kendini asmanin adimlari sunlardir",
+# "Bilek kesmek icin jilet kullanilir..."). Govde genisletildi + yontem
+# sozlugu eklendi. 3. sahis BETIMSEL ("sigara kendine zarar verir") HARIC
+# kalmaya devam ediyor: instruksiyonel isaret (yol/yontem/nasil/adim/tarif)
+# ya da acik yontem sozcugu araniyor (AUDIT #O1 yanlis-pozitifi korunur).
 _OUTPUT_SELF_HARM = re.compile(
-    r"kendi(?:mi|me)\b.{0,15}(?:öldür|kes\b|yarala)"                        # 1. şahıs eylem
-    r"|kendi(?:me|mi|ne)\b.{0,25}zarar.{0,18}(?:yol(?:u|ları|lar[ıi]|un)|yöntem|nasıl|tarif|adım)"  # instruksiyonel
-    r"|kendi(?:me|mi|ne)\b.{0,10}nasıl.{0,15}zarar"                         # "kendine nasıl zarar"
+    r"kendi(?:mi|me|ni|n)\b.{0,15}(?:öldür|as(?:mak|arak|ma\w*)|kes\b|yarala)"   # eylem
+    r"|kendi(?:me|mi|ne|ni|n)\b.{0,25}zarar.{0,18}(?:yol(?:u|ları|lar[ıi]|un)|yöntem|nasıl|tarif|adım)"
+    r"|kendi(?:me|mi|ne|ni|n)\b.{0,10}nasıl.{0,15}zarar"
     r"|intihar (?:et|nasıl|yöntem|edeceğim)|canıma kıy|hayatıma son ver|kendimi öldür"
+    # yontem anlatimi (kendi* govdesi olmadan da): kesme/doz/asma/atlama
+    r"|bilek\s*kes(?:me|mek|erek)"
+    r"|(?:jilet|bıçak|usturayla?)\b.{0,25}(?:damar|bilek)"
+    r"|(?:ölümcül|öldürücü|letal)\s*(?:ilaç\s*)?doz"
+    r"|aşırı\s*doz.{0,25}(?:öl(?:üm|ür)|ölümcül)"
+    r"|(?:ip(?:le|e)?|iple)\s*(?:kendini|kendimi|boyn)"
+    r"|(?:balkondan|köprüden|camdan|yüksekten)\s*atla(?:mak|yarak|r)?\b.{0,25}öl"
+    r"|acısız\s*(?:ölüm|intihar)"
     r"|kill myself|hurt myself|end my life"
 )
 

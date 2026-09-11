@@ -11,9 +11,15 @@ Katman sırası (generator.py): (1) regex `check_input` (hızlı, ücretsiz) →
 (2) BU sınıflandırıcı (semantik, DeepSeek maliyeti ~1 küçük çağrı) → retrieval/üretim.
 Enjekte edilebilir (test'te stub; None ise Generator bu katmanı atlar).
 
-FAIL-SAFE: sınıflandırıcı hatası/parse-fail → **allow** (regex katmanı zaten
-geçti; her sorguyu bloklamak ürünü kırar). Bu bir BONUS katmandır, tek güvence
-değil — kritik güvenlik ayrıca retrieval fail-closed + output_guard ile korunur.
+ARIZA DAVRANIŞI (#44 ile DEĞİŞTİ): sınıflandırıcı hatası/parse-fail artık
+körü körüne **allow** DEĞİL, **DEGRADE MOD** (`_degraded_scan`): geniş
+(yüksek-recall) bir regex taraması yapılır, eşleşirse reddedilir.
+Neden değişti (EXP-010/SEC-03): eski davranış, sağlayıcı arızasının 2. güvenlik
+katmanını SESSİZCE kapatması demekti. EXP-009'da gerçek hayatta %92 HTTP 429 ve
+300 s timeout yaşandı — yani nadir bir durum değil; ayrıca nemotron-3.5-lightning
+intihar sorusuna bozuk JSON döndürüp tam bu yoldan `allow`a düşmüştü.
+Blanket-refuse de seçilmedi (her sorguyu reddetmek ürünü kırar).
+Bu katman hâlâ tek güvence değil: retrieval fail-closed + output_guard sürüyor.
 """
 from __future__ import annotations
 
@@ -46,6 +52,45 @@ pozitif üretme. YALNIZCA şu JSON'u döndür: \
 {"safe": true veya false, "category": "<kategori adı veya null>", "reason": "<kısa gerekçe>"}"""
 
 
+# #44 -- DEGRADE MOD taramasi. YALNIZ LLM katmani erisilemez oldugunda calisir.
+# input_guard'dan DAHA GENIS tutulur: burada amac precision degil RECALL.
+# Yanlis pozitif bedeli "bir soru reddedildi"; kacirma bedeli resit olmayan bir
+# kullanicinin kendine-zarar yontemi ogrenmesi. Blanket-refuse degil (urunu
+# kirar), blanket-allow da degil (arizayi guvenlik acigina cevirir).
+_DEGRADED_PATTERNS = [
+    (r"kendi(?:m|n)?(?:i|e|ni|ne|nizi|nize|mizi|mize)?\b.{0,25}"
+     r"(?:zarar|oldur|as(?:mak|arak|ma\w*)|kes\b|yarala)", "self_harm"),
+    (r"intihar|canima kiy|hayatima son|olmek istiyorum|yasamak istemiyorum"
+     r"|kill myself|hurt myself|self[ -]?harm|suicide|want to die|end my life",
+     "self_harm"),
+    (r"(?:olumcul|oldurucu|letal).{0,15}doz|asiri\s*doz|bilek\s*kes|acisiz\s*olum"
+     r"|kac\s*(?:tane\s*)?(?:hap|ilac|tablet).{0,25}ol", "self_harm"),
+    (r"\bbomba\b|patlayici|silah\s*yap|molotof|zehirle"
+     r"|oldurmenin\s*yolu|nasil\s*oldur", "violence_weapons"),
+    (r"uyusturucu\s*(?:yap|uret|nasil)|metamfetamin|eroin\s*uret|esrar\s*yetistir",
+     "illegal_drugs"),
+]
+
+
+def _degraded_scan(query: str) -> GuardVerdict:
+    """LLM katmani erisilemezken calisan genis tarama. Eslesirse RED, yoksa allow.
+    Bu bir bonus degil; arizanin sessizce guvenligi kapatmasini onleyen SIGORTA."""
+    import re as _re
+    import unicodedata as _ud
+    from ..text.tr_normalize import fold_for_match
+    folded = _re.sub(r"\s+", " ", fold_for_match(query or ""))
+    # aksanlari da duser: "öldür" -> "oldur" (kaliplar ASCII yazildi)
+    ascii_folded = "".join(c for c in _ud.normalize("NFKD", folded)
+                           if not _ud.combining(c)).replace("ı", "i")
+    for pat, cat in _DEGRADED_PATTERNS:
+        if _re.search(pat, ascii_folded, _re.IGNORECASE):
+            return GuardVerdict(action="refuse", category=cat,
+                                message=_CLASSIFIER_MESSAGES.get(
+                                    cat, _HARM_MESSAGES["hate_harassment"]),
+                                score=1.0)
+    return GuardVerdict(action="allow", category="", message="", score=0.0)
+
+
 class LLMSafetyClassifier:
     """DeepSeek ile semantik güvenlik sınıflandırması. classify(query) -> GuardVerdict."""
 
@@ -75,10 +120,14 @@ class LLMSafetyClassifier:
                 extra={"response_format": {"type": "json_object"}})
             data = json.loads(r.text)
         except Exception:
-            # FAIL-SAFE: hata → allow (regex katmanı geçti; bonus katman kırılırsa
-            # ürün çalışmaya devam etmeli). Kritik güvenlik retrieval-fail-closed +
-            # output_guard ile korunur.
-            return GuardVerdict(action="allow", category="", message="", score=0.0)
+            # #44 (EXP-010/SEC-03): eskiden bu yol KOSULSUZ `allow` donuyordu.
+            # Saglayici arizasi (429/timeout/bozuk JSON) 2. guvenlik katmanini
+            # SESSIZCE kapatiyordu -- EXP-009'da gercek hayatta %92 HTTP 429 ve
+            # 300 s timeout yasandi, yani nadir bir durum degil. Ayrica
+            # nemotron-3.5-lightning intihar sorusuna BOZUK JSON dondurup tam bu
+            # yoldan `allow`a dusmustu.
+            # Yeni davranis: KOR degil, DEGRADE mod (bkz. _degraded_scan).
+            return _degraded_scan(query)
 
         # maliyet kaydı (gerçek DeepSeek çağrısı) — costlog başarısız olsa bile karar etkilenmez
         try:

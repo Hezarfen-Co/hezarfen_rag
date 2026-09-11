@@ -77,15 +77,44 @@ _SELF_HARM_PATTERNS = [
     # hem 1. şahıs soru biçimini ("kendime nasıl zarar veririm") HEM 3. şahıs/
     # betimsel biçimi ("kendine zarar vermenin bir yolu") yakalar (bkz.
     # output_guard testi: model çıktısı 3. şahıs anlatır).
-    r"kendi(?:me|mi|ne)\b.{0,15}zarar",
+    # #44 (EXP-010/SEC-03) -- GOVDE GENISLETILDI. Eski kalip yalniz
+    # `kendi(me|mi|ne)` biciimlerini taniyordu; olculen sonuc: "kendini
+    # oldurmenin en kolay yolu", "kendini nasil oldurur bir insan" gibi EN DUZ
+    # bicimler 6/6 ALLOW aliyordu. `kendin|kendini|kendinize|kendimize` eklendi.
+    # 1. SAHIS niyet (kendime/kendimi) -> dogrudan yakalanir
+    r"kendi(?:me|mi|mize|mizi)\b.{0,20}zarar",
+    # 3. SAHIS/genel (kendine/kendini) -> YALNIZ yontem-instruksiyonel isaretle.
+    # Gerekce: "Sigara kisinin KENDINE ZARAR vermesine YOL ACAR mi?" mesru bir
+    # saglik-egitimi sorusu; cikti guard'i bu ayrimi zaten yapiyordu (AUDIT #O1),
+    # girdi tarafinda yoktu -> yanlis pozitif. Ciplak "yol acar" eslesmez;
+    # "yolu/yollari/yontem/nasil/tarif/adim" eslesir.
+    r"kendi(?:ne|ni|nize|nizi)\b.{0,25}zarar.{0,20}(?:yol(?:u|ları|lar[ıi]|un)\b|yöntem|nasıl|tarif|adım)",
+    r"kendi(?:ne|ni)\b.{0,12}nasıl.{0,15}zarar",
+    r"kendi(?:m|n)(?:i|e|ni|ne|nizi|nize)?\b.{0,20}(?:öldür|as(?:mak|arak|ma\w*))",
     r"kendimi nasıl (?:kes|yarala)",
     r"kendimi yaralamak istiyorum",
-    r"intihar (?:etmek|etsem|nasıl|yöntem|düşünüyorum|düşüncesi)",
+    r"intihar (?:etmek|etsem|nasıl|yöntem|düşünüyorum|düşüncesi|et)",
     r"canıma kıymak istiyorum",
     r"kendimi öldürmek istiyorum",
     r"hayatıma son vermek istiyorum",
     r"yaşamak istemiyorum",
     r"ölmek istiyorum",
+    # #44 -- YONTEM SOZLUGU. Ustteki kaliplar "kendi*" govdesi olmadan sorulan
+    # yontem sorularini kacirinyordu: "bilek kesmenin en az acitan yolu",
+    # "kac tane hap icersem olurum", "en olumcul ilac dozu nedir". Bunlar
+    # egzotik degil, EN SIK bicimler. Kaliplar yine DAR tutuldu (ders icerigi
+    # yanlis pozitif uretmesin): yontem + olum/zarar niyeti birlikte aranir.
+    r"bilek\s*kes(?:me|erek|mek)",
+    r"(?:damar|bilek)(?:ımı|imi|ini)?\s*kes",
+    r"kaç\s*(?:tane\s*)?(?:hap|ilaç|tablet).{0,25}(?:öl|ölürüm|ölür)",
+    r"(?:ölümcül|öldürücü|letal)\s*(?:ilaç\s*)?doz",
+    r"(?:hangi|kaç)\s*(?:ilaç|hap|madde).{0,25}öldür",
+    r"aşırı\s*doz.{0,20}(?:al|almak|nasıl)",
+    r"(?:kendimi|kendini)\s*(?:atmak|atarak|asmak|asarak|boğmak)",
+    r"ip(?:le|e)?\s*(?:kendini|kendimi)\s*as",
+    r"(?:balkondan|köprüden|camdan|yüksekten)\s*(?:atla|atlamak|atlasam)",
+    r"acısız\s*(?:ölüm|ölmek|intihar)",
+    r"en\s*(?:kolay|hızlı|acısız|az\s*acı).{0,25}(?:öl(?:me|mek|ürüm)|intihar)",
     # İngilizce
     r"kill myself",
     r"hurt myself",
