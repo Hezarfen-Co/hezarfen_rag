@@ -787,6 +787,14 @@ def _aggregate_table(agg: dict) -> str:
     return "\n".join(lines)
 
 
+def _gate_section(payload: dict) -> str:
+    """M0-9 (#41): kapi-izleme matrisi (MVP + Tam Urun kademeleri).
+    Ne olculdugu VE ne olculmedigi ayni tabloda gorunur."""
+    from .gates import render_matrix
+    return (render_matrix(payload, "mvp") + "\n\n"
+            + render_matrix(payload, "tam"))
+
+
 def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
        results_dir: str = RESULTS_DIR, mode: str = "end_to_end") -> dict:
     """M0-4 (#36): `mode` ile uc olcum -- bkz. EVAL_MODES ve yukarisindaki not.
@@ -889,6 +897,7 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
     md = _md_report(golden, items_out, overall, by_category, total_cost_usd,
                     JUDGE_METHOD, judge_ids, elapsed_s, mode=mode,
                     golden_path=golden_path)
+    md += "\n\n---\n\n" + _gate_section(payload)     # M0-9 (#41)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md)
 
