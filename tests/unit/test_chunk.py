@@ -87,5 +87,79 @@ class ChunkTests(unittest.TestCase):
         self.assertLessEqual(c.page_start, c.page_end)
 
 
+class PageAlignedChildTests(unittest.TestCase):
+    """#53 (EXP-010/ACC-02) — child chunk sayfa sınırını AŞMAMALI.
+
+    NEDEN: atıf chunk düzeyinde üretiliyor (`citations[i].pages =
+    _pages_for_span_ids(ctx.span_ids)`), yani chunk ne kadar sayfa kapsıyorsa
+    atıf o kadar sayfa gösteriyor. Gerçek kitapla ölçüldü (10-biyoloji, 194 s.):
+    child'ların **%63,4'ü (147/232)** sayfa aşıyordu; `precision_page`'in teorik
+    tavanı 0,723'e iniyordu — yani 0,99 kapısı eski chunk'lamayla MATEMATİKSEL
+    olarak ulaşılamazdı.
+    """
+
+    def test_child_never_spans_pages(self):
+        units = [_u(0, WORDS40, page=1), _u(1, WORDS40, page=1),
+                 _u(2, WORDS40, page=2), _u(3, WORDS40, page=2),
+                 _u(4, WORDS40, page=3)]
+        kids = [c for c in chunk_document(_doc(units), page_aligned=True)
+                if c.level == "child"]
+        for c in kids:
+            self.assertEqual(c.page_start, c.page_end, f"{c.chunk_id} sayfa aşıyor")
+
+    def test_old_behaviour_did_span_pages(self):
+        """Eski davranışın hatayı GERÇEKTEN ürettiğini kayda geçirir."""
+        units = [_u(i, WORDS40, page=1 + i // 2) for i in range(6)]
+        kids = [c for c in chunk_document(_doc(units), page_aligned=False)
+                if c.level == "child"]
+        self.assertTrue(any(c.page_start != c.page_end for c in kids))
+
+    def test_page_flush_is_unconditional(self):
+        """Başlık kuralından farkı: doluluk şartına BAĞLANMAZ. Bağlansaydı
+        küçük sayfa kuyrukları yine bir sonraki sayfaya taşardı."""
+        units = [_u(0, "kısa", page=1), _u(1, WORDS40, page=2)]
+        kids = [c for c in chunk_document(_doc(units), page_aligned=True)
+                if c.level == "child"]
+        self.assertEqual(len(kids), 2)
+        self.assertEqual(kids[0].span_ids, ["doc#1.0"])
+
+    def test_no_unit_is_lost(self):
+        units = [_u(i, WORDS40, page=1 + i % 4) for i in range(12)]
+        kids = [c for c in chunk_document(_doc(units), page_aligned=True)
+                if c.level == "child"]
+        self.assertEqual({sid for c in kids for sid in c.span_ids},
+                         {u.span_id for u in units})
+
+    def test_parents_may_still_span_pages(self):
+        """Parent'lar bilerek sayfa aşar: bağlam genişletme içindir, atıf
+        kaynağı değil. (Parent'ın atıf sayfası ayrı bir hata → #54.)"""
+        units = [_u(i, WORDS40, page=1 + i // 2) for i in range(20)]
+        pars = [c for c in chunk_document(_doc(units), page_aligned=True)
+                if c.level == "parent"]
+        self.assertTrue(pars)
+        self.assertTrue(any(p.page_start != p.page_end for p in pars))
+
+    def test_flag_defaults_from_env(self):
+        import importlib
+        from unittest import mock
+        from src.chunk import chunker
+        with mock.patch.dict("os.environ", {"RAG_CHUNK_PAGE_ALIGNED": "0"}):
+            m = importlib.reload(chunker)
+            try:
+                self.assertFalse(m.PAGE_ALIGNED_DEFAULT)
+            finally:
+                importlib.reload(chunker)
+
+    def test_eval_and_production_read_the_same_switch(self):
+        """ACC-10 dersi: eval ile üretim aynı anahtarı okumalı. İkisi de
+        `chunk_document()`'i argümansız çağırır → tek kaynak."""
+        import inspect
+        from src.eval import runner
+        from src.service import http_app
+        for mod in (runner, http_app):
+            src = inspect.getsource(mod)
+            self.assertIn("chunk_document(doc)", src)
+
+
 if __name__ == "__main__":
     unittest.main()

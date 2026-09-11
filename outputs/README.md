@@ -18,3 +18,9 @@ raporlar Kadir'in hızlı inceleyebilmesi için aynı içeriğin kopyasıdır.
 
 **Tüm deney durumları `İNSAN İNCELEMESİ BEKLİYOR`** — ortak kural 9 gereği ajan kendi
 çıktısını "başarılı" işaretleyemez.
+
+## EXP-011 — Sayfa hizalı chunk'lama ablation'ı (#53)
+`EXP-011-chunk-ablation/RAPOR.md` — atıf sayfa-hassasiyetinin kök nedeni.
+Sayfa aşan child chunk %63,4 → %0; `precision_page` teorik tavanı 0,723 → 1,000;
+vekil retrieval'de recall düşmedi, top-1 sayfa hassasiyeti 0,647 → 0,970.
+Bedel ölçüldü: top-5 bağlam hacmi −%16,6. **Kapı kararı #92'ye bağlı.**

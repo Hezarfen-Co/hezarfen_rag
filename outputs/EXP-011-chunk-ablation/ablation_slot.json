@@ -1,0 +1,22 @@
+{
+  "eski_serbest": {
+    "chunk": 232,
+    "korpusta_50_alti": 0,
+    "korpusta_50_alti_oran": 0.0,
+    "top5te_50_alti_ort_yuva": 0,
+    "top5te_hic_50_alti_goren_sorgu_orani": 0.0,
+    "top5_toplam_token_ort": 1331.1,
+    "top5_toplam_token_medyan": 1333.0,
+    "farkli_kucuk_chunk_top5e_girdi": 0
+  },
+  "yeni_sayfa_hizali": {
+    "chunk": 327,
+    "korpusta_50_alti": 43,
+    "korpusta_50_alti_oran": 0.1315,
+    "top5te_50_alti_ort_yuva": 0.09,
+    "top5te_hic_50_alti_goren_sorgu_orani": 0.09,
+    "top5_toplam_token_ort": 1110.3,
+    "top5_toplam_token_medyan": 1122.5,
+    "farkli_kucuk_chunk_top5e_girdi": 12
+  }
+}

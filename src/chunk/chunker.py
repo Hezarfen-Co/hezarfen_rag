@@ -5,6 +5,7 @@ her chunk kaynak birim **span_id**'lerini taşır → atıf korunur. Tokenizer h
 yok; `approx_tokens` yaklaşık ölçüdür (embedding modeli gelince gerçek sayım, 1.2).
 """
 from __future__ import annotations
+import os
 from collections import Counter
 from dataclasses import dataclass, field, asdict
 
@@ -17,6 +18,27 @@ CHILD_MIN = 150      # bir çocuk en az bu kadar (küçük bloklar birleşir)
 CHILD_FLUSH = 250    # bu değere ulaşınca çocuğu kapat (150-300 bandının ortası)
 PARENT_MIN = 700     # bir üst en az bu kadar
 PARENT_FLUSH = 1000  # üst chunk flush eşiği (700-1500 bandı)
+
+# M2-1 (#53, EXP-010/ACC-02 + EVAL-07) -- SAYFA HIZALI CHILD CHUNK.
+#
+# Atif chunk duzeyinde uretiliyor (`generator.py`: citations[i].pages =
+# _pages_for_span_ids(ctx.span_ids)), yani atif chunk'in TUM span'larinin
+# sayfalarini tasiyor. Child chunk'lar sayfa sinirini serbestce astigi icin
+# her asan chunk atifa FAZLADAN sayfa ekliyor.
+#
+# GERCEK KITAPLA OLCULDU (10-biyoloji, 194 sayfa): child chunk'larin %63,4'u
+# (147/232) sayfa sinirini asiyordu. 136 item'da dogru sayfa %100 bulunmus ama
+# ortalama 0,94 FAZLA sayfa atiflanmisti (gold 1,24 <-> model 2,01 sayfa).
+# `precision_page`'in teorik tavani min(1, gold/cited) ~= 0,712; olculen 0,645
+# bu tavanin %91'i. Yani 0,99 kapisi eski chunk'lamayla MATEMATIKSEL OLARAK
+# ulasilamazdi -- daha buyuk embedding modeli bunu duzeltmez.
+#
+# DURUST SINIR: bu degisiklik chunk SAYISINI artirir ve sayfa sonunda kalan
+# kucuk parcalar CHILD_MIN'in altina duser; bu retrieval recall'unu bozabilir.
+# Bu yuzden varsayilan env ile secilir ve karar ABLATION'a baglidir (#53 kabul
+# kriteri: precision_page yukselmeli VE recall@5/@20 dusmemeli).
+PAGE_ALIGNED_DEFAULT = os.environ.get("RAG_CHUNK_PAGE_ALIGNED", "1") not in (
+    "0", "", "false", "False")
 
 
 def approx_tokens(text: str) -> int:
@@ -55,8 +77,16 @@ def _mk(units: list[CanonicalUnit], doc: CanonicalDoc, level: str, n: int) -> Ch
         approx_tokens=approx_tokens(text))
 
 
-def chunk_document(doc: CanonicalDoc) -> list[Chunk]:
-    """CanonicalDoc → child + parent chunk'lar (başlık sınırlarına saygılı)."""
+def chunk_document(doc: CanonicalDoc, *, page_aligned: bool | None = None) -> list[Chunk]:
+    """CanonicalDoc → child + parent chunk'lar (başlık sınırlarına saygılı).
+
+    `page_aligned=True` iken her **child** chunk tek bir sayfaya bağlanır
+    (sayfa değişiminde zorunlu flush) → `page_start == page_end`. Parent'lar
+    bilerek sayfa aşar: onlar bağlam genişletme içindir, atıf kaynağı değil
+    (parent'ın atıfı ayrı bir hata, bkz. #54).
+    """
+    if page_aligned is None:
+        page_aligned = PAGE_ALIGNED_DEFAULT
     units = doc.retrievable_units
 
     # --- çocuk chunk'lar ---
@@ -72,6 +102,10 @@ def chunk_document(doc: CanonicalDoc) -> list[Chunk]:
             buf = []; tok = 0
 
     for u in units:
+        # #53: sayfa degisimi ZORUNLU sinir -- baslik kuralindan farkli olarak
+        # doluluk sartina baglanmaz, yoksa asma yine olur.
+        if page_aligned and buf and u.page != buf[-1].page:
+            flush_child()
         # başlık yeni bölüm başlatır — ama yalnız çocuk zaten yeterince doluysa
         # (aksi halde küçük bloklu + çok-başlıklı kitapta chunk'lar minik kalır).
         if u.kind == HEADING and tok >= CHILD_MIN:

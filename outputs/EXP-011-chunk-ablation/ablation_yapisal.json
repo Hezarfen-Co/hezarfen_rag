@@ -1,0 +1,33 @@
+{
+  "kitap": "data/lise/10/biyoloji/kitap.pdf",
+  "eski_serbest": {
+    "child": 232,
+    "parent": 63,
+    "asan": 147,
+    "asan_oran": 0.6336,
+    "tok_ort": 258.1,
+    "tok_medyan": 258.5,
+    "tok_p10": 180.2,
+    "tok_min": 55,
+    "tok_max": 426,
+    "tok_150_alti": 1,
+    "tok_50_alti": 0,
+    "ort_sayfa_per_chunk": 1.716,
+    "tavan_precision_page": 0.7228
+  },
+  "yeni_sayfa_hizali": {
+    "child": 327,
+    "parent": 64,
+    "asan": 0,
+    "asan_oran": 0.0,
+    "tok_ort": 183.2,
+    "tok_medyan": 203,
+    "tok_p10": 37.6,
+    "tok_min": 1,
+    "tok_max": 426,
+    "tok_150_alti": 107,
+    "tok_50_alti": 43,
+    "ort_sayfa_per_chunk": 1,
+    "tavan_precision_page": 1.0
+  }
+}

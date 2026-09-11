@@ -1,0 +1,51 @@
+{
+  "kitap": "data/lise/10/biyoloji/kitap.pdf",
+  "seed": 20260911,
+  "n_sorgu": 200,
+  "sonuc": {
+    "eski_serbest": {
+      "tam_metin_sorgu": {
+        "etiket": "tam",
+        "n": 200,
+        "recall@5": 0.995,
+        "recall@10": 0.995,
+        "recall@20": 1.0,
+        "mrr": 0.9562,
+        "top1_sayfa_precision": 0.6467,
+        "top1_sayfa_isabet": 0.945
+      },
+      "yarim_metin_sorgu": {
+        "etiket": "yarim",
+        "n": 200,
+        "recall@5": 0.99,
+        "recall@10": 0.995,
+        "recall@20": 1.0,
+        "mrr": 0.9487,
+        "top1_sayfa_precision": 0.6433,
+        "top1_sayfa_isabet": 0.94
+      }
+    },
+    "yeni_sayfa_hizali": {
+      "tam_metin_sorgu": {
+        "etiket": "tam",
+        "n": 200,
+        "recall@5": 0.995,
+        "recall@10": 0.995,
+        "recall@20": 1.0,
+        "mrr": 0.9761,
+        "top1_sayfa_precision": 0.97,
+        "top1_sayfa_isabet": 0.97
+      },
+      "yarim_metin_sorgu": {
+        "etiket": "yarim",
+        "n": 200,
+        "recall@5": 0.995,
+        "recall@10": 0.995,
+        "recall@20": 1.0,
+        "mrr": 0.9635,
+        "top1_sayfa_precision": 0.945,
+        "top1_sayfa_isabet": 0.945
+      }
+    }
+  }
+}
