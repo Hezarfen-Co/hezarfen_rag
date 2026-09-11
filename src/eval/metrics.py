@@ -174,6 +174,52 @@ def mrr(ranked_item_sets: list[set], gold: set) -> float | None:
     return 0.0
 
 
+def all_evidence_recall_at_k(ranked_item_sets: list[set], gold: set, k: int) -> float | None:
+    """İKİLİ: ilk k öğe gold kümesinin TAMAMINI kapsıyor mu (1.0) yoksa hayır (0.0)?
+
+    NEDEN ayrı bir metrik (EXP-010/EVAL-10): `recall_at_k` kısmi kredi veriyor —
+    3 gold span'dan 2'sini getiren item 0.667 alıyor ve ortalama içinde "iyi"
+    görünüyor. Ama çok-adımlı (multi-hop) bir soruda kanıtın BİR parçası eksikse
+    cevap üretilemez; kısmi kredi bu başarısızlığı gizler. `benchmark.md §3`
+    "Multi-hop: TÜM gerekli kanıt Recall@20 ≥0.95" derken kastettiği budur.
+    Golden set'te 70/133 cevaplanabilir item çok-span'lı → fark ölçülebilir.
+    gold boşsa tanımsız -> None."""
+    if not gold:
+        return None
+    covered: set = set()
+    for s in ranked_item_sets[:k]:
+        covered |= (s & gold)
+    return 1.0 if covered >= gold else 0.0
+
+
+def ndcg_at_k(ranked_item_sets: list[set], gold: set, k: int) -> float | None:
+    """nDCG@k — ikili gerçeklik (öğe gold ile kesişiyorsa rel=1).
+
+    NEDEN gerekli (EVAL-08): `recall@20` doygun (ölçülen: %92 item'da tam 1.0),
+    yani SIRALAMA kalitesini hiç ölçmüyor. nDCG, doğru kanıtın 1. mi 18. sırada
+    mı geldiğini ayırt eder — reranker'ın kazancı ancak böyle kanıtlanabilir
+    (`benchmark.md §3`: "Reranker: hybrid'e karşı nDCG, %95 CI ile pozitif").
+
+    İDEAL SIRALAMA TANIMI (dürüst sınır): gold'u içeren chunk sayısını korpus
+    genelinde bilmiyoruz (gold span listesi verilmiş, gold chunk listesi değil).
+    Bu yüzden ideal DCG, **getirilen listenin tamamındaki** isabet sayısı (k ile
+    sınırlı) ilk sıralara dizilmiş varsayılarak hesaplanır. Dolayısıyla bu metrik
+    "bulduklarını ne kadar iyi sıraladın" ölçer; retriever'ın hiç getirmediği
+    kanıdı cezalandırmaz — o iş `recall_at_k`'nın. İkisi BİRLİKTE okunur.
+    gold boşsa tanımsız -> None; hiç isabet yoksa 0.0."""
+    if not gold:
+        return None
+    import math
+    rels = [1.0 if (s & gold) else 0.0 for s in ranked_item_sets[:k]]
+    dcg = sum(r / math.log2(i + 2) for i, r in enumerate(rels))
+    n_rel_total = sum(1 for s in ranked_item_sets if s & gold)
+    n_ideal = min(k, n_rel_total)
+    if n_ideal == 0:
+        return 0.0
+    idcg = sum(1.0 / math.log2(i + 2) for i in range(n_ideal))
+    return dcg / idcg
+
+
 def page_range_set(page_start: int, page_end: int) -> set:
     if page_start is None or page_end is None:
         return set()
@@ -183,37 +229,63 @@ def page_range_set(page_start: int, page_end: int) -> set:
 
 @dataclass
 class RetrievalMetrics:
+    # @5: `OPTIMIZATION.md §H` STANDING KARAR'ın birincil metriği — EXP-010/EVAL-08'e
+    # kadar KODDA YOKTU (yalnız @10/@20 vardı, ikisi de doygun).
+    recall_at_5: float | None = None
     recall_at_10: float | None = None
     recall_at_20: float | None = None
+    precision_at_5: float | None = None
     precision_at_10: float | None = None
     precision_at_20: float | None = None
     mrr_value: float | None = None
+    ndcg_at_10: float | None = None
+    # çok-span'lı item'larda kısmi kredi YOK (bkz. all_evidence_recall_at_k)
+    all_evidence_recall_at_10: float | None = None
+    all_evidence_recall_at_20: float | None = None
     # sayfa-isabeti (span yerine gold_sayfalar/chunk sayfa aralığı ile aynı formüller)
+    page_recall_at_5: float | None = None
     page_recall_at_10: float | None = None
     page_recall_at_20: float | None = None
     page_precision_at_10: float | None = None
     page_precision_at_20: float | None = None
     page_mrr_value: float | None = None
+    page_ndcg_at_10: float | None = None
     n_retrieved: int = 0
+    # tanı: gold kaç span/sayfa istiyor (çok-span'lı item'ları ayırmak için)
+    n_gold_spans: int = 0
+    n_gold_pages: int = 0
 
 
 def compute_retrieval_metrics(ranked_span_sets: list[set], ranked_page_sets: list[set],
                               gold_spans: set, gold_pages: set) -> RetrievalMetrics:
     """ranked_span_sets / ranked_page_sets: retriever sırasına göre (en alakalı
-    ilk), her retrieved chunk'ın span_id kümesi / sayfa kümesi. k=10 ve k=20
-    raporlanır (görev talebi)."""
+    ilk), her retrieved chunk'ın span_id kümesi / sayfa kümesi.
+
+    k=5/10/20 raporlanır. @5 `OPTIMIZATION.md §H`'nin STANDING KARAR'ı gereği
+    birincil; @20 yalnız ÜST SINIR göstergesi (doygun: ölçülen %92 item'da 1.0).
+    nDCG sıralama kalitesini, all_evidence çok-span'lı item'larda kısmi-kredisiz
+    başarıyı ölçer (EXP-010/EVAL-08, EVAL-10)."""
     return RetrievalMetrics(
+        recall_at_5=recall_at_k(ranked_span_sets, gold_spans, 5),
         recall_at_10=recall_at_k(ranked_span_sets, gold_spans, 10),
         recall_at_20=recall_at_k(ranked_span_sets, gold_spans, 20),
+        precision_at_5=precision_at_k(ranked_span_sets, gold_spans, 5),
         precision_at_10=precision_at_k(ranked_span_sets, gold_spans, 10),
         precision_at_20=precision_at_k(ranked_span_sets, gold_spans, 20),
         mrr_value=mrr(ranked_span_sets, gold_spans),
+        ndcg_at_10=ndcg_at_k(ranked_span_sets, gold_spans, 10),
+        all_evidence_recall_at_10=all_evidence_recall_at_k(ranked_span_sets, gold_spans, 10),
+        all_evidence_recall_at_20=all_evidence_recall_at_k(ranked_span_sets, gold_spans, 20),
+        page_recall_at_5=recall_at_k(ranked_page_sets, gold_pages, 5),
         page_recall_at_10=recall_at_k(ranked_page_sets, gold_pages, 10),
         page_recall_at_20=recall_at_k(ranked_page_sets, gold_pages, 20),
         page_precision_at_10=precision_at_k(ranked_page_sets, gold_pages, 10),
         page_precision_at_20=precision_at_k(ranked_page_sets, gold_pages, 20),
         page_mrr_value=mrr(ranked_page_sets, gold_pages),
+        page_ndcg_at_10=ndcg_at_k(ranked_page_sets, gold_pages, 10),
         n_retrieved=len(ranked_span_sets),
+        n_gold_spans=len(_as_set(gold_spans)),
+        n_gold_pages=len(_as_set(gold_pages)),
     )
 
 

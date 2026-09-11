@@ -282,9 +282,15 @@ def _failed_item(item: dict, exc: Exception) -> dict:
 # Aggregate + rapor
 # --------------------------------------------------------------------------
 
-_RETRIEVAL_KEYS = ["recall_at_10", "recall_at_20", "precision_at_10", "precision_at_20",
-                  "mrr_value", "page_recall_at_10", "page_recall_at_20",
-                  "page_precision_at_10", "page_precision_at_20", "page_mrr_value"]
+# @5 + nDCG + all_evidence: OPTIMIZATION.md §H STANDING KARAR'in birincil metrikleri
+# (recall@5/@10 + MRR); @20 yalniz UST SINIR gostergesi -- doygun (EXP-010/EVAL-08).
+_RETRIEVAL_KEYS = ["recall_at_5", "recall_at_10", "recall_at_20",
+                  "precision_at_5", "precision_at_10", "precision_at_20",
+                  "mrr_value", "ndcg_at_10",
+                  "all_evidence_recall_at_10", "all_evidence_recall_at_20",
+                  "page_recall_at_5", "page_recall_at_10", "page_recall_at_20",
+                  "page_precision_at_10", "page_precision_at_20", "page_mrr_value",
+                  "page_ndcg_at_10"]
 _CITATION_KEYS = ["precision", "recall", "precision_page", "recall_page"]
 _JUDGE_KEYS = ["faithfulness", "answer_relevancy", "answer_correctness"]
 
@@ -299,8 +305,33 @@ def _aggregate(subset: list[dict]) -> dict:
     fc_vals = [it["guardrail"]["fail_closed"] for it in subset if it["guardrail"]["fail_closed"] is not None]
     fail_closed_rate = sum(1 for v in fc_vals if v) / len(fc_vals) if fc_vals else None
     judged = [it["judge"] for it in subset if it["judge"] and not it["judge"].get("skipped")]
+    skipped = [it["judge"] for it in subset if it["judge"] and it["judge"].get("skipped")]
     judge_agg = {k: M.mean([j.get(k) for j in judged]) for k in _JUDGE_KEYS}
     judge_agg["n_judged"] = len(judged)
+    # M0-2 (#34) SURVIVORSHIP BIAS -- EXP-010/EVAL-05.
+    # Cekimser kalan bir `cevapla` item'i "uretilmis metin yok" diye judge'a
+    # gonderilmiyor ve YUKARIDAKI paydadan da dusuyordu. Ama "cevap uretemedi"
+    # EN CIDDI kalite hatasidir: v1.1 kosumunda bio12-v1-mt008 hem yanlis-abstain
+    # listesindeydi hem faithfulness'tan silinmisti; dogru sayilsa 0.988 -> 0.942.
+    # Yani abstain orani arttikca faithfulness YUKSELIYORDU (ters tesvik).
+    # Cozum: iki sayiyi AYRI raporla, ikisi birlikte yazilmadan sonuc yazilmaz.
+    #   *_answered   -> yalniz uretilen cevaplar (eski davranis, kiyaslanabilirlik)
+    #   *_penalized  -> cekimser item 0.0 sayilir (durust ust-sinir olmayan sayi)
+    n_pen = len(judged) + len(skipped)
+    for k in _JUDGE_KEYS:
+        judge_agg[k + "_answered"] = judge_agg[k]
+        vals = [j.get(k) for j in judged if j.get(k) is not None] + [0.0] * len(skipped)
+        judge_agg[k + "_penalized"] = (sum(vals) / len(vals)) if vals else None
+    judge_agg["n_judge_skipped_abstained"] = len(skipped)
+    judge_agg["n_judge_selected"] = n_pen
+    # `cevapla` beklenen item'larda cevap URETME orani (birincil metrik, hedef >=0.98).
+    # Bu, yukaridaki penalized sayilarinin okunmasi icin gereken baglami verir.
+    answerable = [it for it in subset if it.get("beklenen_davranis") == "cevapla"]
+    answered = [it for it in answerable
+                if not (it.get("guardrail") or {}).get("abstained", False)]
+    judge_agg["answerable_coverage"] = (len(answered) / len(answerable)
+                                        if answerable else None)
+    judge_agg["n_answerable"] = len(answerable)
     # AUDIT EXP-007 #29/eval#6: mean() None'ları düşürür → "faithfulness (n=N)" ama
     # ortalama gerçekte < N item üzerinden olabilir (judge hatası → skor None ama
     # skipped değil → judged'da kalır). Her metrik için KATKI VEREN (None-olmayan)
@@ -416,20 +447,37 @@ def _aggregate_table(agg: dict) -> str:
     lines = ["| Metrik | Deger |", "|---|---|"]
     lines.append(f"| n | {agg['n']} |")
     lines.append(f"| recall@10 (span) | {_fmt(r.get('recall_at_10'))} |")
-    lines.append(f"| recall@20 (span) | {_fmt(r.get('recall_at_20'))} |")
+    lines.append(f"| recall@20 (span) — yalniz UST SINIR gostergesi, doygun | {_fmt(r.get('recall_at_20'))} |")
     lines.append(f"| precision@10 (span) | {_fmt(r.get('precision_at_10'))} |")
     lines.append(f"| precision@20 (span) | {_fmt(r.get('precision_at_20'))} |")
-    lines.append(f"| MRR (span) | {_fmt(r.get('mrr_value'))} |")
+    lines.append(f"| MRR (span) — **birincil** | {_fmt(r.get('mrr_value'))} |")
+    lines.append(f"| nDCG@10 (span) — siralama kalitesi | {_fmt(r.get('ndcg_at_10'))} |")
+    lines.append(f"| all-evidence recall@10 (span, kismi kredi YOK) | {_fmt(r.get('all_evidence_recall_at_10'))} |")
+    lines.append(f"| all-evidence recall@20 (span, kismi kredi YOK) | {_fmt(r.get('all_evidence_recall_at_20'))} |")
+    lines.append(f"| recall@5 (sayfa) | {_fmt(r.get('page_recall_at_5'))} |")
     lines.append(f"| recall@10 (sayfa) | {_fmt(r.get('page_recall_at_10'))} |")
     lines.append(f"| recall@20 (sayfa) | {_fmt(r.get('page_recall_at_20'))} |")
     lines.append(f"| citation precision | {_fmt(c.get('precision'))} |")
     lines.append(f"| citation recall | {_fmt(c.get('recall'))} |")
     lines.append(f"| guardrail pass-rate (n={agg['n_guardrail_applicable']}) | {_fmt(agg['guardrail_pass_rate'])} |")
     lines.append(f"| fail-closed orani (n={agg['n_abstained']} abstain) | {_fmt(agg['fail_closed_rate'])} |")
+    # M0-2 (#34): cevap URETME orani. Asagidaki *_penalized sayilari ancak bu
+    # baglamla okunabilir -- abstain orani arttikca *_answered YUKSELIR (ters tesvik).
+    if j.get("answerable_coverage") is not None:
+        lines.append(f"| **answerable coverage** (n={j.get('n_answerable')} `cevapla` item) "
+                     f"| {_fmt(j.get('answerable_coverage'))} |")
     # per-metrik n = ortalamaya KATKI VEREN item (hakem hatası olanlar hariç, #29)
-    lines.append(f"| faithfulness (n={j.get('faithfulness_n', j['n_judged'])}) | {_fmt(j.get('faithfulness'))} |")
-    lines.append(f"| answer_relevancy (n={j.get('answer_relevancy_n', j['n_judged'])}) | {_fmt(j.get('answer_relevancy'))} |")
-    lines.append(f"| answer_correctness (n={j.get('answer_correctness_n', j['n_judged'])}) | {_fmt(j.get('answer_correctness'))} |")
+    # İKİ BİÇİM ZORUNLU (#34): _answered (üretilen cevaplar) + _penalized (çekimser=0.0).
+    for key, label in (("faithfulness", "faithfulness"),
+                       ("answer_relevancy", "answer_relevancy"),
+                       ("answer_correctness", "answer_correctness")):
+        n_ans = j.get(key + "_n", j["n_judged"])
+        lines.append(f"| {label} — answered (n={n_ans}) | {_fmt(j.get(key + '_answered', j.get(key)))} |")
+        lines.append(f"| {label} — **penalized** (cekimser=0.0, n={j.get('n_judge_selected')}) "
+                     f"| {_fmt(j.get(key + '_penalized'))} |")
+    if j.get("n_judge_skipped_abstained"):
+        lines.append(f"| ⚠ cekimser kaldigi icin hakemsiz item | "
+                     f"{j['n_judge_skipped_abstained']} (penalized'da 0.0 sayildi) |")
     if j.get("n_errors"):
         lines.append(f"| ⚠ hakem-hatası item | {j['n_errors']} (skor None → ortalamaya girmedi) |")
     if agg.get("n_errors"):
