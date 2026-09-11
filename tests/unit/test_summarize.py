@@ -290,9 +290,14 @@ class HierarchicalTests(unittest.TestCase):
     def test_hierarchical_drops_group_with_no_valid_citation(self):
         # KANITLI ÖZET bütünlüğü: bir grup kendi biriminde HİÇ atıf yapmazsa nihai
         # atıf listesine EKLENMEZ (boş atıf = sahte/anlamsız kanıt; v1 testinde 143
-        # birim için 2 atıftan biri boş çıkmıştı). Kanıt üreten gruplar kalır; sahte
-        # doldurma YOK (pass-bias yasak). Atıf listesi = özetin dayandığı TÜM kanıt
-        # grupları (yalnız merge-LLM'in [N]'lediği değil).
+        # birim için 2 atıftan biri boş çıkmıştı).
+        #
+        # DÜZELTME (#55, 2026-09-11): bu testin eski açıklaması "atıf listesi =
+        # özetin dayandığı TÜM kanıt grupları (yalnız merge-LLM'in [N]'lediği
+        # değil)" diyordu — o cümle HATANIN KENDİSİNİ sözleşme olarak kaydediyordu.
+        # Artık kural tek-geçiş yolundakiyle aynı: yalnız modelin GERÇEKTEN
+        # atıfladığı [N]'ler çıktıya girer. Bu test o kuralla da geçer çünkü
+        # merge yalnız [2]'yi atıflıyor.
         units = [_Unit("s1", 1, "m1"), _Unit("s2", 2, "m2"), _Unit("s3", 3, "m3")]
         texts = [
             NO_CONTENT_SENTENCE,     # grup1 (s1,s2): atıf yok -> ATLANIR
@@ -309,6 +314,98 @@ class HierarchicalTests(unittest.TestCase):
         self.assertNotIn(1, c_by_n)                       # boş-kanıtlı grup1 atlandı
         self.assertEqual(c_by_n[2]["span_ids"], ["s3"])   # kanıtlı grup2 kaldı
         self.assertEqual(c_by_n[2]["pages"], [3])
+
+
+class HierarchicalCitationFabricationTests(unittest.TestCase):
+    """#55 (EXP-010/ACC-01) — hiyerarşik özet MODELİN YAPMADIĞI atıfları döndürüyordu.
+
+    `_merge_summaries` nihai metni alıyor ama `_parse_citation_ns(result.text)`
+    ÇAĞIRMIYORDU; `citations` doğrudan `merge_lookup.items()`'tan, yani *kanıtı
+    olan TÜM ara-özetlerden* üretiliyordu. Docstring "merge yeni span/sayfa
+    uydurmaz" diyordu — doğru, ama **kod uyduruyordu**. Özet yüzeyinde atıf
+    precision'ı yapısal olarak `1/grup_sayısı`'na düşüyordu.
+
+    Kapı **A-08** (%100): dönen her atıf modelin metinde yazdığı bir `[N]`
+    olmalı.
+    """
+
+    def _kos(self, texts, units, mupg=3):
+        ds = _StubDeepSeek(texts=texts)
+        s = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=mupg)
+        return s.summarize(units), ds
+
+    def _dokuz(self):
+        return [_Unit(f"s{i}", i, f"metin{i}") for i in range(1, 10)]
+
+    def test_denetimde_kosulan_senaryo_tek_atif_tek_citation(self):
+        """Denetimin kanıtı: 9 birim / mupg=3 → 3 ara-özet; model nihai metinde
+        YALNIZ [1] atıfladı ama çıktı 3 atıf (s.1, s.4, s.7) döndürüyordu."""
+        texts = ["Grup1 [1].", "Grup2 [1].", "Grup3 [1].", "Nihai özet [1]."]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertEqual([c["n"] for c in res.citations], [1])
+        self.assertEqual(res.citations[0]["pages"], [1])
+        sayfalar = {p for c in res.citations for p in c["pages"]}
+        self.assertNotIn(4, sayfalar)      # modelin YAPMADIĞI atıflar
+        self.assertNotIn(7, sayfalar)
+
+    def test_iki_atif_iki_citation(self):
+        texts = ["Grup1 [1].", "Grup2 [1].", "Grup3 [1].", "Nihai [1][3]."]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertEqual([c["n"] for c in res.citations], [1, 3])
+        self.assertEqual({p for c in res.citations for p in c["pages"]}, {1, 7})
+
+    def test_hic_atif_yoksa_citation_da_yok(self):
+        """Dayanaksız özet sessizce kanıtlı görünmemeli."""
+        texts = ["Grup1 [1].", "Grup2 [1].", "Grup3 [1].", "Nihai özet, atıf yok."]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertEqual(res.citations, [])
+
+    def test_hayalet_atif_sessizce_elenir(self):
+        """Kaynak sayısını aşan [N] patlamaya değil sessiz elemeye yol açar
+        (generator.py ile TUTARLI)."""
+        texts = ["Grup1 [1].", "Grup2 [1].", "Grup3 [1].", "Nihai [1][9]."]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertEqual([c["n"] for c in res.citations], [1])
+
+    def test_her_donen_atif_metinde_gercekten_yaziyor(self):
+        """Kapı A-08 değişmezi: citations ⊆ metindeki [N]'ler."""
+        import re
+        texts = ["G1 [1].", "G2 [1].", "G3 [1].", "Nihai [2] ve ayrıca [3]."]
+        res, _ = self._kos(texts, self._dokuz())
+        metindeki = {int(n) for n in re.findall(r"\[(\d+)\]", res.text)}
+        self.assertTrue({c["n"] for c in res.citations} <= metindeki)
+        self.assertEqual({c["n"] for c in res.citations}, {2, 3})
+
+    def test_merge_cekimser_olursa_abstained_true(self):
+        """İkinci yarı: `abstained=False` SABİTTİ → nihai merge 'içerik yok'
+        dönse bile 'gerçek özet' işaretleniyordu."""
+        texts = ["G1 [1].", "G2 [1].", "G3 [1].", NO_CONTENT_SENTENCE]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertTrue(res.abstained)
+        self.assertEqual(res.reason, "llm_no_content")
+        self.assertEqual(res.citations, [])
+
+    def test_cekimser_olmayan_merge_abstained_false_kalir(self):
+        texts = ["G1 [1].", "G2 [1].", "G3 [1].", "Nihai özet [1]."]
+        res, _ = self._kos(texts, self._dokuz())
+        self.assertFalse(res.abstained)
+        self.assertEqual(res.reason, "")
+
+    def test_ozyinelemeli_seviyede_de_gecerli(self):
+        """mupg=2 ile 9 birim → 5 ara-özet → 3 merge → 2 merge → 1: ara
+        seviyelerde de yalnız atıflanan N taşınmalı."""
+        texts = ["G [1]." for _ in range(5)] + ["M [1]." for _ in range(10)]
+        res, ds = self._kos(texts, self._dokuz(), mupg=2)
+        self.assertGreater(ds.calls, 6)
+        self.assertEqual(len(res.citations), 1)
+        self.assertEqual(res.citations[0]["pages"], [1])
+
+    def test_maliyet_hala_tum_seviyelerin_toplami(self):
+        """Atıf kırpma maliyeti SIFIRLAMAMALI — LLM gerçekten çağrıldı."""
+        texts = ["G1 [1].", "G2 [1].", "G3 [1].", "Nihai, atıf yok."]
+        res, ds = self._kos(texts, self._dokuz())
+        self.assertGreater(res.cost_usd, 0.0)
+        self.assertEqual(res.usage.output, ds.calls * 5)
 
 
 # --------------------------------------------------------------------------- cost_recorder spy

@@ -219,15 +219,37 @@ class Summarizer:
         system, user = build_summary_prompt(merge_blocks, scope_label)
         result = self.deepseek.chat(user, system=system, temperature=temperature,
                                     max_tokens=max_tokens)
-        citations = [{"n": i, "span_ids": src["span_ids"], "pages": src["pages"]}
-                     for i, src in merge_lookup.items() if src["span_ids"] or src["pages"]]
+        # M2-3 (#55, EXP-010/ACC-01) -- KOSULARAK KANITLANMIS HATA:
+        # burada `_parse_citation_ns(result.text)` CAGRILMIYORDU; `citations`
+        # dogrudan `merge_lookup.items()`'tan, yani KANITI OLAN TUM ara-ozetlerden
+        # uretiliyordu. Kosulan kanit: 9 birim / mupg=3 -> 3 ara-ozet; model nihai
+        # metinde YALNIZ [1] atifladi, cikti 3 atif dondu (s.1, s.4, s.7).
+        # s.4 ve s.7 MODELIN YAPMADIGI atiflardi. Docstring "merge yeni span/sayfa
+        # uydurmaz" diyordu -- dogru, ama KOD uyduruyordu. Ozet yuzeyinde atif
+        # precision'i yapisal olarak 1/grup_sayisi'na dusuyordu.
+        # Cozum tek-gecis yolundaki desenin AYNISI: yalniz atiflanan N'ler.
+        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        citations = []
+        for n in cited_ns:
+            src = merge_lookup.get(n)
+            if src is None:                      # hayalet atif -> sessiz eleme
+                continue
+            if not (src["span_ids"] or src["pages"]):
+                continue                         # kaniti olmayan ara-ozet
+            citations.append({"n": n, "span_ids": src["span_ids"], "pages": src["pages"]})
         usd = pricing_cost_usd(result.model, result.usage)
         self._record_call(usage=result.usage, model=result.model, n_items=len(summaries),
-                          note=f"özet hiyerarşik-birleştirme: {len(summaries)} ara-özet")
+                          note=f"özet hiyerarşik-birleştirme: {len(summaries)} ara-özet, "
+                               f"{len(citations)} atıflandı")
         scope_pages = sorted({p for gs in summaries for p in gs.scope_pages})
+        # #55 (ikinci yari): `abstained=False` SABITTI -> nihai merge
+        # NO_CONTENT_SENTENCE donse bile "gercek ozet" isaretleniyordu.
+        llm_abstained = result.text.strip() == NO_CONTENT_SENTENCE
         return GroundedSummary(text=result.text, citations=citations, scope_pages=scope_pages,
                                n_source_units=sum(gs.n_source_units for gs in summaries),
-                               abstained=False, reason="", usage=result.usage,
+                               abstained=llm_abstained,
+                               reason="llm_no_content" if llm_abstained else "",
+                               usage=result.usage,
                                cost_usd=usd, latency_s=result.latency_s, hierarchical=True)
 
     def _summarize_hierarchical(self, units: list[CanonicalUnit], *, scope_label: str,
@@ -263,8 +285,11 @@ class Summarizer:
             level = new_level
 
         final = level[0]
+        # #55: burada da `abstained=False` SABITTI -- son seviyenin cekimserligi
+        # (tek grup varsa tek-gecisin, coksa merge'in) yutuluyordu.
         return GroundedSummary(text=final.text, citations=final.citations,
                                scope_pages=sorted({u.page for u in units}),
-                               n_source_units=len(units), abstained=False, reason="",
+                               n_source_units=len(units),
+                               abstained=final.abstained, reason=final.reason,
                                usage=_sum_usage(all_usages), cost_usd=total_cost,
                                latency_s=total_latency, hierarchical=True)
