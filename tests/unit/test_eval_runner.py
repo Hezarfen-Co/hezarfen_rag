@@ -23,6 +23,18 @@ def _item(id, beh="cevapla", critical=False, unite=None,
 
 
 class SelectJudgeIdsTests(unittest.TestCase):
+    """M0-5 (#37) ile sözleşme DEĞİŞTİ.
+
+    Bu testin eski hâli `assertNotIn("b", ids)` diyordu — yani "ünitesi zaten
+    temsil edilen, critical olmayan item hakemsiz kalır". Ölçüldüğünde (EXP-010/
+    EVAL-04) bunun sonucu şuydu: bio v1.1'de `kolay` (46) ve `orta` (53)
+    item'ların TAMAMI hakemsiz kaldı, kimya/fizik'te judge n=0 oldu. Yani o
+    assertion bir DAVRANIŞ GARANTİSİ değil, YETERSİZ ÖRNEKLEMENİN kaydıydı.
+
+    Yeni sözleşme: critical'lar zorunlu + her tabaka/ünite en az 1 + kalan kota
+    `JUDGE_SAMPLE_N`e kadar orantılı doldurulur. Küçük havuzda bu, havuzun
+    tamamının seçilmesi demektir (istenen davranış)."""
+
     def test_critical_and_unite_backfill(self):
         items = [
             {"id": "a", "beklenen_davranis": "cevapla", "critical": True, "unite": "U1"},
@@ -33,8 +45,24 @@ class SelectJudgeIdsTests(unittest.TestCase):
         ids = R._select_judge_ids(items)
         self.assertIn("a", ids)        # critical cevapla
         self.assertIn("c", ids)        # U2 temsil edilmemişti → backfill
-        self.assertNotIn("b", ids)     # U1 zaten 'a' ile temsil
-        self.assertNotIn("d", ids)     # red → hakem yok
+        self.assertNotIn("d", ids)     # red → hakem yok (DEĞİŞMEDİ)
+        # kota (40) havuzdan (3) büyük olduğu için "b" de girer — istenen davranış
+        self.assertIn("b", ids)
+
+    def test_small_quota_still_prioritises_critical_and_coverage(self):
+        """Kota kısıtlıyken önce critical + tabaka/ünite kapsaması gelir."""
+        items = [
+            {"id": "a", "beklenen_davranis": "cevapla", "critical": True,
+             "unite": "U1", "kategori": "zor"},
+            {"id": "b", "beklenen_davranis": "cevapla", "critical": False,
+             "unite": "U1", "kategori": "zor"},
+            {"id": "c", "beklenen_davranis": "cevapla", "critical": False,
+             "unite": "U2", "kategori": "kolay"},
+        ]
+        ids = R._select_judge_ids(items, sample_n=2)
+        self.assertIn("a", ids)        # critical
+        self.assertIn("c", ids)        # yeni tabaka (kolay) + yeni ünite (U2)
+        self.assertNotIn("b", ids)     # aynı tabaka+ünite, kota yok
 
     def test_missing_unite_no_crash(self):
         items = [{"id": "x", "beklenen_davranis": "cevapla", "critical": True}]  # unite yok
