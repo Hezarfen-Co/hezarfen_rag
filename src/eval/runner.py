@@ -206,30 +206,120 @@ def _ranked_sets_for_hits(hits, chunks_by_id) -> tuple[list[set], list[set]]:
     return span_sets, page_sets
 
 
-def _select_judge_ids(items: list[dict]) -> set[str]:
-    """LLM-hakem PAHALI -> yalniz critical + 'birkac ornek' (gorev kosulu).
-    Kural (id'ye degil ALANLARA dayanir -> golden set degisirse hala calisir):
-      1) beklenen_davranis == 'cevapla' VE critical == true olan HER item.
-      2) Adim 1'de HICBIR unitesi temsil edilmeyen unite'lerden (ornegin
-         'Canlilar ve Cevre'de critical item yok) ilk 'cevapla' item'i -- her
-         unitenin en az bir ornekle olculmesini garantiler."""
-    ids: set[str] = set()
-    seen_units: set[str] = set()
-    for it in items:
-        if it["beklenen_davranis"] != "cevapla":
+# M0-5 (#37) HAKEM ORNEKLEMI -- EXP-010/EVAL-04.
+# Eski kural "critical + temsil edilmeyen unitede ilk item" idi. Olculen sonuc:
+# bio v1.1'de judge yalniz 22/133 cevaplanabilir item (%16.5) aliyordu ve
+# ornegin kategori dagilimi `zor` 12 + `multi_turn` 10 idi -- yani `kolay` (46)
+# ve `orta` (53) item'larin TAMAMI hakemsizdi. Kullanicilarin en sik soracagi
+# soru sinifinda uretim kalitesi HIC olculmemisti. Ayrica kimya/fizik setlerinde
+# `critical & cevapla` item olmadigi icin judge n=0 kaliyordu -> EXP-005/008'in
+# non-bio "kalite" iddiasinda faithfulness/correctness hic olculmemisti.
+#
+# Yeni kural: critical'lar ZORUNLU cekirdek + kalan kota (kategori x senaryo)
+# tabakalarina ORANTILI, sabit tohumla rastgele dagitilir. Her tabaka ve her
+# unite en az 1 ornekle temsil edilir. Tohum sabit -> ayni set ayni ornegi verir.
+JUDGE_SAMPLE_N = int(os.environ.get("JUDGE_SAMPLE_N", "40"))
+JUDGE_IDS_PATH = os.environ.get("JUDGE_IDS_PATH")     # dondurulmus kume (surum kiyasi)
+
+
+def _judge_stratum(it: dict) -> tuple:
+    """Tabaka anahtari: (kategori, senaryo). Ikisi de golden set ALANI -- id'ye
+    bagli degil, set degisirse yine calisir."""
+    return (it.get("kategori") or "?", it.get("senaryo") or "-")
+
+
+def _select_judge_ids(items: list[dict], sample_n: int | None = None,
+                      seed: int | None = None) -> set[str]:
+    """Tabakali rastgele hakem ornegi (sabit tohum).
+
+    1) `beklenen_davranis == 'cevapla'` VE `critical` olan HER item (zorunlu).
+    2) Her (kategori, senaryo) tabakasindan ve her uniteden en az 1 item.
+    3) Kalan kota, tabaka buyuklugune ORANTILI olarak rastgele dagitilir.
+
+    `JUDGE_IDS_PATH` verilmisse kume DOSYADAN okunur (dondurulmus judge kumesi --
+    iki kosumu ayni ornek uzerinde karsilastirmak icin; EVAL-04'un "farkli
+    ornekler arasi kiyas" sorununu kapatir)."""
+    if JUDGE_IDS_PATH and os.path.exists(JUDGE_IDS_PATH):
+        with open(JUDGE_IDS_PATH, encoding="utf-8") as fh:
+            frozen = set(json.load(fh))
+        valid = {it["id"] for it in items}
+        missing = frozen - valid
+        if missing:
+            print(f"[eval] UYARI: dondurulmus judge kumesindeki {len(missing)} id "
+                 f"bu golden set'te YOK: {sorted(missing)[:5]}...", file=sys.stderr)
+        return frozen & valid
+
+    import random
+    sample_n = JUDGE_SAMPLE_N if sample_n is None else sample_n
+    rnd = random.Random(EVAL_SEED if seed is None else seed)
+
+    pool = [it for it in items if it["beklenen_davranis"] == "cevapla"]
+    ids = {it["id"] for it in pool if it.get("critical")}
+
+    strata: dict[tuple, list[dict]] = {}
+    for it in pool:
+        strata.setdefault(_judge_stratum(it), []).append(it)
+    for key in strata:
+        strata[key].sort(key=lambda x: x["id"])        # deterministik taban
+
+    # (2) her tabakadan en az 1
+    for key, bucket in sorted(strata.items()):
+        if any(it["id"] in ids for it in bucket):
             continue
-        if it.get("critical"):
-            ids.add(it["id"])
-            if it.get("unite"):
-                seen_units.add(it["unite"])
-    for it in items:
-        if it["beklenen_davranis"] != "cevapla" or it["id"] in ids:
-            continue
+        ids.add(rnd.choice(bucket)["id"])
+
+    # (2b) her unite en az 1 (eski kural korunur)
+    seen_units = {it.get("unite") for it in pool if it["id"] in ids}
+    for it in sorted(pool, key=lambda x: x["id"]):
         u = it.get("unite")
         if u and u not in seen_units:
             ids.add(it["id"])
             seen_units.add(u)
+
+    # (3) kalan kotayi tabaka buyuklugune orantili dagit
+    remaining = sample_n - len(ids)
+    if remaining > 0:
+        total = sum(len(b) for b in strata.values()) or 1
+        base_remaining = remaining
+        for key, bucket in sorted(strata.items(), key=lambda kv: (-len(kv[1]), kv[0])):
+            if remaining <= 0:
+                break
+            quota = max(1, round(base_remaining * len(bucket) / total))
+            free = [it["id"] for it in bucket if it["id"] not in ids]
+            rnd.shuffle(free)
+            take = free[:min(quota, remaining, len(free))]
+            ids.update(take)
+            remaining -= len(take)
+        # DOLDURMA TURU: orantili dagitim yuvarlama yuzunden hedefin ALTINDA
+        # kalabilir. Hedef ornekleme buyuklugu istatistiksel gucu belirledigi
+        # icin (bkz. #33 CI) eksik bırakmak metrigi zayiflatir -> kalan bos
+        # id'lerden deterministik olarak tamamla.
+        if remaining > 0:
+            leftovers = sorted(it["id"] for it in pool if it["id"] not in ids)
+            rnd.shuffle(leftovers)
+            ids.update(leftovers[:remaining])
     return ids
+
+
+def _judge_composition(items: list[dict], judge_ids: set[str]) -> dict:
+    """Hakem orneginin BILESIMI + kapsami -- rapora yazilir ki "0.988" sayisinin
+    hangi item sinifindan geldigi gorunsun (EVAL-04'un korlugu tam buydu)."""
+    pool = [it for it in items if it["beklenen_davranis"] == "cevapla"]
+    sel = [it for it in pool if it["id"] in judge_ids]
+    by_cat: dict[str, int] = {}
+    by_stratum: dict[str, int] = {}
+    for it in sel:
+        by_cat[it.get("kategori") or "?"] = by_cat.get(it.get("kategori") or "?", 0) + 1
+        k = "|".join(_judge_stratum(it))
+        by_stratum[k] = by_stratum.get(k, 0) + 1
+    uncovered = sorted({(it.get("kategori") or "?") for it in pool}
+                       - set(by_cat)) or []
+    return {"n_selected": len(sel), "n_answerable": len(pool),
+            "coverage": (len(sel) / len(pool)) if pool else None,
+            "by_kategori": by_cat, "by_stratum": by_stratum,
+            "kategoriler_hakemsiz": uncovered,
+            "sample_n_target": JUDGE_SAMPLE_N,
+            "frozen_from": JUDGE_IDS_PATH if JUDGE_IDS_PATH else None}
 
 
 # ---------------------------------------------------------------------------
@@ -773,6 +863,8 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
             "llm_model": getattr(pipeline["generator"].deepseek, "model", None),
             "llm_base_url": getattr(pipeline["generator"].deepseek, "base_url", None),
             "judge_model": (getattr(judge, "model_name", None) if judge else None),
+            # M0-5 (#37): "0.988" sayisinin hangi item sinifindan geldigi gorunsun
+            "judge_composition": _judge_composition(items, judge_ids),
         },
         "overall": overall, "by_category": by_category, "items": items_out,
     }
