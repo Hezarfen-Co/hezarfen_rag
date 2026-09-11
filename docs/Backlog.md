@@ -80,3 +80,24 @@
 
 ## Ertelenen
 - **Faz 4 — Soru üretme + benzer soru:** ⏸️ Kadir kararıyla ertelendi (2026-08-31). Tasarım hazır: `soru-uretme.md`.
+
+### BL-008 — `top_n` yeniden kalibrasyonu (sayfa hizalı chunk'lamanın bedeli)
+**Kaynak:** EXP-011 ablation'ı (#53), 2026-09-11 · **Durum:** AÇIK · **Bağlı:** #60, #92
+
+Sayfa hizalı chunk'lama atıf sayfa-hassasiyetini kurtardı (teorik tavan
+0,723 → 1,000) ama **bağlam hacmini daralttı**: gerçek kitapla ölçüldü, top-5
+toplam token **1331 → 1110 (−%16,6)**; korpusun %13,1'i <50 token oldu (şekil
+sayfası / bölüm kapağı gibi az metinli sayfalar).
+
+Yuva işgali beklenenden küçük çıktı (sorgu başına 0,09 yuva, sorguların %9'u),
+yani sorun minik chunk'ların top-k'yı doldurması **değil**, üretici modele giden
+toplam kanıtın azalması.
+
+**Yapılacak:** `top_n`'i sabit 6'da bırakmak yerine ölçerek seç. Tek başına
+büyütmek doğru değil — maliyeti ve Lost-in-the-Middle riskini artırır. Bu yüzden
+**#60 (çekimserlik eşiği kalibrasyonu) ile BİRLİKTE** ve golden set üzerinde
+ölçülmeli → **#92 çözülmeden koşulamaz**.
+
+**Kabul:** aynı golden set, `top_n ∈ {6, 8, 10}` × abstain eşiği taraması;
+`recall@k` ve `answer_correctness` yükselirken `precision_page` ve maliyet/istek
+kapı içinde kalmalı. Kapı kararı 95% CI alt sınırıyla verilir.

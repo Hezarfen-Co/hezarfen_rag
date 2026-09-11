@@ -37,6 +37,7 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   "text": "DNA ... çift sarmaldır [1]. ... Watson-Crick ... [2].",
   "abstained": false,
   "reason": "",                                 // "" | guard_<kat> | insufficient_data | model_abstained
+  "invalid_citations": [],                      // (#62) çözülemeyen [N] numaraları
   "citations": [
     {"n": 1, "chunk_id": "5eda...:c14", "span_ids": ["...#20.1"], "pages": [20,21], "ders": "biyoloji"},
     {"n": 2, "chunk_id": "5eda...:c10", "span_ids": ["...#17.3"], "pages": [17,18], "ders": "biyoloji"}
@@ -75,6 +76,14 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   `detail` biçimindedir, gövde sözleşmesini taşımaz.
 - Her cevapta **`X-Request-Id`** başlığı vardır; istemci kendi değerini
   gönderirse aynen yansıtılır (uçtan uca izleme).
+- **`invalid_citations`** (2026-09-11, #62) → modelin yazdığı ama **hiçbir
+  kaynağa çözülemeyen** `[N]` numaraları. Bu işaretler kullanıcıya gösterilen
+  `text`'ten **kırpılmış** olarak gelir (eskiden metinde duruyor ama karşılığında
+  tıklanabilir atıf kaydı olmuyordu — ACC-12). Boş liste normaldir; dolu liste
+  bir kalite sinyalidir, frontend'in ayrıca göstermesi gerekmez.
+  *Not (#57):* `[0,1]` gibi **çok parçalı ve aralık dışı** gruplar atıf sayılmaz
+  ama hayalet de sayılmaz ve metinden kırpılmaz — onlar cümlenin içeriği
+  olabilir (matematiksel aralık gösterimi).
 - boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
   (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
 
