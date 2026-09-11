@@ -372,17 +372,39 @@ class CommaAndAdjacentCitationRegexTests(unittest.TestCase):
         self.assertFalse(result.abstained)
         self.assertEqual({c["n"] for c in result.citations}, {1, 2, 3, 4})
 
-    def test_phantom_still_flagged_with_comma_citation(self):
-        # [1, 9]: 1 geçerli, 9 hayalet (yalnız 2 kaynak var) — patlamadan işaretlenmeli
+    def test_mixed_group_is_no_longer_partially_cited(self):
+        """SÖZLEŞME DEĞİŞTİ (#57, 2026-09-11).
+
+        Eski davranış: `[1, 9]` (2 kaynak var) → `1` atıflanır, `9` hayalet
+        işaretlenir, cevap sunulur. Bu tam olarak ACC-04'ün zarar yoluydu:
+        `"Olasılık değeri [0,1] aralığında yer alır [2]."` cümlesinde de `1`
+        geçerli bir kaynağa eşlenip **s.5 uydurma atıf** olarak cevaba
+        ekleniyordu — model yalnız `[2]`'yi atıflamıştı.
+
+        Yeni kural: çok parçalı bir grupta tek parça bile aralık dışındaysa
+        grubun tamamı atıl sayılır. `[1, 9]`'un gerçekte "1 ve 9'a atıf" mı
+        yoksa bir veri gösterimi mi olduğu BİLİNEMEZ; zarar asimetrik olduğu
+        için güvenli taraf seçilir (uydurma atıf > kayıp atıf). Atıfsız kalan
+        cevap `ungrounded_no_citations` kapısından çekimser olur.
+        """
         deepseek = _StubDeepSeek(text="X [1, 9].")
+        gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
+        result = gen.answer("DNA nedir?")
+
+        self.assertTrue(result.abstained)
+        self.assertEqual(result.reason, "ungrounded_no_citations")
+        self.assertEqual(result.citations, [])
+
+    def test_single_out_of_range_is_still_a_phantom(self):
+        """Tek parçalı `[N]`'de aralık gösterimi yorumu YOK → gerçek hayalet."""
+        deepseek = _StubDeepSeek(text="A [1]. B [9].")
         gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
         result = gen.answer("DNA nedir?")
 
         self.assertFalse(result.abstained)
         self.assertEqual(result.reason, "phantom_citation")
         self.assertEqual(result.invalid_citations, [9])
-        self.assertEqual(len(result.citations), 1)
-        self.assertEqual(result.citations[0]["n"], 1)
+        self.assertEqual([c["n"] for c in result.citations], [1])
 
 
 class AllCitationsPhantomTests(unittest.TestCase):
@@ -501,6 +523,147 @@ class ParentTextContextTests(unittest.TestCase):
         import inspect
         from src.eval import runner
         self.assertIn("source_units", inspect.getsource(runner))
+
+
+class CitationParserHardeningTests(unittest.TestCase):
+    """#57 (EXP-010/ACC-04 + ACC-14) — atıf ayrıştırıcısı veriyi atıf sanıyordu."""
+
+    def _gen(self, text, scores=None):
+        ds = _StubDeepSeek(text=text)
+        return _make_generator(ds, scores=scores or {"c1": 0.9, "c2": 0.85}), ds
+
+    def test_interval_notation_does_not_produce_a_citation(self):
+        """Denetimin kanıtı: `[0,1]` eski ayrıştırıcıda `1`'i gerçek bir kaynağa
+        eşleyip s.5'i UYDURMA atıf olarak cevaba ekliyordu."""
+        gen, _ = self._gen("Olasılık değeri [0,1] aralığında yer alır [2].")
+        res = gen.answer("olasılık nedir?")
+        self.assertEqual([c["n"] for c in res.citations], [2])
+        self.assertNotIn(1, [c["n"] for c in res.citations])
+
+    def test_interval_notation_survives_in_the_shown_text(self):
+        """`[0,1]` cümlenin İÇERİĞİ — kırpmak cevabı bozardı."""
+        gen, _ = self._gen("Olasılık değeri [0,1] aralığındadır [2].")
+        res = gen.answer("olasılık nedir?")
+        self.assertIn("[0,1]", res.text)
+
+    def test_non_ascii_digit_is_not_a_citation(self):
+        """`\d` + `str.isdigit()` Unicode'dur: `[١]` (Arapça-Hint) `1` sayılıyordu."""
+        from src.generate.citations import parse_citations
+        self.assertEqual(parse_citations("Cevap [١].", 3), ([], [], []))
+
+    def test_regression_valid_forms_still_parse(self):
+        from src.generate.citations import parse_citations
+        for metin, beklenen in (("X [1,2].", [1, 2]), ("X [1][2].", [1, 2]),
+                                ("X [1] [2].", [1, 2]), ("X [3].", [3])):
+            with self.subTest(metin):
+                self.assertEqual(parse_citations(metin, 4)[0], beklenen)
+
+    def test_regression_non_citations_still_ignored(self):
+        from src.generate.citations import parse_citations
+        for metin in ("X [-1].", "X [1.2].", "X [metin](url).", "X []."):
+            with self.subTest(metin):
+                self.assertEqual(parse_citations(metin, 4)[0], [])
+
+    def test_one_parser_for_generator_and_summarizer(self):
+        """İki ayrı kopya vardı ve yorumu 'senkron güncellenmeli' diyordu —
+        böyle bir söz kodda tutulmaz (ACC-10'da tam bu şekilde ayrışmıştı)."""
+        from src.generate import generator
+        from src.summarize import summarizer
+        self.assertIs(generator._parse_citation_ns, summarizer._parse_citation_ns)
+
+
+class PhantomCitationDisplayTests(unittest.TestCase):
+    """#62 (EXP-010/ACC-12) — geçersiz `[N]` metinde duruyordu ama karşılığında
+    tıklanabilir atıf kaydı yoktu; `invalid_citations` payload'a da girmiyordu."""
+
+    def test_phantom_marker_removed_from_shown_text(self):
+        ds = _StubDeepSeek(text="DNA çift sarmaldır [1]. Ribozom protein üretir [9].")
+        gen = _make_generator(ds, scores={"c1": 0.9, "c2": 0.85})
+        res = gen.answer("DNA nedir?")
+        self.assertNotIn("[9]", res.text)
+        self.assertIn("[1]", res.text)
+        self.assertEqual(res.invalid_citations, [9])
+
+    def test_punctuation_is_not_left_dangling(self):
+        ds = _StubDeepSeek(text="A [1]. B [9] .")
+        gen = _make_generator(ds, scores={"c1": 0.9, "c2": 0.85})
+        res = gen.answer("q")
+        self.assertNotIn("  ", res.text)
+        self.assertFalse(res.text.endswith(" ."))
+
+    def test_clean_answer_text_untouched(self):
+        ds = _StubDeepSeek(text="DNA çift sarmaldır [1].")
+        gen = _make_generator(ds, scores={"c1": 0.9, "c2": 0.85})
+        res = gen.answer("q")
+        self.assertEqual(res.text, "DNA çift sarmaldır [1].")
+
+    def test_payload_exposes_invalid_citations(self):
+        """Backend `abstained/reason` dışında hayalet atıfı da görebilmeli."""
+        from src.service.handler import _answer_to_dict
+        ds = _StubDeepSeek(text="A [1]. B [9].")
+        gen = _make_generator(ds, scores={"c1": 0.9, "c2": 0.85})
+        payload = _answer_to_dict(gen.answer("q"))
+        self.assertIn("invalid_citations", payload)
+        self.assertEqual(payload["invalid_citations"], [9])
+
+
+class AbstainDetectionTests(unittest.TestCase):
+    """#58 (EXP-010/ACC-05) — `_looks_like_abstain` karakter benzerliği kullanıyordu.
+
+    `SequenceMatcher` oranı ≥0,90 eşiği, Türkçede olumlu/olumsuz ayrımı tek ek
+    olduğu için **anlamı ters** cümleleri de yakalıyordu. Denetimde hesaplanan
+    oranlar (bu sınıf o tabloyu test hâline getirir):
+
+    | cümle | eski oran | eski karar | doğru karar |
+    |---|---|---|---|
+    | "Kaynaklarda bu bilgi bulunamadı."        | 1,0000 | çekimser | çekimser |
+    | "Kaynaklarda bu bilgi bulunmaktadır."     | 0,9231 | çekimser ✗ | cevap |
+    | "Kaynaklarda bu bilgi bulunmaktadır [1]." | 0,9231 | çekimser ✗ | cevap |
+    | "Kaynaklarda bu bilgi bulunmuyor."        | 0,8710 | cevap ✗ | çekimser |
+
+    Yani eşik **iki yönde de** yanlıştı.
+    """
+
+    def _f(self, metin):
+        from src.generate.generator import _looks_like_abstain
+        return _looks_like_abstain(metin)
+
+    def test_exact_abstain_sentence(self):
+        from src.generate.prompt import ABSTAIN_SENTENCE
+        self.assertTrue(self._f(ABSTAIN_SENTENCE))
+
+    def test_positive_sentence_is_not_abstain(self):
+        self.assertFalse(self._f("Kaynaklarda bu bilgi bulunmaktadır."))
+
+    def test_positive_sentence_with_citation_is_not_abstain(self):
+        self.assertFalse(self._f("Kaynaklarda bu bilgi bulunmaktadır [1]."))
+
+    def test_real_abstain_variant_is_caught(self):
+        self.assertTrue(self._f("Kaynaklarda bu bilgi bulunmuyor."))
+
+    def test_any_cited_answer_is_never_abstain(self):
+        """Atıflı cevap tanım gereği çekimser değildir — kısa 'evet' cevapları
+        eskiden bastırılıyordu (recall kaybı)."""
+        self.assertFalse(self._f("Evet [1]."))
+        self.assertFalse(self._f("Kaynaklarda yok değil, vardır [2]."))
+
+    def test_long_real_answer_is_not_abstain(self):
+        uzun = ("Mitokondri hücrenin enerji üretiminden sorumludur; iç zarındaki "
+                "kristalar yüzey alanını artırır ve ATP sentezi burada gerçekleşir.")
+        self.assertFalse(self._f(uzun))
+
+    def test_empty_text_is_not_abstain(self):
+        self.assertFalse(self._f(""))
+        self.assertFalse(self._f("   "))
+
+    def test_grounding_gate_remains_the_real_safety_net(self):
+        """Bu fonksiyonun agresif olmasına gerek yok: atıfsız-dolu cevap zaten
+        `ungrounded_no_citations` ile çekimser oluyor."""
+        ds = _StubDeepSeek(text="DNA çift sarmaldır ama atıf yok.")
+        gen = _make_generator(ds, scores={"c1": 0.9, "c2": 0.85})
+        res = gen.answer("DNA nedir?")
+        self.assertTrue(res.abstained)
+        self.assertEqual(res.reason, "ungrounded_no_citations")
 
 
 class CostRecorderSpyTests(unittest.TestCase):

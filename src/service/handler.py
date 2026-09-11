@@ -71,6 +71,10 @@ def _answer_to_dict(a) -> dict:
                        "span_ids": c.get("span_ids", []), "pages": c.get("pages", []),
                        "ders": c.get("ders", "")} for c in a.citations],
         "used_source_ids": list(a.used_source_ids),
+        # #62 (EXP-010/ACC-12): hayalet `[N]` numaralari payload'a HIC girmiyordu.
+        # Metinden kirpilsa bile backend'in "bu cevapta cozulemeyen atif vardi"
+        # bilgisine erisimi olmali (telemetri + kalite kapisi O-?/A-*).
+        "invalid_citations": list(getattr(a, "invalid_citations", []) or []),
         "cost_usd": round(a.cost_usd, 6),
         "cache_hit": bool(getattr(a, "cache_hit", False)),
     }

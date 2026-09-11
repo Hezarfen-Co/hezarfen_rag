@@ -22,13 +22,14 @@ from __future__ import annotations
 
 import re
 from dataclasses import dataclass, field, replace
-from difflib import SequenceMatcher
 
 from .. import costlog
 from ..guard import check_input, check_output
 from ..pricing import Usage, cost_usd as pricing_cost_usd
 from ..providers.deepseek import DeepSeek
 from ..rerank.pipeline import rerank_select
+from .citations import (CITATION_RE, parse_citation_ns, parse_citations,
+                        strip_phantom)
 from .prompt import ABSTAIN_SENTENCE, build_grounded_prompt
 
 # answer(role_ctx=...) için sentinel: "verilmedi → __init__'teki role_ctx'i kullan"
@@ -38,9 +39,7 @@ _USE_INIT_ROLE = object()
 # Parantez içini yakalar ("1", "1, 2", "1,2" ...); virgül/boşlukla ayrılmış çoklu
 # atıfları TEK eşleşmede yakalamak için [\d,\s]+ kullanılır — [1][2] ve [1] [2]
 # gibi bitişik/ayrı parantezler ise doğal olarak iki ayrı eşleşme üretir.
-_CITATION_RE = re.compile(r"\[([\d,\s]+)\]")
-
-_ABSTAIN_MATCH_THRESHOLD = 0.90   # normalize edilmiş cevap ~ ABSTAIN_SENTENCE benzerliği
+_ABSTAIN_MATCH_THRESHOLD = 0.90   # (#58 ile kullanımdan kalktı; geri uyum için duruyor)
 
 
 @dataclass
@@ -57,16 +56,8 @@ class GroundedAnswer:
     cache_hit: bool = False   # True -> ResponseCache'ten döndü, LLM/retrieval HİÇ ÇALIŞMADI
 
 
-def _parse_citation_ns(text: str) -> list[int]:
-    """Metindeki `[N]`, `[N, M]`, `[N,M]`, `[N][M]`, `[N] [M]` atıflarının hepsini
-    ayrıştırır: parantez içini yakala (`[\\d,\\s]+`), virgülle böl, int'e çevir."""
-    ns: list[int] = []
-    for group in _CITATION_RE.findall(text):
-        for part in group.split(","):
-            part = part.strip()
-            if part.isdigit():
-                ns.append(int(part))
-    return ns
+_CITATION_RE = CITATION_RE          # geri uyum (eski içe aktarımlar)
+_parse_citation_ns = parse_citation_ns
 
 
 def _normalize_for_abstain_compare(text: str) -> str:
@@ -82,16 +73,49 @@ def _normalize_for_abstain_compare(text: str) -> str:
 _ABSTAIN_NORM = _normalize_for_abstain_compare(ABSTAIN_SENTENCE)
 
 
+# M2-6 (#58, EXP-010/ACC-05) — KARAKTER BENZERLIGI BIRAKILDI.
+# Eski olcut: difflib.SequenceMatcher orani >= 0.90. Turkcede olumlu/olumsuz ayrimi tek
+# ek oldugu icin metrik ANLAMI TERS cumleleri de yakaliyordu (oranlar hesaplandi):
+#   "Kaynaklarda bu bilgi bulunamadi."        1,0000  cekimser  DOGRU
+#   "Kaynaklarda bu bilgi bulunmaktadir."     0,9231  cekimser  YANLIS (pozitif bastirildi)
+#   "Kaynaklarda bu bilgi bulunmaktadir [1]." 0,9231  cekimser  YANLIS (ATIFLI cevap bastirildi)
+#   "Kaynaklarda bu bilgi bulunmuyor."        0,8710  cevap     YANLIS (gercek cekimser kacti)
+# Yani esik IKI YONDE de yanlisti.
+#
+# Yeni olcut: tam esitlik + OLUMSUZLUK KOKU. Kritik guvenlik agi zaten
+# `if not citations` (temellendirme kapisi) -- bu fonksiyonun agresif olmasina
+# gerek YOK; yanlis pozitifi kisa "evet + kaynak var" cevaplarinda recall
+# kaybina yol aciyordu.
+_ABSTAIN_NEGATIVE_STEMS = (
+    "bulunamad", "bulunmuyor", "bulamad", "yer almıyor", "yer almamakta",
+    "geçmiyor", "mevcut değil", "yok",
+)
+# Olumsuzluk koku TEK BASINA yetmez: "DNA cift sarmaldir ama atif yok." cumlesi
+# `yok` icerdigi icin cekimser sayiliyordu (testte yakalandi). Cumlenin KAYNAKLAR
+# HAKKINDA olmasi da sart -- cekimserlik "kaynakta bulamadim" demektir.
+_ABSTAIN_SUBJECT_STEMS = ("kaynak", "kaynakta", "metinde", "belgede", "verilen")
+
+
 def _looks_like_abstain(text: str) -> bool:
-    """Cevap, prompt'taki kaynak-yok cümlesine (ABSTAIN_SENTENCE) eşit ya da çok
-    yakın mı? (post-hoc abstain algılama — model FAIL-CLOSED eşiğini geçti ama
-    fiilen kaynaksız olduğunu kendi söyledi)."""
+    """Cevap, kaynak-yok cümlesinin bir varyantı mı?
+
+    İki koşul BİRLİKTE aranır (#58):
+    1. Normalize edilmiş metin `ABSTAIN_SENTENCE`'a eşit **ya da** onun belirgin
+       bir varyantı (aynı özne + olumsuzluk kökü),
+    2. metinde **hiç atıf işareti yok** — atıflı bir cevap tanım gereği çekimser
+       değildir. (Eskiden "Kaynaklarda bu bilgi bulunmaktadır [1]." bastırılıyordu.)
+    """
     norm = _normalize_for_abstain_compare(text)
     if not norm:
         return False
     if norm == _ABSTAIN_NORM:
         return True
-    return SequenceMatcher(None, norm, _ABSTAIN_NORM).ratio() >= _ABSTAIN_MATCH_THRESHOLD
+    if parse_citation_ns(text):
+        return False                      # atıflı cevap çekimser sayılmaz
+    if len(norm) > len(_ABSTAIN_NORM) * 2:
+        return False                      # uzun, gerçek bir cevap
+    return (any(k in norm for k in _ABSTAIN_SUBJECT_STEMS)
+            and any(k in norm for k in _ABSTAIN_NEGATIVE_STEMS))
 
 
 def _is_effectively_empty(text: str) -> bool:
@@ -417,19 +441,28 @@ class Generator:
                                     max_tokens=max_tokens)
 
         # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
-        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        # #57: kaynak sayısı VERİLİR → `[0,1]` gibi veri gösterimleri atıf sanılıp
+        # UYDURMA atıf üretmesin. Üç kova döner (bkz. generate/citations.py).
+        ham_ns, hayalet_ns, belirsiz_gruplar = parse_citations(result.text,
+                                                               len(numbered_sources))
+        cited_ns = sorted(set(ham_ns))
         citations = []
         used_source_ids = []
-        invalid_citations = []
+        invalid_citations = sorted(set(hayalet_ns))
         for n in cited_ns:
             src = source_lookup.get(n)
-            if src is None:
-                invalid_citations.append(n)   # kaynak sayısını aşan [N] — patlamadan işaretle
+            if src is None:                   # aralık denetimi sonrası olmamalı
+                invalid_citations.append(n)
                 continue
             citations.append({"n": n, "chunk_id": src["chunk_id"],
                               "span_ids": src["span_ids"], "pages": src["pages"],
                               "ders": self.ders})
             used_source_ids.append(src["chunk_id"])
+        invalid_citations = sorted(set(invalid_citations))
+        # #62: hayalet `[N]` kullanıcıya gösterilen metinden KIRPILIR — eskiden
+        # metinde duruyor ama karşılığında tıklanabilir atıf kaydı olmuyordu.
+        # Belirsiz gruplar (`[0,1]`) kırpılmaz: onlar cümlenin içeriği olabilir.
+        gosterim_metni = strip_phantom(result.text, invalid_citations)
 
         if invalid_citations and not citations:
             reason = "all_citations_phantom"    # [N] var ama HİÇBİRİ geçerli değil
@@ -461,7 +494,7 @@ class Generator:
         # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
         # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
         if _looks_like_abstain(result.text) or (not citations and _is_effectively_empty(result.text)):
-            return GroundedAnswer(text=result.text, citations=citations,
+            return GroundedAnswer(text=gosterim_metni, citations=citations,
                                   used_source_ids=used_source_ids,
                                   invalid_citations=invalid_citations, abstained=True,
                                   reason="model_abstained", usage=result.usage,
@@ -479,13 +512,17 @@ class Generator:
                                   reason=r, usage=result.usage, cost_usd=usd,
                                   latency_s=result.latency_s)
 
-        final_answer = GroundedAnswer(text=result.text, citations=citations,
+        final_answer = GroundedAnswer(text=gosterim_metni, citations=citations,
                                       used_source_ids=used_source_ids,
                                       invalid_citations=invalid_citations, abstained=False,
                                       reason=reason, usage=result.usage, cost_usd=usd,
                                       latency_s=result.latency_s)
         _tr("decision", stage="generate", abstained=False, reason=reason or "answer",
-            n_citations=len(citations), cost_usd=round(usd, 6))
+            n_citations=len(citations), n_phantom=len(invalid_citations),
+            # #57 telemetrisi: `[0,1]` gibi belirsiz gruplar atıf sayılmadı.
+            # Sıklığı bilinmeden kuralın doğru eşikte olduğu iddia EDİLEMEZ.
+            n_belirsiz_grup=len(belirsiz_gruplar),
+            cost_usd=round(usd, 6))
 
         # Yalnız GERÇEK (abstained olmayan) cevaplar cache'e yazılır. FAIL-CLOSED
         # abstain zaten LLM'i hiç çağırmadı (cache'lemenin maliyet kazancı yok);

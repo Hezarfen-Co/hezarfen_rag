@@ -27,24 +27,15 @@ from .. import costlog
 from ..ingest.canonical import CanonicalUnit
 from ..pricing import Usage, cost_usd as pricing_cost_usd
 from ..providers.deepseek import DeepSeek
+from ..generate.citations import CITATION_RE, parse_citation_ns
 from .prompt import NO_CONTENT_SENTENCE, build_summary_prompt
 
-# generator.py'daki (src/generate/generator.py) [N]/[N,M]/[N][M] atıf ayrıştırma
-# deseniyle BİREBİR AYNI davranış — KASITLI kod tekrarı: iki modül birbirinin
-# private (alt çizgili) fonksiyonlarına bağlanmasın diye burada yeniden
-# tanımlanır. Regex davranışı değişirse HER İKİ modülde de senkron güncellenmeli.
-_CITATION_RE = re.compile(r"\[([\d,\s]+)\]")
-
-
-def _parse_citation_ns(text: str) -> list[int]:
-    """`[N]`, `[N, M]`, `[N,M]`, `[N][M]`, `[N] [M]` atıflarının hepsini ayrıştırır."""
-    ns: list[int] = []
-    for group in _CITATION_RE.findall(text):
-        for part in group.split(","):
-            part = part.strip()
-            if part.isdigit():
-                ns.append(int(part))
-    return ns
+# #57: bu mantık eskiden burada AYRI bir kopyaydı ve yorumu "KASITLI kod tekrarı
+# ... regex davranışı değişirse HER İKİ modülde de senkron güncellenmeli" diyordu.
+# Böyle bir senkron sözü kodda tutulmaz (ACC-10'da tam bu şekilde ayrışmıştı),
+# bu yüzden tek kaynağa taşındı.
+_CITATION_RE = CITATION_RE
+_parse_citation_ns = parse_citation_ns
 
 
 def _format_pages(pages: list[int]) -> str:
@@ -176,7 +167,7 @@ class Summarizer:
         # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır -> gerçek birime eşle
         # (kaynak yer bulma). Kaynak sayısını aşan [N] -> sessizce elenir (hayalet
         # atıf patlamaya değil sessiz elemeye yol açar, generator.py ile TUTARLI).
-        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        cited_ns = sorted(set(_parse_citation_ns(result.text, len(units))))   # #57
         citations = []
         for n in cited_ns:
             src = source_lookup.get(n)
@@ -228,7 +219,7 @@ class Summarizer:
         # uydurmaz" diyordu -- dogru, ama KOD uyduruyordu. Ozet yuzeyinde atif
         # precision'i yapisal olarak 1/grup_sayisi'na dusuyordu.
         # Cozum tek-gecis yolundaki desenin AYNISI: yalniz atiflanan N'ler.
-        cited_ns = sorted(set(_parse_citation_ns(result.text)))
+        cited_ns = sorted(set(_parse_citation_ns(result.text, len(summaries))))  # #57
         citations = []
         for n in cited_ns:
             src = merge_lookup.get(n)
