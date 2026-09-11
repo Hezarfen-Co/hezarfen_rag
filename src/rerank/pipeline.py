@@ -18,6 +18,11 @@ class RerankedContext:
     span_ids: list = field(default_factory=list)
     parent_id: str | None = None
     parent_text: str | None = None        # parent genişletme (bağlam)
+    # M2-2 (#54, EXP-010/ACC-03): parent metni prompt'a giriyordu ama parent'in
+    # KENDI span'lari tasinmiyordu -- atif/sayfa yalniz child'dan hesaplaniyordu.
+    # Model parent'taki bilgiyi kullanip [N] atifladiginda donen sayfa CHILD'in
+    # sayfasiydi; kullanici atifa tiklayinca iddiayi o sayfada BULAMIYORDU.
+    parent_span_ids: list = field(default_factory=list)
 
 
 def rerank_select(query, hits, chunks_by_id, reranker, *, top_n: int = 10,
@@ -51,9 +56,15 @@ def rerank_select(query, hits, chunks_by_id, reranker, *, top_n: int = 10,
 
     results = []
     for cid, sc, ch in selected:
-        ptext = None
+        ptext, pspans = None, []
         if expand_parents and ch.parent_id and ch.parent_id in chunks_by_id:
-            ptext = chunks_by_id[ch.parent_id].text
+            parent = chunks_by_id[ch.parent_id]
+            ptext = parent.text
+            # #54: parent'in span'lari da tasinir ki atif/sayfa DOGRU kaynaktan
+            # hesaplanabilsin. child span'lari burada DUSULMEZ -- hangi kismin
+            # gercekten "ek baglam" oldugunu Generator karar verir (metni de
+            # orada kirpar), boylece bu katman saf veri tasiyici kalir.
+            pspans = list(parent.span_ids)
         results.append(RerankedContext(cid, sc, ch.text, list(ch.span_ids),
-                                       ch.parent_id, ptext))
+                                       ch.parent_id, ptext, pspans))
     return results

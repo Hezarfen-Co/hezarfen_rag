@@ -407,43 +407,100 @@ class AllCitationsPhantomTests(unittest.TestCase):
 
 
 class ParentTextContextTests(unittest.TestCase):
-    """DOĞRULAYICI bulgusu #4: RerankedContext.parent_text varsa LLM bağlamına
-    ayrı, net biçimde ("Genişletilmiş bağlam: ...") eklenmeli; atıf/sayfa YİNE
-    child span'dan hesaplanmalı (mimari §0.1 — atıf leaf'te kalır)."""
+    """#54 (EXP-010/ACC-03) — parent genişletmesi AYRI numaralı kaynaktır.
 
-    def test_parent_text_in_prompt_but_citation_uses_child_span(self):
+    ESKİ SÖZLEŞME HATANIN KENDİSİYDİ. Bu sınıfın eski açıklaması
+    "`parent_text` varsa LLM bağlamına *ayrı, net biçimde* ('Genişletilmiş
+    bağlam: ...') eklenmeli; atıf/sayfa YİNE child span'dan hesaplanmalı"
+    diyordu. Parent metni child kaynağının İÇİNE gömülüyor ama blok
+    başlığındaki sayfa ve `source_lookup[i]["pages"]` yalnız child span'dan
+    geliyordu. Koşulan kanıt: kaynak bloğu parent üzerinden s.8'deki bilgiyi
+    içeriyordu, model o bilgiyi kullanıp `[1]` atıfladı, dönen atıf **s.10**
+    dedi → kullanıcı atıfa tıklayınca iddiayı o sayfada bulamıyordu.
+
+    Yeni sözleşme: parent kendi numarasını ve kendi sayfa aralığını alır;
+    model hangisini kullandığını kendisi atıflar. Child metni parent'tan
+    düşülür (parent = çocuklarının birleşimi) — düşülmezse aynı içerik iki kez
+    token yer ve geniş sayfa aralıklı parent atıflanıp `precision_page`
+    düşerdi (#53 ile çakışırdı).
+    """
+
+    def _kur(self, cevap):
         chunks_by_id = {
             "child1": _Chunk("child1", "Mitokondri enerji üretir.", "parent1", ["s1"]),
-            "parent1": _Chunk("parent1", "GENISLETILMIS_PARENT_METNI hücre organelleri...",
-                              None, []),
+            "parent1": _Chunk("parent1",
+                              "Mitokondri enerji üretir.\nHücre organelleri zarla çevrilidir.",
+                              None, ["s1", "s2"]),
         }
-        span_meta = {"s1": {"page": 55, "bbox": (0, 0, 1, 1)}}
-        deepseek = _StubDeepSeek(text="Mitokondri enerji üretir [1].")
-        retriever = _StubRetriever([("child1", 1.0)])
-        reranker = _StubReranker({"child1": 0.9})
-        gen = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
+        span_meta = {"s1": {"page": 10, "bbox": (0, 0, 1, 1)},
+                     "s2": {"page": 8, "bbox": (0, 0, 1, 1)}}
+        deepseek = _StubDeepSeek(text=cevap)
+        gen = Generator(_StubRetriever([("child1", 1.0)]), _StubReranker({"child1": 0.9}),
+                        chunks_by_id, span_meta, deepseek, ders="biyoloji",
+                        cost_recorder=_noop_recorder)
+        return gen, deepseek
+
+    def test_parent_is_a_separate_numbered_source(self):
+        gen, ds = self._kur("Mitokondri enerji üretir [1].")
+        gen.answer("mitokondri nedir?")
+        self.assertIn("[Kaynak 1", ds.last_prompt)
+        self.assertIn("[Kaynak 2", ds.last_prompt)
+        self.assertIn("Hücre organelleri", ds.last_prompt)
+
+    def test_parent_block_carries_its_own_page(self):
+        """Hatanın özü: parent'ın bilgisi s.8'de ama blok s.10 diyordu."""
+        gen, ds = self._kur("Cevap [2].")
+        gen.answer("organeller nedir?")
+        satirlar = [l for l in ds.last_prompt.splitlines() if l.startswith("[Kaynak")]
+        self.assertIn("10", satirlar[0])
+        self.assertIn("8", satirlar[1])
+
+    def test_citing_parent_returns_parent_page(self):
+        gen, _ = self._kur("Hücre organelleri zarla çevrilidir [2].")
+        res = gen.answer("organeller nedir?")
+        self.assertEqual(len(res.citations), 1)
+        self.assertEqual(res.citations[0]["pages"], [8])
+        self.assertEqual(res.citations[0]["span_ids"], ["s2"])
+        self.assertEqual(res.citations[0]["chunk_id"], "parent1")
+
+    def test_citing_child_still_returns_child_page(self):
+        gen, _ = self._kur("Mitokondri enerji üretir [1].")
+        res = gen.answer("mitokondri nedir?")
+        self.assertEqual(res.citations[0]["pages"], [10])
+        self.assertEqual(res.citations[0]["span_ids"], ["s1"])
+        self.assertEqual(res.citations[0]["chunk_id"], "child1")
+
+    def test_child_text_not_duplicated_inside_parent_block(self):
+        gen, ds = self._kur("Cevap [1].")
+        gen.answer("q")
+        self.assertEqual(ds.last_prompt.count("Mitokondri enerji üretir."), 1)
+
+    def test_parent_without_resolvable_span_is_dropped(self):
+        """Atıflanamayan kaynak, dayanaksız iddia üretmekten başka işe yaramaz:
+        sayfası çözülemiyorsa prompt'a hiç girmez (sessizce child'a yazılmaz)."""
+        chunks_by_id = {
+            "child1": _Chunk("child1", "Mitokondri enerji üretir.", "parent1", ["s1"]),
+            "parent1": _Chunk("parent1", "Mitokondri enerji üretir.\nEk bağlam.",
+                              None, ["s1", "bilinmeyen"]),
+        }
+        ds = _StubDeepSeek(text="Cevap [1].")
+        gen = Generator(_StubRetriever([("child1", 1.0)]), _StubReranker({"child1": 0.9}),
+                        chunks_by_id, {"s1": {"page": 10, "bbox": (0, 0, 1, 1)}}, ds,
                         ders="biyoloji", cost_recorder=_noop_recorder)
+        gen.answer("q")
+        self.assertNotIn("Ek bağlam.", ds.last_prompt)
 
-        result = gen.answer("mitokondri nedir?")
-
-        self.assertFalse(result.abstained)
-        # parent bağlamı prompt'ta AYRI, NET işaretle görünür
-        self.assertIn("Genişletilmiş bağlam:", deepseek.last_prompt)
-        self.assertIn("GENISLETILMIS_PARENT_METNI", deepseek.last_prompt)
-        self.assertIn("Mitokondri enerji üretir.", deepseek.last_prompt)
-        # atıf/sayfa YİNE child'dan (parent'ın kendi span'ı/sayfası yok)
-        self.assertEqual(len(result.citations), 1)
-        self.assertEqual(result.citations[0]["chunk_id"], "child1")
-        self.assertEqual(result.citations[0]["span_ids"], ["s1"])
-        self.assertEqual(result.citations[0]["pages"], [55])
-
-    def test_no_parent_text_omits_expanded_context_label(self):
-        # parent_id yok → parent_text yok → "Genişletilmiş bağlam:" ASLA görünmemeli
+    def test_no_parent_means_single_source(self):
         deepseek = _StubDeepSeek()
         gen = _make_generator(deepseek, scores={"c1": 0.9, "c2": 0.85})
         gen.answer("DNA nedir?")
-
         self.assertNotIn("Genişletilmiş bağlam:", deepseek.last_prompt)
+
+    def test_eval_and_generator_share_one_source_builder(self):
+        """ACC-10 dersi: eval ile üretim ayrı kurarsa yine ayrışır."""
+        import inspect
+        from src.eval import runner
+        self.assertIn("source_units", inspect.getsource(runner))
 
 
 class CostRecorderSpyTests(unittest.TestCase):

@@ -29,7 +29,7 @@ from .. import costlog
 from ..chunk import chunk_document
 from ..embed import BGEM3Embedder
 from ..generate import Generator, build_span_meta
-from ..generate.generator import _source_text_with_parent
+from ..generate.generator import source_units
 from ..index import DenseIndex, BM25Index
 from ..ingest.canonical import build_canonical
 from ..providers.deepseek import DeepSeek
@@ -515,7 +515,10 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
                            "reason": f"cevap abstain oldu (reason={result.reason}) -- "
                                      f"judge'a gonderilmedi (uretilmis metin yok)"}
         else:
-            retrieved_texts = [_source_text_with_parent(ctx) for ctx in contexts_for_judge]
+            # #54: hakem, modelin GERÇEKTEN gördüğü bloklari gormeli --
+            # child + ayri parent genisletmesi. `source_units` TEK KAYNAK.
+            retrieved_texts = [metin for ctx in contexts_for_judge
+                               for metin, _ in source_units(ctx)]
             jres = judge.evaluate(question=query, answer_text=result.text,
                                   retrieved_contexts=retrieved_texts,
                                   gold_answer=item.get("gold_cevap"))

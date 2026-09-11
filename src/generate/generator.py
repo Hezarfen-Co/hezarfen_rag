@@ -102,15 +102,53 @@ def _is_effectively_empty(text: str) -> bool:
     return not stripped
 
 
-def _source_text_with_parent(ctx) -> str:
-    """Child (leaf) metnini + varsa parent genişletmesini AYRI, NET biçimde
-    birleştirir. Atıf/sayfa YİNE child span'dan hesaplanır (mimari §0.1: cevap
-    ham leaf span'lara bağlı) — parent yalnız LLM'e ek bağlam sağlar."""
-    text = ctx.text
+def parent_extra(ctx) -> tuple[str, list]:
+    """Parent genişletmesinin **child'da OLMAYAN** kısmını ve o kısma ait
+    span_id'leri döndürür. Yoksa ("", []).
+
+    M2-2 (#54, EXP-010/ACC-03) — KOŞULARAK KANITLANMIŞ HATA. Eski
+    `_source_text_with_parent` parent metnini child kaynağının İÇİNE
+    ("Genişletilmiş bağlam: ...") gömüyordu, ama blok başlığındaki sayfa ve
+    `source_lookup[i]["pages"]` **yalnız child span'dan** hesaplanıyordu.
+    Koşulan kanıt: kaynak bloğu parent üzerinden s.8'deki bilgiyi içeriyordu,
+    model o bilgiyi kullanıp `[1]` atıfladı, dönen atıf **s.10** dedi →
+    kullanıcı atıfa tıklayınca iddiayı o sayfada BULAMIYOR. Bu, "kaynak yer
+    bulma" ürün sözünün doğrudan ihlaliydi. Sıklık düşük değil: parent
+    700-1500 token, child 150-300 → parent metninin ~%70'i child dışı.
+
+    Çözüm: parent AYRI numaralı kaynak olur (kendi sayfa aralığıyla) → model
+    hangisini kullandığını kendisi atıflar. Child metni parent'tan DÜŞÜLÜR,
+    çünkü parent = çocuklarının metinlerinin birleşimidir; düşülmezse aynı
+    içerik iki kez token yer ve model geniş sayfa aralıklı parent'ı atıflayıp
+    `precision_page`'i düşürebilir (M2-1/#53 ile çakışırdı).
+    """
     parent = getattr(ctx, "parent_text", None)
-    if parent and parent.strip() and parent.strip() != text.strip():
-        text = f"{text}\n\nGenişletilmiş bağlam: {parent}"
-    return text
+    if not parent or not parent.strip():
+        return "", []
+    child = (ctx.text or "").strip()
+    kalan = parent.replace(child, "\n") if child and child in parent else parent
+    kalan = "\n".join(satir for satir in kalan.splitlines() if satir.strip()).strip()
+    if not kalan or kalan == child:
+        return "", []
+    child_spans = set(getattr(ctx, "span_ids", []) or [])
+    extra_spans = [sid for sid in (getattr(ctx, "parent_span_ids", []) or [])
+                   if sid not in child_spans]
+    return kalan, extra_spans
+
+
+def source_units(ctx) -> list[tuple[str, list]]:
+    """Bir context'in prompt'a giren kaynak bloklarını (metin, span_id'ler)
+    olarak döndürür: child + varsa ayrı parent genişletmesi.
+
+    TEK KAYNAK: hem `Generator` hem `eval/runner` bunu kullanır. Ayrı ayrı
+    kurulsaydı eval ile üretim yine ayrışırdı — ACC-10'da (parent genişletme)
+    tam olarak bu olmuştu ve yayınlanmış sayılar üretimi temsil etmemişti.
+    """
+    bloklar = [(ctx.text, list(getattr(ctx, "span_ids", []) or []))]
+    ek_metin, ek_spans = parent_extra(ctx)
+    if ek_metin and ek_spans:
+        bloklar.append((ek_metin, ek_spans))
+    return bloklar
 
 
 def build_span_meta(canonical_doc) -> dict:
@@ -352,13 +390,27 @@ class Generator:
         # — atıf/sayfa child span'dan hesaplanır, aşağıda değişmez)
         numbered_sources = []
         source_lookup = {}
-        for i, ctx in enumerate(contexts, start=1):
+        i = 0
+        for ctx in contexts:
+            i += 1
             pages = self._pages_for_span_ids(ctx.span_ids)
             numbered_sources.append({"n": i, "ders": self.ders,
                                      "page": _format_pages(pages),
-                                     "text": _source_text_with_parent(ctx)})
+                                     "text": ctx.text})
             source_lookup[i] = {"chunk_id": ctx.chunk_id, "span_ids": list(ctx.span_ids),
                                 "pages": pages}
+            # #54: parent genişletmesi AYRI numaralı kaynak — kendi sayfasıyla.
+            # Child'ın hemen ardında durur ki bağlam kopmasın.
+            for ek_metin, ek_spans in source_units(ctx)[1:]:
+                ek_pages = self._pages_for_span_ids(ek_spans)
+                if not ek_pages:
+                    continue          # span_meta'da karşılığı yoksa atıflanamaz
+                i += 1
+                numbered_sources.append({"n": i, "ders": self.ders,
+                                         "page": _format_pages(ek_pages),
+                                         "text": ek_metin})
+                source_lookup[i] = {"chunk_id": ctx.parent_id or ctx.chunk_id,
+                                    "span_ids": list(ek_spans), "pages": ek_pages}
 
         system, user = build_grounded_prompt(q, numbered_sources)
         result = self.deepseek.chat(user, system=system, temperature=temperature,
