@@ -51,6 +51,66 @@ GEN_TOP_N = 6
 GEN_CANDIDATE_N = 40
 RETRIEVE_TOP_K = GEN_CANDIDATE_N   # k=10 ve k=20 raporu icin >=20 yeterli; 40 rerank icin de kullanilir
 
+# M0-6 (#38) TEKRAR-URETILEBILIRLIK -- EXP-010/EVAL-13.
+# Eval, `generator.answer`in varsayilani olan temperature=0.2 ile kosuyordu ve seed
+# yoktu. Olculen: ayni 27 item'in iki ardisik kosumunda 10/27 item'da URETILEN METIN
+# DEGISTI, citation precision'da Δ 0.033. OPTIMIZATION.md §H'nin prompt A/B'sindeki
+# "+0.008 iyilesme" iddiasi bu gurultu bandinin ALTINDA -- yani o karar
+# istatistiksel olarak desteklenmiyordu.
+# Uretim varsayilani (0.2) DEGISMEDI; yalniz OLCUM determinize edildi.
+EVAL_TEMPERATURE = float(os.environ.get("EVAL_TEMPERATURE", "0.0"))
+EVAL_SEED = int(os.environ.get("EVAL_SEED", "20260911"))
+
+
+def _git_sha(short: bool = True) -> str | None:
+    """M0-8 (#40): olcumu URETEN kod surumu. Sonuc dosyalarinda bu yoktu ->
+    "hangi kod bu sayiyi uretti" izlenemiyordu (EXP-010/EVAL-14).
+    Kirli agac varsa sonuna '-dirty' eklenir (yayinlanmamis degisiklikle
+    olculmus bir sayi ayirt edilebilsin)."""
+    import subprocess
+    try:
+        args = ["git", "rev-parse", "--short" if short else "HEAD", "HEAD"]
+        sha = subprocess.run([a for a in args if a != "HEAD" or True][:3] if short
+                             else ["git", "rev-parse", "HEAD"],
+                             capture_output=True, text=True, timeout=10).stdout.strip()
+        if not sha:
+            return None
+        dirty = subprocess.run(["git", "status", "--porcelain"], capture_output=True,
+                               text=True, timeout=10).stdout.strip()
+        return sha + ("-dirty" if dirty else "")
+    except Exception:
+        return None
+
+
+def _seed_everything(seed: int = EVAL_SEED) -> dict:
+    """Olcumu tekrar-uretilebilir kilmak icin tum rastgelelik kaynaklarini tohumla.
+    Donen dict rapor `meta`sina yazilir (hangi tohumla olculdugu izlenebilsin)."""
+    import random
+    random.seed(seed)
+    info = {"seed": seed, "numpy": False, "torch": False, "torch_deterministic": False}
+    try:
+        import numpy as np
+        np.random.seed(seed)
+        info["numpy"] = True
+    except Exception:
+        pass
+    try:
+        import torch
+        torch.manual_seed(seed)
+        if torch.cuda.is_available():
+            torch.cuda.manual_seed_all(seed)
+        info["torch"] = True
+        # DURUST SINIR: cuDNN/cuBLAS determinizmi bazi cekirdeklerde saglanamaz;
+        # istek "warn_only" ile -- saglanamayan yerde SESSIZ kalmaz, uyarir.
+        try:
+            torch.use_deterministic_algorithms(True, warn_only=True)
+            info["torch_deterministic"] = True
+        except Exception:
+            pass
+    except Exception:
+        pass
+    return info
+
 
 def _load_dotenv(path: str = ".env") -> None:
     """.env'deki KEY=VALUE satirlarini os.environ'a yukler (uzerine YAZMAZ).
@@ -330,7 +390,8 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
     # girer (bkz. src/memory). Diğer item'larda history=None (davranış değişmez).
     history = item.get("konusma_gecmisi")
     result = _retry(lambda: generator.answer(query, history=history,
-                                             top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N),
+                                             top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N,
+                                             temperature=EVAL_TEMPERATURE),
                     label=f"generator.answer[{item_id}]")
     gen_latency = time.time() - t0
 
@@ -512,9 +573,14 @@ def _fmt(x) -> str:
 
 def _md_report(golden: dict, items_out: list[dict], overall: dict, by_category: dict,
               total_cost_usd: float, judge_method: str, judge_ids: set[str],
-              elapsed_s: float) -> str:
+              elapsed_s: float, mode: str = "end_to_end",
+              golden_path: str = "?") -> str:
     lines = []
-    lines.append(f"# Eval Raporu — golden_12bio_v0 ({golden.get('version')}) — TASLAK olcum")
+    # M0-8 (#40): baslik sabit "golden_12bio_v0" diyordu; hangi set/mod/kod
+    # surumuyle olculdugu artik basliktan okunuyor.
+    lines.append(f"# Eval Raporu — {os.path.basename(golden_path)} "
+                 f"({golden.get('version')}) · mod={mode} · kod={_git_sha() or '?'} "
+                 f"· temperature={EVAL_TEMPERATURE} — TASLAK olcum")
     lines.append("")
     lines.append("**DURUM: bu TASLAK golden set'e karsi HAM olcumdur. Kendini 'basarili' "
                 "ilan ETMEZ; yorum Kadir/evaluator'a aittir (bkz. tests/golden/README.md "
@@ -638,6 +704,7 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
     if not os.path.exists(book_path):
         raise FileNotFoundError(f"golden set kaynak PDF'i yok: {book_path}")
 
+    seed_info = _seed_everything()          # M0-6 (#38): tekrar-uretilebilirlik
     t_start = time.time()
     golden = load_golden(golden_path)
     items = golden["items"]
@@ -675,8 +742,14 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
     elapsed_s = time.time() - t_start
     ts = datetime.now(timezone.utc).strftime("%Y%m%dT%H%M%SZ")
     os.makedirs(results_dir, exist_ok=True)
-    json_path = os.path.join(results_dir, f"eval_v0_{ts}.json")
-    md_path = os.path.join(results_dir, f"eval_v0_{ts}.md")
+    # M0-8 (#40): dosya adi olcumu tanimlayan seyleri TASIR. Eskiden her sonuc
+    # "eval_v0_*" adiyla yaziliyordu -- 200-item v1.1 kosumu bile (EVAL-14) ->
+    # farkli golden surumleri/kod surumleri/modlar ayirt edilemiyordu.
+    _gv = str(golden.get("version") or "vX").replace("/", "-").replace(" ", "")
+    _sha = _git_sha() or "nogit"
+    _stem = f"eval_{_gv}_{mode}_{_sha}_{ts}"
+    json_path = os.path.join(results_dir, f"{_stem}.json")
+    md_path = os.path.join(results_dir, f"{_stem}.md")
 
     payload = {
         "meta": {
@@ -686,6 +759,20 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
             "judged_item_ids": sorted(judge_ids), "n_items": len(items_out),
             "total_cost_usd": total_cost_usd, "elapsed_s": elapsed_s,
             "gen_top_n": GEN_TOP_N, "gen_candidate_n": GEN_CANDIDATE_N,
+            # M0-4 (#36) / M0-6 (#38) / M0-8 (#40): olcumu URETEN kosullar.
+            # Bunlar olmadan iki sonuc dosyasi karsilastirilamaz.
+            "mode": mode,
+            "git_sha": _git_sha(),
+            "eval_temperature": EVAL_TEMPERATURE,
+            "seed": seed_info,
+            "retrieve_top_k": RETRIEVE_TOP_K,
+            "abstain_score": getattr(pipeline["generator"], "abstain_score", None),
+            "context_packing": getattr(pipeline["generator"], "context_packing", None),
+            "guard_llm": pipeline["generator"].safety_classifier is not None,
+            "rewriter": pipeline["generator"].rewriter is not None,
+            "llm_model": getattr(pipeline["generator"].deepseek, "model", None),
+            "llm_base_url": getattr(pipeline["generator"].deepseek, "base_url", None),
+            "judge_model": (getattr(judge, "model_name", None) if judge else None),
         },
         "overall": overall, "by_category": by_category, "items": items_out,
     }
@@ -693,7 +780,8 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
         json.dump(payload, f, ensure_ascii=False, indent=2)
 
     md = _md_report(golden, items_out, overall, by_category, total_cost_usd,
-                    JUDGE_METHOD, judge_ids, elapsed_s)
+                    JUDGE_METHOD, judge_ids, elapsed_s, mode=mode,
+                    golden_path=golden_path)
     with open(md_path, "w", encoding="utf-8") as f:
         f.write(md)
 
