@@ -160,7 +160,18 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
                 label="build_canonical")
     chunks = chunk_document(doc)
     children = [c for c in chunks if c.level == "child"]
-    chunks_by_id = {c.chunk_id: c for c in chunks}      # child + parent
+    # M0-7 (#39) -- EXP-010/ACC-10: eskiden burada KOSULSUZ child+parent vardi,
+    # `service/http_app.py` ise yalniz child koyuyordu -> parent genisletme eval'de
+    # ACIK, uretimde KAPALI. Yani yayinlanmis 0.645/0.883 uretimi temsil etmiyordu.
+    # Artik iki yol AYNI anahtari (`RAG_INCLUDE_PARENTS`) okur.
+    # DURUSTLUK NOTU: varsayilan uretimin bugunku davranisina (KAPALI) hizalandi;
+    # bu, gecmis kosumlarla (parent ACIK) kiyaslanabilirligi BOZAR. Eski davranisi
+    # yeniden uretmek icin RAG_INCLUDE_PARENTS=1. Hangisinin dogru oldugu #39'un
+    # A/B'siyle karara baglanacak.
+    from ..service.http_app import INCLUDE_PARENTS_DEFAULT
+    include_parents = INCLUDE_PARENTS_DEFAULT
+    chunks_by_id = ({c.chunk_id: c for c in chunks} if include_parents
+                    else {c.chunk_id: c for c in children})
     span_meta = build_span_meta(doc)
     print(f"[eval] canonical+chunk: {len(doc.units)} birim, {len(children)} child chunk "
          f"({time.time() - t0:.1f}s)")
@@ -190,7 +201,8 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
                           rewriter=HistoryAwareRewriter(deepseek, module="eval"))  # çok-turlu
     print(f"[eval] pipeline tamamen hazir ({time.time() - t0:.1f}s toplam)")
     return dict(doc=doc, chunks_by_id=chunks_by_id, span_meta=span_meta,
-               retriever=retriever, reranker=reranker, generator=generator, children=children)
+               retriever=retriever, reranker=reranker, generator=generator,
+               children=children, include_parents=include_parents)
 
 
 def _ranked_sets_for_hits(hits, chunks_by_id) -> tuple[list[set], list[set]]:
@@ -865,6 +877,9 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
             "judge_model": (getattr(judge, "model_name", None) if judge else None),
             # M0-5 (#37): "0.988" sayisinin hangi item sinifindan geldigi gorunsun
             "judge_composition": _judge_composition(items, judge_ids),
+            # M0-7 (#39): parent genisletme eval ve uretimde ARTIK ayni; hangi
+            # degerle olctugumuz kayda geciyor (eskiden ayrisma gizliydi).
+            "include_parents": pipeline.get("include_parents"),
         },
         "overall": overall, "by_category": by_category, "items": items_out,
     }

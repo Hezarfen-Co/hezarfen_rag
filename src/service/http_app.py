@@ -78,10 +78,23 @@ def create_app(service):
     return app
 
 
+# M0-7 (#39): parent genisletme eval ile uretimde FARKLI davraniyordu (ACC-10).
+# Tek anahtar: `RAG_INCLUDE_PARENTS` (varsayilan 0 = uretimin bugunku davranisi).
+# eval/runner.py AYNI anahtari okur -> iki yol artik ayrisamaz. Hangi degerin
+# dogru oldugu A/B ile karara baglanacak (#39 kabul kriteri).
+INCLUDE_PARENTS_DEFAULT = os.environ.get("RAG_INCLUDE_PARENTS", "0") not in ("0", "", "false", "False")
+
+
 def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
-                  ocr: bool = False, vlm: bool = False):
+                  ocr: bool = False, vlm: bool = False,
+                  include_parents: bool | None = None):
     """Gerçek pipeline'ı kurup RagService döndürür (ağır: PDF parse + BGE modelleri +
-    indeks). main()/üretim için. corpus_version cache anahtarına girer (#30)."""
+    indeks). main()/üretim için. corpus_version cache anahtarına girer (#30).
+
+    `include_parents`: parent chunk'lar `chunks_by_id`'ye girsin mi (yani
+    `rerank_select` parent genisletmesi ETKIN olsun mu). None -> env varsayilani."""
+    if include_parents is None:
+        include_parents = INCLUDE_PARENTS_DEFAULT
     from ..ingest.canonical import build_canonical
     from ..chunk import chunk_document
     from ..embed import BGEM3Embedder
@@ -95,10 +108,21 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
 
     doc = build_canonical(book_path, sinif=sinif, ders=ders, ocr=ocr, vlm=vlm)
     cv = corpus_version or doc.source_version[:12]
-    children = [c for c in chunk_document(doc) if c.level == "child"]
+    all_chunks = chunk_document(doc)
+    children = [c for c in all_chunks if c.level == "child"]
     ids = [c.chunk_id for c in children]
     texts = [c.text for c in children]
-    by_id = {c.chunk_id: c for c in children}
+    # M0-7 (#39) -- EXP-010/ACC-10: BU SATIR SESSIZ BIR AYRISMAYDI.
+    # Eskiden `by_id` yalniz CHILD chunk'lari tasiyordu; `rerank_select`'teki
+    # `ch.parent_id in chunks_by_id` kontrolu bu yuzden daima False oluyor ve
+    # PARENT GENISLETME uretimde sessizce KAPALI kaliyordu. `src/eval/runner.py`
+    # ise child+parent koyuyordu -> ACIK. Yani yayinlanmis 0.645/0.883 sayilari
+    # uretimde kosan boru hattini TEMSIL ETMIYORDU.
+    # Artik davranis TEK YERDEN, acikca secilir (ikisi ayni anahtari okur).
+    # Varsayilan False = uretimin BUGUNKU davranisi; degistirmek icin A/B gerekiyor
+    # (parent genisletme ACC-03'e gore atifi yanlis sayfaya kaydiriyor).
+    by_id = ({c.chunk_id: c for c in all_chunks} if include_parents
+             else {c.chunk_id: c for c in children})
     emb = BGEM3Embedder()
     _, vecs = emb.embed_chunks(children, batch_size=16)
     meta = {c.chunk_id: {"sinif": sinif, "ders": ders} for c in children}
