@@ -37,7 +37,13 @@ except ImportError:
 from .pricing import (Usage, cost_usd, price_table_rows,
                       PRICING_UPDATED, PRICING_SOURCE, OFFPEAK_FACTOR)
 
-VAULT = r"C:/Users/w/Documents/Hezarfen/rag"
+# #49 (EXP-010/SEC-10 + OPS-04): bu yol SABIT bir WINDOWS yoluydu ve env
+# override'i yoktu. Linux'ta goreceli cozuluyor ve calisma dizininde gercekten
+# `./C:/Users/w/...` klasoru olusuyordu (olculdu) -- `.gitignore`da karsiligi
+# olmadigi icin maliyet defteri (ve icindeki her sey) REPOYA SIZABILIYORDU.
+# Konteynerde ise imaj katmanina yazip restart'ta kayboluyordu.
+VAULT = os.environ.get("HEZARFEN_COST_VAULT") or os.path.join(
+    os.path.expanduser("~"), ".hezarfen", "cost")
 LEDGER = os.path.join(VAULT, "runs.jsonl")
 MALIYET = os.path.join(VAULT, "Maliyet.md")
 

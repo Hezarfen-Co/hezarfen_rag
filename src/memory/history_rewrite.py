@@ -56,8 +56,16 @@ class HistoryAwareRewriter:
         except Exception:
             return query               # FAIL-SAFE: hata → orijinal sorgu (tek-turlu davran)
         try:
+            # #49 (EXP-010/SEC-10) KVKK: burada ogrencinin YAZDIGI metnin ilk 30
+            # karakteri `runs.jsonl`a ve oradan `Maliyet.md` tablosuna DUZ METIN
+            # olarak geciyordu. Veri minimizasyonu geregi metin artik yazilmaz;
+            # teshis icin uzunluk + kisa hash yeter (ayni sorgu tekrar mi geldi
+            # sorusu hash ile hâlâ cevaplanabilir, icerik ifsa olmadan).
+            import hashlib
+            qh = hashlib.sha256((query or "").encode("utf-8")).hexdigest()[:8]
             self._record(module=self.module, model=r.model, usage=r.usage, items=1,
-                         note=f"history-rewrite: '{query[:30]}' -> '{rewritten[:30]}'")
+                         note=(f"history-rewrite: q_len={len(query or '')} "
+                               f"q_hash={qh} rewritten_len={len(rewritten)}"))
         except Exception:
             pass
         return rewritten

@@ -10,3 +10,9 @@ venv/
 .env
 .env.*
 !.env.example
+
+# Maliyet defteri (KVKK: PII tasiyabilir) -- asla commitlenmez
+C:/
+.hezarfen/
+runs.jsonl
+runs.jsonl.lock

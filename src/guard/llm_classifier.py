@@ -52,6 +52,16 @@ pozitif üretme. YALNIZCA şu JSON'u döndür: \
 {"safe": true veya false, "category": "<kategori adı veya null>", "reason": "<kısa gerekçe>"}"""
 
 
+def _audit(category: str, action: str, layer: str, query: str | None) -> None:
+    """#49: guvenlik karari AYRI, erisimi kisitli olay kaydina yazilir
+    (maliyet defterine DEGIL). Varsayilan KAPALI; hata cevabi dusurmez."""
+    try:
+        from .audit import record_safety_event
+        record_safety_event(category=category, action=action, layer=layer, query=query)
+    except Exception:
+        pass
+
+
 # #44 -- DEGRADE MOD taramasi. YALNIZ LLM katmani erisilemez oldugunda calisir.
 # input_guard'dan DAHA GENIS tutulur: burada amac precision degil RECALL.
 # Yanlis pozitif bedeli "bir soru reddedildi"; kacirma bedeli resit olmayan bir
@@ -84,6 +94,7 @@ def _degraded_scan(query: str) -> GuardVerdict:
                            if not _ud.combining(c)).replace("ı", "i")
     for pat, cat in _DEGRADED_PATTERNS:
         if _re.search(pat, ascii_folded, _re.IGNORECASE):
+            _audit(cat, "refuse", "degraded", query)
             return GuardVerdict(action="refuse", category=cat,
                                 message=_CLASSIFIER_MESSAGES.get(
                                     cat, _HARM_MESSAGES["hate_harassment"]),
@@ -131,8 +142,13 @@ class LLMSafetyClassifier:
 
         # maliyet kaydı (gerçek DeepSeek çağrısı) — costlog başarısız olsa bile karar etkilenmez
         try:
+            # #49 (EXP-010/SEC-10) KVKK: `cat=self_harm` gibi bir ETIKET, resit
+            # olmayan bir kullaniciya ait OZEL NITELIKLI (saglik) veri cikarimidir
+            # ve maliyet defteri sifresiz + genel erisimli bir dosyadir. Maliyet
+            # kaydinda artik yalnizca "bir karar verildi" bilgisi durur; kategori
+            # erisimi kisitli guvenlik olay kaydina aittir (bkz. asagi).
             self._record(module=self.module, model=r.model, usage=r.usage, items=1,
-                         note=f"llm-safety: safe={data.get('safe')} cat={data.get('category')}")
+                         note="llm-safety: karar kaydedildi")
         except Exception:
             pass
 
@@ -151,6 +167,7 @@ class LLMSafetyClassifier:
             cat = cat_raw or "hate_harassment"
             if cat not in _CLASSIFIER_MESSAGES:
                 cat = "hate_harassment"
+            _audit(cat, "refuse", "llm", query)
             return GuardVerdict(action="refuse", category=cat,
                                 message=_CLASSIFIER_MESSAGES[cat], score=1.0)
         return GuardVerdict(action="allow", category="", message="", score=0.0)
