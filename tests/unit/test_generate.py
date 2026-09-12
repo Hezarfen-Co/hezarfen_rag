@@ -925,7 +925,7 @@ class ResponseCacheIntegrationTests(unittest.TestCase):
         response_cache = ResponseCache(SQLiteCache(":memory:"))
         gen = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
                         chunks_by_id, span_meta, deepseek, ders="biyoloji",
-                        cost_recorder=_noop_recorder, response_cache=response_cache)
+                        cost_recorder=_noop_recorder, response_cache=response_cache, corpus_version='v1')
 
         first = gen.answer("DNA nedir?")
         self.assertFalse(first.abstained)
@@ -951,14 +951,14 @@ class ResponseCacheIntegrationTests(unittest.TestCase):
 
         gen_student = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
                                 chunks_by_id, span_meta, deepseek, ders="biyoloji",
-                                cost_recorder=_noop_recorder, response_cache=response_cache,
+                                cost_recorder=_noop_recorder, response_cache=response_cache, corpus_version='v1',
                                 role_ctx=student_ctx)
         gen_student.answer("DNA nedir?")
         self.assertEqual(deepseek.calls, 1)
 
         gen_teacher = Generator(_StubRetriever(hits), _StubReranker({"c1": 0.9, "c2": 0.85}),
                                 chunks_by_id, span_meta, deepseek, ders="biyoloji",
-                                cost_recorder=_noop_recorder, response_cache=response_cache,
+                                cost_recorder=_noop_recorder, response_cache=response_cache, corpus_version='v1',
                                 role_ctx=teacher_ctx)
         result_teacher = gen_teacher.answer("DNA nedir?")
 
@@ -973,7 +973,7 @@ class ResponseCacheIntegrationTests(unittest.TestCase):
         chunks_by_id, span_meta, _ = _corpus()
         gen = Generator(_StubRetriever([]), _StubReranker({}), chunks_by_id, span_meta,
                         deepseek, ders="biyoloji", cost_recorder=_noop_recorder,
-                        response_cache=response_cache)
+                        response_cache=response_cache, corpus_version='v1')
 
         first = gen.answer("alakasız soru")
         second = gen.answer("alakasız soru")

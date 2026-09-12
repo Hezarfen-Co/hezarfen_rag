@@ -22,6 +22,7 @@ from __future__ import annotations
 
 import os
 import re
+import warnings
 from dataclasses import dataclass, field, replace
 
 from .. import costlog
@@ -396,11 +397,30 @@ class Generator:
                     return self._guard_refuse(gv2)
 
         cache_kwargs = None
-        if self.response_cache is not None:
+        # M4-3 (#77, EXP-010/ACC-09) — CACHE ANAHTARI EKSIKTI.
+        # KOSULARAK KANITLANDI: 1. cagri span_ids=['OLD#5.0'] dondu; re-ingest
+        # sonrasi 3. cagri `cache_hit=True` ile ARTIK VAR OLMAYAN span'a atif
+        # dondurdu. Iki ayri eksik vardi:
+        #   (a) `corpus_version` varsayilani "" idi -- yani korpus degisse de
+        #       anahtar degismiyordu. `http_app` dolduruyordu ama kutuphane
+        #       varsayilani korumasizdi; dogrudan `Generator` kuran her cagiran
+        #       (eval, testler, gelecekteki servisler) bu tuzaga dusuyordu.
+        #   (b) `max_tokens`/`temperature` anahtara HIC girmiyordu -- ayni soru
+        #       farkli uretim ayariyla sorulunca eski cevap donuyordu.
+        if self.response_cache is not None and not self.corpus_version:
+            # FAIL-CLOSED: surumsuz cache, silinmis kaynaga atif demektir.
+            warnings.warn(
+                "ResponseCache verildi ama `corpus_version` BOS -- cache DEVRE "
+                "DISI birakildi. Surumsuz anahtar, korpus degisince eski (hatta "
+                "silinmis) kaynaklara atif donmesine yol acar (#77).",
+                RuntimeWarning, stacklevel=2)
+        if self.response_cache is not None and self.corpus_version:
             cache_kwargs = dict(query=q, role=_role_cache_key(eff_role),
                                 model=getattr(self.deepseek, "model", ""),
                                 top_n=top_n, candidate_n=candidate_n, ders=self.ders,
-                                corpus_version=self.corpus_version)
+                                corpus_version=self.corpus_version,
+                                extra={"max_tokens": max_tokens,
+                                       "temperature": temperature})
             cached = self.response_cache.get(**cache_kwargs)
             if cached is not None:
                 self.cache_hits += 1

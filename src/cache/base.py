@@ -87,14 +87,73 @@ class SQLiteCache(BaseCache):
     verilebilir, üretimde kalıcı dosya yolu). `clock`: zaman kaynağı (testte
     TTL'i gerçek `time.sleep` OLMADAN ilerletmek için enjekte edilebilir)."""
 
-    def __init__(self, path: str = ":memory:", *, clock=time.time):
+    def __init__(self, path: str = ":memory:", *, clock=time.time,
+                 max_bytes: int | None = None, busy_timeout_ms: int = 5000):
+        """`max_bytes`: yaklaşık boyut tavanı (0/None = sınırsız).
+
+        M4-9 (#83, EXP-010/OPS-11) — ÖLÇÜLEN İKİ SORUN:
+
+        1. **WAL kapalıydı.** `PRAGMA journal_mode` = `delete`; yani her yazım
+           tüm okuyucuları bloke ediyordu. Çok-worker'a geçmeden bile aynı
+           süreçteki eşzamanlı istekler birbirini bekliyordu.
+        2. **Boyut tavanı ve eviction YOKTU.** Ölçüldü: 10 süreç × 300 × 200 KB
+           yazım → 0 hata ama DB **602 MB**'a çıktı ve hiçbir şey küçültmedi.
+           Süresi dolmuş satırlar bile yer kaplamaya devam ediyordu.
+
+        `journal_mode=WAL` bellek-içi (":memory:") veritabanlarında anlamsızdır;
+        orada sessizce atlanır.
+        """
         self._clock = clock
         self._lock = threading.Lock()
+        self._path = path
+        self.max_bytes = int(max_bytes or 0)
         self._conn = sqlite3.connect(path, check_same_thread=False)
         with self._lock:
+            self._conn.execute(f"PRAGMA busy_timeout = {int(busy_timeout_ms)}")
+            if path != ":memory:":
+                # WAL: okuyucular yazarı beklemez. Dosya-tabanlı DB'de şart.
+                self._conn.execute("PRAGMA journal_mode = WAL")
+                self._conn.execute("PRAGMA synchronous = NORMAL")
             self._conn.execute(_SCHEMA)
             self._conn.commit()
         self._stats = CacheStats()
+
+    # -- boyut yönetimi --------------------------------------------------
+    def size_bytes(self) -> int:
+        """Veritabanının yaklaşık disk boyutu."""
+        with self._lock:
+            row = self._conn.execute(
+                "SELECT page_count * page_size FROM "
+                "pragma_page_count(), pragma_page_size()").fetchone()
+        return int(row[0]) if row else 0
+
+    def evict_lru(self, target_bytes: int | None = None) -> int:
+        """Boyut tavanını aşınca EN ESKİ yazılanları atar. Döner: silinen satır.
+
+        Basit LRU: `created_at` sırasına göre. Erişim zamanı tutulmuyor —
+        tutmak her okumada yazım demek ve WAL'e rağmen maliyetli. Bu yüzden
+        "en eski yazılan" yaklaşımı seçildi; kabul edilebilir çünkü cevap
+        cache'inde TTL zaten kısa (1 saat).
+        """
+        tavan = int(target_bytes or self.max_bytes or 0)
+        if tavan <= 0:
+            return 0
+        silinen = 0
+        # Önce süresi dolmuşlar (bedava kazanç), sonra en eskiler.
+        silinen += self.gc_expired()
+        while self.size_bytes() > tavan:
+            with self._lock:
+                cur = self._conn.execute(
+                    "DELETE FROM kv_cache WHERE key IN ("
+                    "  SELECT key FROM kv_cache ORDER BY created_at ASC LIMIT 200)")
+                self._conn.commit()
+                n = cur.rowcount or 0
+            if n == 0:
+                break                       # boşaltacak bir şey kalmadı
+            silinen += n
+            with self._lock:
+                self._conn.execute("VACUUM")
+        return silinen
 
     @property
     def stats(self) -> CacheStats:

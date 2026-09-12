@@ -352,6 +352,18 @@ def create_app(service, *, service_token: str | None = None,
 # dogru oldugu A/B ile karara baglanacak (#39 kabul kriteri).
 INCLUDE_PARENTS_DEFAULT = os.environ.get("RAG_INCLUDE_PARENTS", "0") not in ("0", "", "false", "False")
 
+# M4-9 (#83, EXP-010/OPS-11) -- CACHE URETIMDE HIC BAGLI DEGILDI.
+# Olculdu: `BGEM3Embedder()` -> cache=None; `Generator(...)` cagrisinda
+# `response_cache` VERILMIYORDU. Yani her soru LLM'e gidiyordu ve
+# OPTIMIZATION.md §C'deki maliyet kazanci (ResponseCache "DeepSeek cagrisini
+# sifirlar") HIC GERCEKLESMIYORDU.
+# Varsayilan KAPALI birakildi: cache acmak bir davranis degisikligidir ve
+# #77'ye gore `corpus_version` olmadan TEHLIKELIDIR (silinmis kaynaga atif).
+# `build_service` corpus_version'i zaten dolduruyor.
+CACHE_PATH = os.environ.get("RAG_CACHE_PATH") or ""
+CACHE_MAX_BYTES = int(os.environ.get("RAG_CACHE_MAX_BYTES", str(512 * 1024 * 1024)))
+CACHE_TTL_S = float(os.environ.get("RAG_CACHE_TTL_S", "3600"))
+
 
 def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
                   ocr: bool = False, vlm: bool = False,
@@ -401,6 +413,15 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
                            BM25Index().build(ids, texts),
                            SparseIndex().build(ids, sparse),
                            meta=meta)
+    # #83: cache YALNIZ acik yol ve corpus_version varsa kurulur.
+    response_cache = embedding_cache = None
+    if CACHE_PATH:
+        from ..cache.base import SQLiteCache
+        from ..cache.response_cache import ResponseCache
+        backend = SQLiteCache(CACHE_PATH, max_bytes=CACHE_MAX_BYTES)
+        backend.evict_lru()               # acilista tavanin altina in
+        response_cache = ResponseCache(backend, ttl=CACHE_TTL_S)
+
     span_meta = build_span_meta(doc)
     # #80/#82 — RERANKER'I DA ISIT. KONTEYNERDE KOSULARAK BULUNDU:
     # `build_service` embedder'i chunk'lari gomerek dolayli olarak yukluyor ama
@@ -411,7 +432,8 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     reranker.warmup()
     gen = Generator(retr, reranker, by_id, span_meta, ders=ders,
                     safety_classifier=LLMSafetyClassifier(), context_packing=True,
-                    corpus_version=cv, require_role=True)   # STRICT: rolsüz istek fail-closed
+                    corpus_version=cv, require_role=True,   # STRICT: rolsüz istek fail-closed
+                    response_cache=response_cache)
     return RagService(gen, doc=doc, summarizer=Summarizer(),
                       question_gen=QuestionGenerator(), ders=ders)
 
