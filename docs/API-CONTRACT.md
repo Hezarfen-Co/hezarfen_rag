@@ -95,6 +95,10 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   yapılabilecek iş miktarını aşıyor (özet için birim ve tahmini LLM çağrısı
   tavanı). Ölçülen sömürü: `scope.pages=[1..187]` → **19 LLM çağrısı**.
   Frontend kullanıcıdan daha dar bir aralık istemelidir.
+- **`service_warming_up`** (2026-09-12, #82) → servis ayakta ama boru hattı
+  (PDF parse + embed + indeks) henüz kurulmadı. `/health` 200, `/ready` 503
+  döner. **Kısa süreli ve tekrar denenebilir.** Eskiden bu süre boyunca hiçbir
+  port dinlenmiyordu; konteyner sağlık yoklaması başarısız oluyordu.
 - boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
   (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
 

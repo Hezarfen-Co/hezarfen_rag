@@ -392,11 +392,14 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     by_id = ({c.chunk_id: c for c in all_chunks} if include_parents
              else {c.chunk_id: c for c in children})
     emb = BGEM3Embedder()
-    _, vecs = emb.embed_chunks(children, batch_size=16)
+    # #82 (EXP-010/OPS-10): dense ve sparse TEK geçişte üretilir. Ayrı
+    # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü
+    # (10-biyoloji, 327 chunk, GPU): iki geçiş 8,4 s -> tek geçiş 3,9 s (%53).
+    vecs, sparse = emb.embed_both(texts, batch_size=16)
     meta = {c.chunk_id: {"sinif": sinif, "ders": ders} for c in children}
     retr = HybridRetriever(emb, DenseIndex(dim=1024).build(ids, vecs),
                            BM25Index().build(ids, texts),
-                           SparseIndex().build(ids, emb.embed_sparse(texts, batch_size=16)),
+                           SparseIndex().build(ids, sparse),
                            meta=meta)
     span_meta = build_span_meta(doc)
     gen = Generator(retr, BGEReranker(), by_id, span_meta, ders=ders,
@@ -422,15 +425,76 @@ def _yapilandirma_uyarilari() -> list[str]:
     return u
 
 
+class _LazyService:
+    """Henüz kurulmamış servisin yerine geçen taşıyıcı.
+
+    #82 (EXP-010/OPS-10): `main()` önce bütün boru hattını kuruyor, `uvicorn`
+    ondan SONRA çağrılıyordu → o ana kadar **hiçbir port dinlenmiyor**,
+    `/health` bile cevap vermiyordu. Ölçülen soğuk başlangıç (bu makine, GPU):
+    `build_canonical` 32,3 s + embed 8,4 s ≈ 41 s; CPU'da denetimin hesabıyla
+    ~155 s. Konteyner sağlık yoklaması bu süre boyunca **başarısız** olur ve
+    orkestratör kabı sürekli yeniden başlatabilir.
+
+    Artık sunucu ÖNCE ayağa kalkar; boru hattı arka planda kurulur.
+    `/health` (liveness) hemen 200, `/ready` (readiness) hazır olana dek 503
+    döner — ikisinin ayrımı #50'de yapılmıştı, burada anlam kazanıyor.
+    """
+
+    def __init__(self):
+        self.generator = None
+        self.doc = None
+        self.summarizer = None
+        self.question_gen = None
+        self._gercek = None
+        self.hata: str | None = None
+
+    def ata(self, service) -> None:
+        self._gercek = service
+        self.generator = service.generator
+        self.doc = getattr(service, "doc", None)
+        self.summarizer = getattr(service, "summarizer", None)
+        self.question_gen = getattr(service, "question_gen", None)
+
+    def _yonlendir(self, ad, req):
+        if self._gercek is None:
+            return {"text": "Servis hazırlanıyor, birazdan tekrar dener misin?",
+                    "abstained": True, "reason": "service_warming_up",
+                    "citations": [], "used_source_ids": [], "invalid_citations": [],
+                    "cost_usd": 0.0, "cache_hit": False}
+        return getattr(self._gercek, ad)(req)
+
+    def chat(self, req):
+        return self._yonlendir("chat", req)
+
+    def summarize(self, req):
+        return self._yonlendir("summarize", req)
+
+    def generate_questions(self, req):
+        return self._yonlendir("generate_questions", req)
+
+
 def main() -> None:
+    import threading
     import uvicorn
     book = os.environ.get("BOOK_PATH", "data/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")
     for uyari in _yapilandirma_uyarilari():
         print(f"[http][UYARI] {uyari}")
-    print(f"[http] pipeline kuruluyor: {book} ({sinif}/{ders}) — model yüklenecek...")
-    service = build_service(book, sinif=sinif, ders=ders)
+
+    service = _LazyService()
+
+    def _isit():
+        t0 = __import__("time").time()
+        try:
+            service.ata(build_service(book, sinif=sinif, ders=ders))
+            print(f"[http] pipeline hazır ({__import__('time').time() - t0:.1f}s)")
+        except Exception as e:                   # noqa: BLE001
+            service.hata = f"{type(e).__name__}: {e}"
+            print(f"[http][HATA] pipeline kurulamadı: {service.hata}")
+
+    print(f"[http] pipeline ARKA PLANDA kuruluyor: {book} ({sinif}/{ders})")
+    threading.Thread(target=_isit, name="warmup", daemon=True).start()
     app = create_app(service)
     host, port = os.environ.get("HOST", "127.0.0.1"), int(os.environ.get("PORT", "8000"))
     print(f"[http] hazır → http://{host}:{port}  (/health, /ready, /rag/*)")

@@ -125,3 +125,28 @@ class BGEM3Embedder:
         ids = [c.chunk_id for c in chunks]
         vecs = self.embed([c.text for c in chunks], batch_size=batch_size)
         return ids, vecs
+
+    def embed_both(self, texts: list[str], batch_size: int = 12):
+        """Dense + sparse'ı **TEK geçişte** üretir → `(matris, lexical_weights)`.
+
+        #82 (EXP-010/OPS-10): `embed()` ve `embed_sparse()` ayrı çağrıldığında
+        korpus **iki kez** kodlanıyor — soğuk başlangıçta bu, tokenize+forward
+        maliyetinin iki katı demek. Hesaplanan: BGE-M3 CPU'da 4,1 chunk/s →
+        258 chunk ≈ 63 s, **iki geçiş ≈ 126 s**; üstüne PDF parse (ölçüldü:
+        194 sayfa = 28,2 s) → **~155 s sağır servis**.
+
+        Model zaten tek `encode()` çağrısında ikisini birden döndürebiliyor.
+
+        DÜRÜST SINIR: bu yol embedding **cache'ini kullanmaz**. Cache yalnız
+        dense içindir (`embedding_cache` dense vektör saklar); sparse için
+        karşılığı yok. Bu yüzden `embed_both`, cache'in işe yaradığı
+        ARTIMLI güncellemelerde değil, **ilk kurulumda** (tamamen soğuk) tercih
+        edilmelidir. Çağıran hangisini kullanacağına karar verir.
+        """
+        if not texts:
+            return np.zeros((0, self.dim), dtype=np.float32), []
+        out = self._load().encode(texts, batch_size=batch_size,
+                                  max_length=self.max_length,
+                                  return_dense=True, return_sparse=True)
+        return (np.asarray(out["dense_vecs"], dtype=np.float32),
+                list(out["lexical_weights"]))
