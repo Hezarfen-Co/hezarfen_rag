@@ -9,6 +9,8 @@ kasa izolasyonu Generator.answer(role_ctx=...) ile; özet kapsamı için de eri�
 yeniden doğrulanır (yanlış sınıf/ders → red)."""
 from __future__ import annotations
 
+from ..budget import BudgetGate, check_request_size
+from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
 
 
@@ -62,6 +64,47 @@ def _scope_denied(service, scope: dict, role: dict | None) -> str | None:
     return None
 
 
+
+# #78 (EXP-010/OPS-06) — LLM ARIZASI TIPLI CEVABA CEVRILIR.
+# Olculdu: stub 429 ile `RagService.chat` istisnayi yakalamiyor, FastAPI'de
+# global handler da yok -> yanit HTTP 500, govde "Internal Server Error"
+# (reason yok, request_id yok, retry-after yok). Backend ise `abstained/reason`
+# sozlesmesine gore yazilmis; bu govdeyi PARSE EDEMIYOR.
+LLM_UNAVAILABLE_TEXT = ("Şu anda cevap üretemiyorum; yapay zekâ servisine "
+                        "ulaşılamıyor. Birazdan tekrar dener misin?")
+
+
+BUDGET_TEXT = ("Bugünkü kullanım sınırına ulaşıldı. Yarın tekrar "
+               "deneyebilirsin.")
+SCOPE_TEXT = ("Seçtiğin bölüm bir seferde özetlenemeyecek kadar geniş. "
+              "Daha dar bir aralık seçer misin?")
+
+
+def _budget_denied(karar, kind: str = "chat") -> dict:
+    """Bütçe/kapsam reddi — API-CONTRACT uyumlu, TÜRKÇE mesajlı."""
+    metin = SCOPE_TEXT if karar.reason == "scope_too_large" else BUDGET_TEXT
+    ortak = {"abstained": True, "reason": karar.reason, "text": metin,
+             "cost_usd": 0.0}
+    if kind == "chat":
+        return {**ortak, "citations": [], "used_source_ids": [],
+                "invalid_citations": [], "cache_hit": False}
+    if kind == "ozet":
+        return {**ortak, "citations": [], "scope_pages": [], "hierarchical": False}
+    return {**ortak, "items": [], "span_ids": [], "pages": []}
+
+
+def _llm_unavailable(kind: str = "chat") -> dict:
+    """Saglayici arizasi icin API-CONTRACT uyumlu cevap."""
+    ortak = {"abstained": True, "reason": "llm_unavailable",
+             "text": LLM_UNAVAILABLE_TEXT, "cost_usd": 0.0}
+    if kind == "chat":
+        return {**ortak, "citations": [], "used_source_ids": [],
+                "invalid_citations": [], "cache_hit": False}
+    if kind == "ozet":
+        return {**ortak, "citations": [], "scope_pages": [], "hierarchical": False}
+    return {**ortak, "items": []}
+
+
 def _answer_to_dict(a) -> dict:
     return {
         "text": a.text,
@@ -85,8 +128,11 @@ class RagService:
     benzer-soru (question_gen). Bileşenler enjekte edilir (index/model paylaşılır)."""
 
     def __init__(self, generator, *, doc=None, summarizer=None, question_gen=None,
-                 ders: str = ""):
+                 ders: str = "", budget: BudgetGate | None = None):
         self.generator = generator
+        # #79 (EXP-010/OPS-05): maliyet tavanı. `costlog.record()` yalnız
+        # YAZIYORDU; hiçbir çağıran dönüş değerine bakıp reddetmiyordu.
+        self.budget = budget if budget is not None else BudgetGate()
         self.doc = doc
         self.summarizer = summarizer
         self.question_gen = question_gen
@@ -99,11 +145,22 @@ class RagService:
             return {"text": "", "abstained": True, "reason": "empty_query",
                     "citations": [], "used_source_ids": [], "cost_usd": 0.0, "cache_hit": False}
         role_ctx = _role_ctx(req.get("role"))
+        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        if not karar.allowed:
+            return _budget_denied(karar, "chat")
         opts = req.get("options") or {}
-        a = self.generator.answer(
-            query, history=req.get("history"),
-            top_n=int(opts.get("top_n", 6)), candidate_n=int(opts.get("candidate_n", 40)),
-            role_ctx=role_ctx)
+        try:
+            a = self.generator.answer(
+                query, history=req.get("history"),
+                top_n=int(opts.get("top_n", 6)),
+                candidate_n=int(opts.get("candidate_n", 40)),
+                role_ctx=role_ctx)
+        except LlmUnavailable:
+            return _llm_unavailable("chat")
+        # Harcama GERÇEKLEŞTİ → sayaca yaz. Kapı bir sonraki istekte bakar;
+        # harcamadan sonra bakmak tavanı anlamsız kılardı.
+        self.budget.record(getattr(a, "cost_usd", 0.0) or 0.0,
+                           user=req.get("user"), tenant=req.get("tenant"))
         return _answer_to_dict(a)
 
     # -------------------------------------------------------------- /rag/summarize
@@ -125,7 +182,21 @@ class RagService:
                     "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
         from ..summarize.scope import resolve_scope
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
-        res = self.summarizer.summarize(units, scope_label=scope.get("scope_label", ""))
+        # #79: tek istekte yüzlerce LLM çağrısı olmasın. Ölçülen sömürü:
+        # `scope.pages=[1..187]` → 19 çağrı (özyinelemeli hiyerarşik mod).
+        boyut = check_request_size(
+            len(units),
+            max_units_per_group=getattr(self.summarizer, "max_units_per_group", 12))
+        if not boyut.allowed:
+            return _budget_denied(boyut, "ozet")
+        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        if not karar.allowed:
+            return _budget_denied(karar, "ozet")
+        try:
+            res = self.summarizer.summarize(units,
+                                            scope_label=scope.get("scope_label", ""))
+        except LlmUnavailable:
+            return _llm_unavailable("ozet")
         return {
             "text": res.text, "abstained": bool(res.abstained), "reason": res.reason or "",
             "citations": [{"n": c.get("n"), "span_ids": c.get("span_ids", []),
@@ -147,9 +218,17 @@ class RagService:
                     "span_ids": [], "pages": [], "cost_usd": 0.0}
         from ..summarize.scope import resolve_scope
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
-        res = self.question_gen.generate(units, n=int(req.get("n", 5)),
-                                         difficulty=req.get("difficulty", "orta"),
-                                         seed_question=req.get("seed_question"))
+        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        if not karar.allowed:
+            return _budget_denied(karar, "soru")
+        try:
+            res = self.question_gen.generate(
+                units, n=int(req.get("n", 5)),
+                difficulty=req.get("difficulty", "orta"),
+                seed_question=req.get("seed_question"))
+        except LlmUnavailable:
+            bos = _llm_unavailable("soru")
+            return {**bos, "span_ids": [], "pages": []}
         return {
             "items": [{"soru": q.soru, "cevap": q.cevap, "zorluk": q.zorluk} for q in res.items],
             "abstained": bool(res.abstained), "reason": res.reason or "",

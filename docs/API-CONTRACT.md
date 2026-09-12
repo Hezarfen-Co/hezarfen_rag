@@ -84,6 +84,17 @@ yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrula
   *Not (#57):* `[0,1]` gibi **çok parçalı ve aralık dışı** gruplar atıf sayılmaz
   ama hayalet de sayılmaz ve metinden kırpılmaz — onlar cümlenin içeriği
   olabilir (matematiksel aralık gösterimi).
+- **`llm_unavailable`** (2026-09-12, #78) → yapay zekâ sağlayıcısına
+  ulaşılamadı (429/5xx/timeout, yeniden denemeler tükendi ya da devre kesici
+  açık). `text` Türkçe bir bekletme mesajıdır. **Tekrar denenebilir.** Eskiden
+  bu durum HTTP 500 + `"Internal Server Error"` olarak dönüyordu ve backend
+  sözleşmeye göre parse edemiyordu (OPS-06).
+- **`budget_exceeded`** (2026-09-12, #79) → kullanıcı/gün ya da kurum/ay USD
+  tavanı doldu. Aynı gün/ay içinde tekrar denemek işe yaramaz.
+- **`scope_too_large`** (2026-09-12, #79) → istenen kapsam tek bir istekte
+  yapılabilecek iş miktarını aşıyor (özet için birim ve tahmini LLM çağrısı
+  tavanı). Ölçülen sömürü: `scope.pages=[1..187]` → **19 LLM çağrısı**.
+  Frontend kullanıcıdan daha dar bir aralık istemelidir.
 - boş reason + abstained=false → normal cevap; `citations`'ı tıklanabilir kaynak olarak render et
   (her `[N]` → pages/span → PDF `#page=N` + highlight). **`[N]` metinde vardır; citations onu çözer.**
 

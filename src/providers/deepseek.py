@@ -34,6 +34,8 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from ..pricing import Usage
+from .resilience import (CircuitBreaker, RETRYABLE_STATUS,
+                         call_with_retry)
 
 DEFAULT_BASE = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"   # API model id — pricing.MODEL_ALIASES ile fiyata eşlenir
@@ -77,6 +79,25 @@ class ChatResult:
     raw: dict = field(default_factory=dict)
 
 
+DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT_S", "30"))
+
+
+def _is_retryable(exc) -> tuple[bool, int | None]:
+    """Hangi hata tekrar denenebilir. Taşıma ayrıntısı BURADA kalır.
+
+    4xx'lerin çoğu (400/401/403/404/422) tekrar DENENMEZ: istek yanlıştır,
+    tekrarlamak yalnız kota yakar ve gecikme ekler.
+    """
+    import socket
+    import urllib.error
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in RETRYABLE_STATUS, exc.code
+    if isinstance(exc, (urllib.error.URLError, socket.timeout, TimeoutError,
+                        ConnectionError)):
+        return True, None
+    return False, None
+
+
 class DeepSeek:
     """OpenAI-uyumlu sohbet istemcisi.
 
@@ -86,12 +107,20 @@ class DeepSeek:
     """
 
     def __init__(self, model: str | None = None, base_url: str | None = None,
-                 api_key: str | None = None, timeout: float = 120.0,
-                 extra: dict | None = None):
+                 api_key: str | None = None, timeout: float | None = None,
+                 extra: dict | None = None, breaker=None,
+                 max_attempts: int | None = None):
         self.model = model or _env("LLM_MODEL") or DEFAULT_MODEL
         base = base_url or _env("LLM_BASE_URL") or DEFAULT_BASE
         self.base_url = base.rstrip("/")
-        self.timeout = timeout
+        # #78 (EXP-010/OPS-06): varsayilan 120 s IDI ve SAVUNULAMAZDI.
+        # Olculen LLM p50'leri 1,94-10,44 s; 120 s'lik tavan ogrenciyi iki
+        # dakika bekletip sonunda hata gostermek demek. Ayrica saglayici
+        # bozuksa her istek 120 s bir thread tutar, anyio havuzu (40) dolar ve
+        # `/health` bile yanit veremez.
+        self.timeout = DEFAULT_TIMEOUT if timeout is None else timeout
+        self.breaker = breaker if breaker is not None else CircuitBreaker()
+        self.max_attempts = max_attempts
         # Her isteğe eklenecek sağlayıcıya-özgü gövde parametreleri.
         self.extra = dict(extra) if extra is not None else _env_extra()
         # Anahtar burada ZORUNLU değil — yalnız chat() sırasında gerekir.
@@ -127,9 +156,17 @@ class DeepSeek:
             headers={"Content-Type": "application/json",
                      "Authorization": f"Bearer {self._api_key}"},
             method="POST")
+        def _gonder():
+            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                return json.loads(resp.read().decode("utf-8"))
+
         t0 = time.time()
-        with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-            data = json.loads(resp.read().decode("utf-8"))
+        # #78: jitter'lı üstel yeniden deneme + devre kesici. Jitter ŞART —
+        # EXP-009'da yaşanan %92 HTTP 429, eş zamanlı tekrar denemelerden
+        # oluşmuştu (4 worker aynı modele aynı anda vuruyordu).
+        data = call_with_retry(_gonder, is_retryable=_is_retryable,
+                               max_attempts=self.max_attempts,
+                               breaker=self.breaker)
         latency = time.time() - t0
 
         # content None olabilir (finish_reason=length / içerik-filtresi / yalnız-reasoning
