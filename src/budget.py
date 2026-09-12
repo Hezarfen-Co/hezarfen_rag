@@ -34,9 +34,29 @@ import threading
 import time
 from dataclasses import dataclass, field
 
-# Tek istekte yapılabilecek iş
-MAX_UNITS_PER_REQUEST = int(os.environ.get("RAG_MAX_UNITS_PER_REQUEST", "60"))
-MAX_LLM_CALLS_PER_REQUEST = int(os.environ.get("RAG_MAX_LLM_CALLS_PER_REQUEST", "12"))
+# Tek istekte yapılabilecek iş.
+#
+# EŞİKLER VERİDEN SEÇİLDİ (10-biyoloji, 194 sayfa; `resolve_scope` + gerçek
+# birim/token sayımı). İLK SÜRÜMDE YANLIŞ SEÇİLMİŞTİ: "birim"i chunk sandım,
+# oysa birim bir METİN BLOĞU (~11,6 blok/sayfa). 60 birimlik tavan yaklaşık
+# **5 sayfaya** denk geliyordu ve ürün gösteriminde **6 sayfalık normal bir
+# özet bile reddedildi** — çekirdek bir özelliği kırmıştım.
+#
+#   sayfa  birim  token   LLM çağrı   senaryo
+#      12    141   1.812      13      bir konu      -> GEÇMELİ
+#      30    363   7.132      35      ünite         -> GEÇMELİ
+#      60    865  16.747      81      büyük ünite   -> sınırda
+#     194  2.740  58.649     252      TÜM KİTAP     -> ENGELLENMELİ
+#
+# Denetimdeki "tek HTTP isteğinde onlarca-yüzlerce LLM çağrısı" iddiası
+# doğrulandı: tüm kitap = **252 çağrı**.
+#
+# ASIL ÖLÇÜT TOKEN: para orada harcanıyor. Birim ve çağrı sayısı ucuz
+# ön-elemelerdir; üçü de "bir ünite geçer, tüm kitap geçmez" noktasında
+# hizalandı.
+MAX_UNITS_PER_REQUEST = int(os.environ.get("RAG_MAX_UNITS_PER_REQUEST", "400"))
+MAX_LLM_CALLS_PER_REQUEST = int(os.environ.get("RAG_MAX_LLM_CALLS_PER_REQUEST", "40"))
+MAX_TOKENS_PER_REQUEST = int(os.environ.get("RAG_MAX_TOKENS_PER_REQUEST", "10000"))
 # Para tavanları (0 = kapalı)
 USER_DAILY_USD = float(os.environ.get("RAG_USER_DAILY_USD", "0"))
 TENANT_MONTHLY_USD = float(os.environ.get("RAG_TENANT_MONTHLY_USD", "0"))
@@ -159,16 +179,26 @@ def estimate_llm_calls(n_units: int, max_units_per_group: int = 12) -> int:
     return toplam
 
 
-def check_request_size(n_units: int, *, max_units: int | None = None,
+def check_request_size(n_units: int, *, n_tokens: int | None = None,
+                       max_units: int | None = None,
                        max_calls: int | None = None,
+                       max_tokens: int | None = None,
                        max_units_per_group: int = 12) -> BudgetDecision:
     """Tek isteğin iş büyüklüğü tavanı (para tavanından BAĞIMSIZ).
 
-    Para tavanı ayda bir dolar; bu kapı **her istekte** çalışır ve tek bir
-    isteğin yüzlerce LLM çağrısına dönüşmesini engeller.
+    Para tavanı günde/ayda bir dolar; bu kapı **her istekte** çalışır ve tek
+    bir isteğin yüzlerce LLM çağrısına dönüşmesini engeller.
+
+    Üç ölçüt: token (asıl, para orada), birim ve tahmini çağrı (ucuz ön-eleme).
+    `n_tokens` verilmezse token ölçütü atlanır — çağıran hesaplayabiliyorsa
+    vermelidir.
     """
     u = MAX_UNITS_PER_REQUEST if max_units is None else max_units
     c = MAX_LLM_CALLS_PER_REQUEST if max_calls is None else max_calls
+    t = MAX_TOKENS_PER_REQUEST if max_tokens is None else max_tokens
+    if t > 0 and n_tokens is not None and n_tokens > t:
+        return BudgetDecision(False, "scope_too_large", "request",
+                              spent_usd=float(n_tokens), limit_usd=float(t))
     if u > 0 and n_units > u:
         return BudgetDecision(False, "scope_too_large", "request",
                               spent_usd=float(n_units), limit_usd=float(u))

@@ -184,8 +184,10 @@ class RagService:
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
         # #79: tek istekte yüzlerce LLM çağrısı olmasın. Ölçülen sömürü:
         # `scope.pages=[1..187]` → 19 çağrı (özyinelemeli hiyerarşik mod).
+        from ..chunk.chunker import approx_tokens
         boyut = check_request_size(
             len(units),
+            n_tokens=sum(approx_tokens(getattr(u, "text", "") or "") for u in units),
             max_units_per_group=getattr(self.summarizer, "max_units_per_group", 12))
         if not boyut.allowed:
             return _budget_denied(boyut, "ozet")

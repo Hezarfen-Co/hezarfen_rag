@@ -25,8 +25,13 @@ class CallEstimateTests(unittest.TestCase):
         self.assertEqual(estimate_llm_calls(13), 3)
 
     def test_the_measured_exploit_is_quantified(self):
-        """Denetimde ölçülen `scope.pages=[1..187]` senaryosu."""
-        self.assertEqual(estimate_llm_calls(187), 19)
+        """Denetimde ölçülen `scope.pages=[1..187]` senaryosu.
+
+        DİKKAT: 187 SAYFA, 187 birim değil. İlk testimde bunları karıştırıp
+        187'yi birim sanmıştım. Gerçek kitapla ölçüldü: 194 sayfa = 2.740
+        birim → **252 LLM çağrısı** ("onlarca-yüzlerce" iddiası doğrulandı)."""
+        self.assertEqual(estimate_llm_calls(2740), 252)
+        self.assertEqual(estimate_llm_calls(187), 19)      # 187 BİRİM olsaydı
 
     def test_empty_scope_is_zero(self):
         self.assertEqual(estimate_llm_calls(0), 0)
@@ -37,14 +42,44 @@ class CallEstimateTests(unittest.TestCase):
 
 
 class RequestSizeGateTests(unittest.TestCase):
-    def test_the_measured_exploit_is_rejected(self):
-        k = check_request_size(187)
+    def test_whole_book_is_rejected(self):
+        """Denetimdeki sömürü GERÇEK KİTAPLA ölçüldü: 194 sayfa = 2.740 birim,
+        58.649 token, **252 LLM çağrısı**."""
+        k = check_request_size(2740, n_tokens=58649)
         self.assertFalse(k.allowed)
         self.assertEqual(k.reason, "scope_too_large")
 
     def test_normal_scope_passes(self):
         self.assertTrue(check_request_size(12).allowed)
         self.assertTrue(check_request_size(40).allowed)
+
+    def test_real_chapter_summaries_must_pass(self):
+        """REGRESYON KORUMASI — bu hatayı GERÇEKTEN yaptım.
+
+        İlk sürümde `MAX_UNITS_PER_REQUEST=60` idi çünkü "birim"i chunk
+        sanmıştım; oysa birim bir METİN BLOĞU (~11,6 blok/sayfa), yani 60
+        birim ≈ **5 sayfa**. Ürün gösteriminde **6 sayfalık normal bir özet
+        bile reddedildi** — çekirdek bir özelliği kırmıştım ve bunu ancak
+        gerçek koşumda gördüm.
+
+        Ölçülen gerçek değerler (10-biyoloji):
+          12 sayfa → 141 birim / 1.812 token / 13 çağrı
+          30 sayfa → 363 birim / 7.132 token / 35 çağrı
+        """
+        for sayfa, birim, token in ((6, 41, 796), (12, 141, 1812), (30, 363, 7132)):
+            with self.subTest(sayfa=sayfa):
+                k = check_request_size(birim, n_tokens=token)
+                self.assertTrue(k.allowed,
+                                f"{sayfa} sayfalık normal özet reddedildi")
+
+    def test_token_ceiling_is_the_primary_measure(self):
+        """Para token'da harcanıyor; birim ve çağrı ucuz ön-elemedir."""
+        k = check_request_size(10, n_tokens=99_999)
+        self.assertFalse(k.allowed)
+        self.assertEqual(k.spent_usd, 99_999)
+
+    def test_token_check_is_skipped_when_not_provided(self):
+        self.assertTrue(check_request_size(10).allowed)
 
     def test_unit_ceiling_is_enforced_separately_from_calls(self):
         """İki ayrı tavan: birim sayısı VE çağrı sayısı. Biri diğerini
