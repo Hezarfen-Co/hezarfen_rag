@@ -104,5 +104,32 @@ class SinglePassEmbedTests(unittest.TestCase):
         self.assertIn("cache", (BGEM3Embedder.embed_both.__doc__ or "").lower())
 
 
+class ReadinessTruthfulnessTests(unittest.TestCase):
+    """`/ready` YALAN SÖYLEMEMELİ — konteynerde koşularak bulundu.
+
+    `build_service` embedder'ı chunk'ları gömerek **dolaylı olarak** yüklüyor
+    ama reranker **tembel** kalıyordu. Konteyner `/ready` 200 dedi; ilk gerçek
+    soru gelince reranker ~2 GB indirmeye kalktı, istek son tarihini (60 s)
+    aştı ve `reason="timeout"` döndü. Yani hazırlık sinyali yanlıştı: kap
+    "trafik alabilir" diye işaretlenip ilk isteği düşürüyordu.
+    """
+
+    def test_build_service_warms_the_reranker(self):
+        import inspect
+        from src.service import http_app
+        kaynak = inspect.getsource(http_app.build_service)
+        self.assertIn("warmup()", kaynak)
+        # reranker Generator'a verilmeden ÖNCE ısıtılmalı
+        self.assertLess(kaynak.index("warmup()"), kaynak.index("Generator("))
+
+    def test_warmup_actually_loads(self):
+        from unittest import mock
+        from src.rerank.reranker import BGEReranker
+        r = BGEReranker()
+        with mock.patch.object(BGEReranker, "_build_model", lambda self: "M"):
+            r.warmup()
+        self.assertTrue(r.loaded)
+
+
 if __name__ == "__main__":
     unittest.main()

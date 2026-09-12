@@ -402,7 +402,14 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
                            SparseIndex().build(ids, sparse),
                            meta=meta)
     span_meta = build_span_meta(doc)
-    gen = Generator(retr, BGEReranker(), by_id, span_meta, ders=ders,
+    # #80/#82 — RERANKER'I DA ISIT. KONTEYNERDE KOSULARAK BULUNDU:
+    # `build_service` embedder'i chunk'lari gomerek dolayli olarak yukluyor ama
+    # reranker TEMBEL kaliyordu. `/ready` "hazir" diyor, ilk gercek soru gelince
+    # reranker ~2 GB indirmeye kalkiyor ve istek son tarihini (60 s) asip
+    # `reason="timeout"` donuyordu. Yani hazirlik sinyali YALAN soyluyordu.
+    reranker = BGEReranker()
+    reranker.warmup()
+    gen = Generator(retr, reranker, by_id, span_meta, ders=ders,
                     safety_classifier=LLMSafetyClassifier(), context_packing=True,
                     corpus_version=cv, require_role=True)   # STRICT: rolsüz istek fail-closed
     return RagService(gen, doc=doc, summarizer=Summarizer(),
