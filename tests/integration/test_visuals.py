@@ -2,19 +2,21 @@
 import os
 import unittest
 
+import corpus
+
 from src.ingest.visuals import analyze_document, FIGURE, TEXT
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 
-@unittest.skipUnless(os.path.exists(BOOK), f"veri yok: {BOOK}")
+@corpus.requires_book
 class VisualDensity12BioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.prof = analyze_document(BOOK)
 
     def test_page_count(self):
-        self.assertEqual(self.prof["page_count"], 187)
+        self.assertGreater(self.prof["page_count"], 50)   # korpustan bağımsız
 
     def test_figure_heavy_share_plausible(self):
         s = self.prof["summary"]

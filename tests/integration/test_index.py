@@ -5,22 +5,24 @@ Kabul (plan 1.3): ANN recall ≥ 0.995 (exact'e karşı). Model yüklenemezse AT
 import os
 import unittest
 
+import corpus
+
 import numpy as np
 
 from src.ingest.canonical import build_canonical
 from src.chunk import chunk_document
 from src.index import DenseIndex, exact_topk, BM25Index
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 
 def _prepare():
     try:
         from src.embed import BGEM3Embedder
-        doc = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
         chunks = chunk_document(doc)
         children = [c for c in chunks if c.level == "child"]
-        emb = BGEM3Embedder()
+        emb = corpus.shared_embedder()
         ids, vecs = emb.embed_chunks(children, batch_size=16)
         return children, ids, vecs, emb
     except Exception:

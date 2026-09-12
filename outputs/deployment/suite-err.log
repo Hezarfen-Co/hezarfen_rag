@@ -1,0 +1,392 @@
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:32, 12.04it/s]Loading weights:  66%|██████▌   | 257/391 [00:00<00:00, 633.72it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 669.23it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 4124.47it/s]
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 464.68it/s]
+Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.38it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.34it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:05,  3.03it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.60it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.12it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.53it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.88it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.16it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.44it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.73it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  6.07it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.55it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.20it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.86it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.36it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.69it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.60it/s]
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 633.47it/s]
+Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.36it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.30it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  3.00it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.57it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.08it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.46it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.79it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.07it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.37it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.66it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.99it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.47it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.12it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.77it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.23it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.55it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.51it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:  30%|███       | 118/393 [00:00<00:00, 1136.27it/s]Loading weights:  59%|█████▉    | 232/393 [00:00<00:00, 874.43it/s] Loading weights:  82%|████████▏ | 323/393 [00:00<00:00, 466.14it/s]Loading weights:  98%|█████████▊| 385/393 [00:01<00:00, 289.15it/s]Loading weights: 100%|██████████| 393/393 [00:01<00:00, 384.72it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:36, 10.63it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 806.72it/s]
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 548.20it/s]
+Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.36it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.32it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:05,  3.01it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.58it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.09it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.50it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.85it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.14it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.42it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.71it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  6.06it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.53it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.19it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.85it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.31it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.64it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.56it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:  70%|██████▉   | 273/391 [00:00<00:00, 1645.38it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 1897.99it/s]
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 506.59it/s]
+Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:15,  1.32it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.27it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.97it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.54it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.08it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.49it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.83it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.12it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.41it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.70it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  6.05it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.53it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.18it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.84it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.32it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.65it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.52it/s]
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 586.40it/s]
+Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.35it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.30it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.98it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.54it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.05it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.45it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.79it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.07it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.34it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.62it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.97it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.45it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.09it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.75it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.20it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.50it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.48it/s]
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:  82%|████████▏ | 324/393 [00:00<00:00, 3238.30it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 3672.95it/s]
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:27, 14.05it/s]Loading weights:  94%|█████████▍| 369/391 [00:00<00:00, 1052.65it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 703.47it/s] 
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 464.47it/s]
+[W912 20:49:59.190919725 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 25165824 bytes (free: 34471936, total: 8214937600).
+[W912 20:49:59.192748491 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 25165824 bytes (free: 36569088, total: 8214937600).
+[W912 20:49:59.230125001 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 36569088, total: 8214937600).
+[W912 20:49:59.230201269 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 36569088, total: 8214937600).
+[W912 20:49:59.235398440 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.235452789 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.243902810 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.244019350 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.251353006 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.251458755 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.256043587 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.256096146 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.260699020 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+[W912 20:49:59.263091698 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 23986176, total: 8214937600).
+[W912 20:49:59.263144283 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 23986176, total: 8214937600).
+Inference Embeddings:   0%|          | 0/327 [00:00<?, ?it/s]Inference Embeddings:   1%|          | 4/327 [00:00<00:08, 39.05it/s][W912 20:50:00.374094933 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+Inference Embeddings:   3%|▎         | 10/327 [00:00<00:06, 49.23it/s]Inference Embeddings:   5%|▍         | 16/327 [00:00<00:05, 53.15it/s]Inference Embeddings:   7%|▋         | 23/327 [00:00<00:05, 56.61it/s]Inference Embeddings:   9%|▉         | 30/327 [00:00<00:05, 58.28it/s]Inference Embeddings:  11%|█▏        | 37/327 [00:00<00:04, 59.24it/s]Inference Embeddings:  13%|█▎        | 44/327 [00:00<00:04, 59.96it/s]Inference Embeddings:  15%|█▌        | 50/327 [00:00<00:04, 59.64it/s]Inference Embeddings:  17%|█▋        | 57/327 [00:00<00:04, 61.05it/s]Inference Embeddings:  20%|█▉        | 65/327 [00:01<00:04, 64.55it/s]Inference Embeddings:  22%|██▏       | 73/327 [00:01<00:03, 67.29it/s]Inference Embeddings:  25%|██▍       | 81/327 [00:01<00:03, 69.38it/s]Inference Embeddings:  27%|██▋       | 89/327 [00:01<00:03, 70.98it/s]Inference Embeddings:  30%|██▉       | 97/327 [00:01<00:03, 71.87it/s]Inference Embeddings:  32%|███▏      | 105/327 [00:01<00:03, 72.00it/s]Inference Embeddings:  35%|███▍      | 113/327 [00:01<00:02, 71.53it/s]Inference Embeddings:  37%|███▋      | 121/327 [00:01<00:02, 71.29it/s]Inference Embeddings:  39%|███▉      | 129/327 [00:01<00:02, 71.31it/s]Inference Embeddings:  42%|████▏     | 137/327 [00:02<00:02, 71.25it/s]Inference Embeddings:  44%|████▍     | 145/327 [00:02<00:02, 72.13it/s]Inference Embeddings:  47%|████▋     | 154/327 [00:02<00:02, 75.88it/s]Inference Embeddings:  50%|████▉     | 163/327 [00:02<00:02, 79.18it/s]Inference Embeddings:  53%|█████▎    | 172/327 [00:02<00:01, 81.68it/s]Inference Embeddings:  56%|█████▌    | 182/327 [00:02<00:01, 85.50it/s]Inference Embeddings:  59%|█████▉    | 193/327 [00:02<00:01, 92.19it/s]Inference Embeddings:  63%|██████▎   | 205/327 [00:02<00:01, 98.72it/s]Inference Embeddings:  66%|██████▋   | 217/327 [00:02<00:01, 103.08it/s]Inference Embeddings:  70%|███████   | 230/327 [00:03<00:00, 109.19it/s]Inference Embeddings:  75%|███████▍  | 244/327 [00:03<00:00, 117.50it/s]Inference Embeddings:  80%|███████▉  | 260/327 [00:03<00:00, 129.23it/s]Inference Embeddings:  84%|████████▍ | 276/327 [00:03<00:00, 132.36it/s]Inference Embeddings:  90%|████████▉ | 294/327 [00:03<00:00, 144.84it/s]Inference Embeddings:  95%|█████████▍| 310/327 [00:03<00:00, 147.41it/s]Inference Embeddings: 100%|██████████| 327/327 [00:03<00:00, 89.58it/s] 
+pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 637.24it/s]
+[W912 20:50:03.966501464 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 25165824 bytes (free: 34471936, total: 8214937600).
+[W912 20:50:03.969337051 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 25165824 bytes (free: 36569088, total: 8214937600).
+[W912 20:50:03.969401308 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 25165824 bytes (free: 36569088, total: 8214937600).
+[W912 20:50:03.974356175 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 36569088, total: 8214937600).
+[W912 20:50:03.974418929 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 36569088, total: 8214937600).
+[W912 20:50:03.978450812 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.978500072 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 14680064 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.981483609 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.981526373 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.984296795 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.984341717 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.986852097 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.986895675 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 18874368 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.988491010 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+[W912 20:50:03.990842895 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 23986176, total: 8214937600).
+[W912 20:50:03.990884985 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 23986176, total: 8214937600).
+Inference Embeddings:   0%|          | 0/327 [00:00<?, ?it/s][W912 20:50:03.088384558 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+Inference Embeddings:   2%|▏         | 5/327 [00:00<00:06, 46.29it/s]Inference Embeddings:   3%|▎         | 11/327 [00:00<00:05, 53.80it/s]Inference Embeddings:   6%|▌         | 18/327 [00:00<00:05, 57.11it/s]Inference Embeddings:   8%|▊         | 25/327 [00:00<00:05, 59.16it/s]Inference Embeddings:  10%|▉         | 32/327 [00:00<00:04, 60.06it/s]Inference Embeddings:  12%|█▏        | 39/327 [00:00<00:04, 60.87it/s]Inference Embeddings:  14%|█▍        | 46/327 [00:00<00:04, 61.48it/s]Inference Embeddings:  16%|█▌        | 53/327 [00:00<00:04, 61.66it/s]Inference Embeddings:  19%|█▊        | 61/327 [00:00<00:04, 64.68it/s]Inference Embeddings:  21%|██        | 69/327 [00:01<00:03, 67.72it/s]Inference Embeddings:  24%|██▎       | 77/327 [00:01<00:03, 70.02it/s]Inference Embeddings:  26%|██▌       | 85/327 [00:01<00:03, 72.11it/s]Inference Embeddings:  28%|██▊       | 93/327 [00:01<00:03, 73.63it/s]Inference Embeddings:  31%|███       | 101/327 [00:01<00:03, 74.66it/s]Inference Embeddings:  33%|███▎      | 109/327 [00:01<00:02, 73.91it/s]Inference Embeddings:  36%|███▌      | 117/327 [00:01<00:02, 73.52it/s]Inference Embeddings:  38%|███▊      | 125/327 [00:01<00:02, 73.30it/s]Inference Embeddings:  41%|████      | 133/327 [00:01<00:02, 73.09it/s]Inference Embeddings:  43%|████▎     | 141/327 [00:02<00:02, 73.75it/s]Inference Embeddings:  46%|████▌     | 150/327 [00:02<00:02, 76.78it/s]Inference Embeddings:  49%|████▊     | 159/327 [00:02<00:02, 79.20it/s]Inference Embeddings:  51%|█████▏    | 168/327 [00:02<00:01, 81.17it/s]Inference Embeddings:  54%|█████▍    | 177/327 [00:02<00:01, 82.71it/s]Inference Embeddings:  57%|█████▋    | 188/327 [00:02<00:01, 89.14it/s]Inference Embeddings:  61%|██████    | 200/327 [00:02<00:01, 95.78it/s]Inference Embeddings:  65%|██████▍   | 212/327 [00:02<00:01, 100.68it/s]Inference Embeddings:  69%|██████▊   | 224/327 [00:02<00:00, 104.65it/s]Inference Embeddings:  73%|███████▎  | 238/327 [00:03<00:00, 112.62it/s]Inference Embeddings:  77%|███████▋  | 253/327 [00:03<00:00, 122.56it/s]Inference Embeddings:  83%|████████▎ | 270/327 [00:03<00:00, 135.59it/s]Inference Embeddings:  87%|████████▋ | 286/327 [00:03<00:00, 142.28it/s]Inference Embeddings:  93%|█████████▎| 303/327 [00:03<00:00, 150.05it/s]Inference Embeddings:  98%|█████████▊| 319/327 [00:03<00:00, 151.33it/s]Inference Embeddings: 100%|██████████| 327/327 [00:03<00:00, 91.28it/s] 
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<00:32, 11.89it/s]Loading weights:  37%|███▋      | 145/391 [00:00<00:00, 306.03it/s]Loading weights:  54%|█████▍    | 213/391 [00:00<00:00, 282.74it/s]Loading weights: 100%|██████████| 391/391 [00:00<00:00, 434.90it/s]
+[W912 20:50:11.751968239 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 513802240 bytes (free: 34471936, total: 8214937600).
+[W912 20:50:11.754182786 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 513802240 bytes (free: 61734912, total: 8214937600).
+E......................[W912 20:51:53.211751659 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.211823890 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.223832433 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.223881115 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.235829188 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.235877708 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.247802617 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.247849343 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.260502892 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.260556756 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:53.269607848 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:53.271097235 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.277665985 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.277723504 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.282603444 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.282651786 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.292588377 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.292652248 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.295351891 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.295410883 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.297895280 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.297955974 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:53.301018471 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:53.301145869 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:53.303639163 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:53.303705049 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+Compute Scores:   0%|          | 0/20 [00:00<?, ?it/s]Compute Scores:  15%|█▌        | 3/20 [00:00<00:00, 22.71it/s]Compute Scores:  35%|███▌      | 7/20 [00:00<00:00, 27.67it/s]Compute Scores:  60%|██████    | 12/20 [00:00<00:00, 33.71it/s]Compute Scores:  90%|█████████ | 18/20 [00:00<00:00, 41.45it/s]Compute Scores: 100%|██████████| 20/20 [00:00<00:00, 39.04it/s]
+.[W912 20:51:56.662205874 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 23986176, total: 8214937600).
+[W912 20:51:56.665231754 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.676321542 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.676393094 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.691157856 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.691237955 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.701825678 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.701878610 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.713182951 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.713246220 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:51:56.722105864 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:56.724211065 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.730639229 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.730712848 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.735472864 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.735546029 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.739311211 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.739364762 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.742392319 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.742459594 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.745525393 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.745584004 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:51:56.748086327 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:56.748141222 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:56.750554499 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+[W912 20:51:56.753233263 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+Compute Scores:   0%|          | 0/20 [00:00<?, ?it/s]Compute Scores:  15%|█▌        | 3/20 [00:00<00:00, 22.16it/s]Compute Scores:  35%|███▌      | 7/20 [00:00<00:00, 30.10it/s]Compute Scores:  60%|██████    | 12/20 [00:00<00:00, 35.96it/s]Compute Scores: 100%|██████████| 20/20 [00:00<00:00, 43.62it/s]
+...............[W912 20:52:37.305374427 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 23986176, total: 8214937600).
+[W912 20:52:37.307097798 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:37.313098956 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:37.313148044 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.319047887 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.319088826 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.324946302 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.324986837 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.330938723 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.330979684 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.336988755 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.337036590 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.342999797 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.343048025 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.347941921 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.347982479 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.351794657 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.351836463 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.354876389 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.354918393 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.357716510 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.357760793 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.360239956 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.360283735 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.362565030 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.365383548 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+Compute Scores:   0%|          | 0/10 [00:00<?, ?it/s]Compute Scores:  30%|███       | 3/10 [00:00<00:00, 23.46it/s]Compute Scores:  70%|███████   | 7/10 [00:00<00:00, 30.33it/s]Compute Scores: 100%|██████████| 10/10 [00:00<00:00, 34.12it/s]
+.[W912 20:52:38.748413054 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 23986176, total: 8214937600).
+[W912 20:52:38.751375938 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.763262800 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.763308577 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.775403667 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.775451757 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.787666172 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.787709183 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.799746514 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.799795363 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 41943040 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:38.814845161 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.816250873 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 31457280 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.822524408 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.822589016 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.827386729 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.827426881 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.831276591 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.831316699 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.834388626 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.834429257 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.837293840 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.837344609 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 30277632, total: 8214937600).
+[W912 20:52:38.839849543 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.839892099 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.841900705 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+[W912 20:52:38.841944334 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 28180480, total: 8214937600).
+Compute Scores:   0%|          | 0/20 [00:00<?, ?it/s]Compute Scores:  15%|█▌        | 3/20 [00:00<00:00, 26.12it/s]Compute Scores:  35%|███▌      | 7/20 [00:00<00:00, 31.10it/s]Compute Scores:  60%|██████    | 12/20 [00:00<00:00, 35.97it/s]Compute Scores:  90%|█████████ | 18/20 [00:00<00:00, 43.17it/s]Compute Scores: 100%|██████████| 20/20 [00:00<00:00, 41.42it/s]
+.[W912 20:52:39.429613438 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 23986176, total: 8214937600).
+[W912 20:52:39.432123784 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.442800303 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.444306983 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.444370206 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.454784575 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.456530925 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.456573777 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.467100444 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.467143049 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.477512164 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 59637760, total: 8214937600).
+[W912 20:52:39.479483325 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.479524090 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 39845888 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.487467088 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 29360128 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.487524895 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 29360128 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.493537511 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.493606382 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.498148337 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.498206303 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 16777216 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.501696860 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.501735063 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.504567762 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.504609435 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 20971520 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.511840824 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.511886068 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 23068672 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.513733350 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.513797565 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.526743959 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.526816098 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 12582912 bytes (free: 21889024, total: 8214937600).
+[W912 20:52:39.533519879 CUDACachingAllocator.cpp:3934] memory allocation failed with OOM on device 0 while trying to allocate 2097152 bytes (free: 21889024, total: 8214937600).
+Compute Scores:   0%|          | 0/20 [00:00<?, ?it/s]Compute Scores:  15%|█▌        | 3/20 [00:00<00:00, 27.39it/s]Compute Scores:  40%|████      | 8/20 [00:00<00:00, 35.90it/s]Compute Scores:  65%|██████▌   | 13/20 [00:00<00:00, 40.95it/s]Compute Scores: 100%|██████████| 20/20 [00:00<00:00, 47.54it/s]
+....Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
+............................................................................................................................................................/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3b3c4cfb50>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3b3c4cfc40>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3adb234c70>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3b3c4cfd30>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163ba60>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163bb50>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163bc40>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163bd30>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163be20>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163bf10>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780130>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780220>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780040>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780310>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780400>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7804f0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7805e0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7806d0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7807c0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7808b0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace7809a0>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780a90>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780b80>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780c70>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780d60>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780e50>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/usr/lib/python3.13/reprlib.py:12: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ace780f40>
+  def decorating_function(user_function):
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+....................................................................................................................................................................[eval] UYARI: dondurulmus judge kumesindeki 2 id bu golden set'te YOK: ['yok1', 'yok2']...
+./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12bio_v1.json' mode='r' encoding='utf-8'>
+  return json.load(open(path, encoding="utf-8"))["items"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12kimya_v1.json' mode='r' encoding='utf-8'>
+  return json.load(open(path, encoding="utf-8"))["items"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12fizik_v1.json' mode='r' encoding='utf-8'>
+  return json.load(open(path, encoding="utf-8"))["items"]
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+................................................../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/generator.py:501: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
+  usd = pricing_cost_usd(result.model, result.usage)
+./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/costlog.py:184: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
+  usd = cost_usd(model, usage, tier)             # saf hesap — kilidin DIŞINDA
+..................................s................................................................................................................................................................................................/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3ac163bf10>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3acef1ce50>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3acef1da80>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3acef1dd50>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3acef1db70>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/pydantic/fields.py:257: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7f3acef1d210>
+  alias_is_set = any(alias is not None for alias in (self.alias, self.validation_alias, self.serialization_alias))
+ResourceWarning: Enable tracemalloc to get the object allocation traceback
+......................................................../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/question_gen.py:131: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
+  usd = pricing_cost_usd(result.model, result.usage)
+............/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/summarize/summarizer.py:178: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
+  usd = pricing_cost_usd(result.model, result.usage)
+.............................................................................................s...........................................................................................................................................................................................
+======================================================================
+ERROR: setUpClass (e2e.test_pipeline_e2e.PipelineE2ETests)
+----------------------------------------------------------------------
+Traceback (most recent call last):
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/e2e/test_pipeline_e2e.py", line 77, in setUpClass
+    cls.doc, cls.children, cls.by_id, cls.retr, cls.span_meta = _build()
+                                                                ~~~~~~^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/e2e/test_pipeline_e2e.py", line 55, in _build
+    _, vecs = emb.embed_chunks(children, batch_size=8)
+              ~~~~~~~~~~~~~~~~^^^^^^^^^^^^^^^^^^^^^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/embed/embedder.py", line 175, in embed_chunks
+    vecs = self.embed([c.text for c in chunks], batch_size=batch_size)
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/embed/embedder.py", line 146, in embed
+    out = self._load().encode(texts, batch_size=batch_size,
+                              max_length=self.max_length,
+                              return_dense=True, return_sparse=False)
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/FlagEmbedding/inference/embedder/encoder_only/m3.py", line 301, in encode
+    return super().encode(
+           ~~~~~~~~~~~~~~^
+        sentences,
+        ^^^^^^^^^^
+    ...<5 lines>...
+        **kwargs
+        ^^^^^^^^
+    )
+    ^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/FlagEmbedding/abc/inference/AbsEmbedder.py", line 279, in encode
+    return self.encode_single_device(
+           ~~~~~~~~~~~~~~~~~~~~~~~~~^
+        sentences,
+        ^^^^^^^^^^
+    ...<4 lines>...
+        **kwargs
+        ^^^^^^^^
+    )
+    ^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/utils/_contextlib.py", line 124, in decorate_context
+    return func(*args, **kwargs)
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/FlagEmbedding/inference/embedder/encoder_only/m3.py", line 346, in encode_single_device
+    self.model.to(device)
+    ~~~~~~~~~~~~~^^^^^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1388, in to
+    return self._apply(convert)
+           ~~~~~~~~~~~^^^^^^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+    ~~~~~~~~~~~~~^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+    ~~~~~~~~~~~~~^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 933, in _apply
+    module._apply(fn)
+    ~~~~~~~~~~~~~^^^^
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 966, in _apply
+    param_applied = fn(param)
+  File "/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/torch/nn/modules/module.py", line 1374, in convert
+    return t.to(
+           ~~~~^
+        device,
+        ^^^^^^^
+        dtype if t.is_floating_point() or t.is_complex() else None,
+        ^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^^
+        non_blocking,
+        ^^^^^^^^^^^^^
+    )
+    ^
+torch.OutOfMemoryError: CUDA out of memory. Tried to allocate 490.00 MiB. GPU 0 has a total capacity of 7.65 GiB of which 58.88 MiB is free. Including non-PyTorch memory, this process has 7.57 GiB memory in use. Of the allocated memory 7.42 GiB is allocated by PyTorch, and 30.62 MiB is reserved by PyTorch but unallocated. If reserved but unallocated memory is large try setting PYTORCH_CUDA_ALLOC_CONF=expandable_segments:True to avoid fragmentation.  See documentation for Memory Management  (https://docs.pytorch.org/docs/stable/notes/cuda.html#optimizing-memory-usage-with-pytorch-cuda-alloc-conf)
+
+----------------------------------------------------------------------
+Ran 993 tests in 185.617s
+
+FAILED (errors=1, skipped=2)

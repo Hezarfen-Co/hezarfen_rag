@@ -7,20 +7,22 @@ Model yüklenemezse ATLANIR.
 import os
 import unittest
 
+import corpus
+
 from src.ingest.canonical import build_canonical
 from src.chunk import chunk_document
 from src.index import DenseIndex, BM25Index
 from src.retrieve import SparseIndex, HybridRetriever
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 
 def _prepare():
     try:
         from src.embed import BGEM3Embedder
-        doc = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
         children = [c for c in chunk_document(doc) if c.level == "child"]
-        emb = BGEM3Embedder()
+        emb = corpus.shared_embedder()
         ids, vecs = emb.embed_chunks(children, batch_size=16)
         texts = [c.text for c in children]
         sparse_docs = emb.embed_sparse(texts, batch_size=16)

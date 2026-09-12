@@ -7,6 +7,8 @@ Gerçek retrieval/rerank modelleri yüklenir (yavaş) ama LLM stub'lanır → de
 ücretsiz. Model yüklenemezse test atlanır (CI/ortam güvenliği)."""
 import unittest
 
+import corpus
+
 from src.pricing import Usage
 
 
@@ -51,7 +53,7 @@ def _build():
     ids = [c.chunk_id for c in children]
     texts = [c.text for c in children]
     by_id = {c.chunk_id: c for c in children}
-    emb = BGEM3Embedder()
+    emb = corpus.shared_embedder()
     _, vecs = emb.embed_chunks(children, batch_size=8)
     meta = {c.chunk_id: {"sinif": "12", "ders": "biyoloji"} for c in children}
     retr = HybridRetriever(emb, DenseIndex(dim=1024).build(ids, vecs),
@@ -75,7 +77,7 @@ class PipelineE2ETests(unittest.TestCase):
     def setUpClass(cls):
         from src.rerank import BGEReranker
         cls.doc, cls.children, cls.by_id, cls.retr, cls.span_meta = _build()
-        cls.reranker = BGEReranker()
+        cls.reranker = corpus.shared_reranker()
 
     def _gen(self, stub_text, role_ctx=None):
         from src.generate import Generator

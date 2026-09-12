@@ -2,6 +2,8 @@
 Model yüklenemezse (net/indirme yok) test ATLANIR."""
 import unittest
 
+import corpus
+
 import numpy as np
 
 from src.embed import BGEM3Embedder, cosine_sim
@@ -9,7 +11,7 @@ from src.embed import BGEM3Embedder, cosine_sim
 
 def _model_ready():
     try:
-        e = BGEM3Embedder()
+        e = corpus.shared_embedder()
         e.embed(["deneme"])          # ilk çağrı modeli indirir/yükler
         return e
     except Exception:

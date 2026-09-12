@@ -2,17 +2,19 @@
 import os
 import unittest
 
+import corpus
+
 from src.ingest.canonical import build_canonical
 from src.chunk import chunk_document
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 
-@unittest.skipUnless(os.path.exists(BOOK), f"veri yok: {BOOK}")
+@corpus.requires_book
 class Chunk12BioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.doc = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        cls.doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
         cls.chunks = chunk_document(cls.doc)
         cls.children = [c for c in cls.chunks if c.level == "child"]
         cls.parents = [c for c in cls.chunks if c.level == "parent"]
@@ -44,7 +46,7 @@ class Chunk12BioTests(unittest.TestCase):
         for c in self.chunks[:100]:
             self.assertTrue(c.span_ids)
             self.assertTrue(c.text.strip())
-            self.assertEqual((c.sinif, c.ders), ("12", "biyoloji"))
+            self.assertEqual((c.sinif, c.ders), (corpus.find_book()[1], corpus.find_book()[2]))
             self.assertIn(c.page_visual, {"figure_heavy", "mixed", "low_visual"})
 
 

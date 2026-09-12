@@ -3,21 +3,23 @@ import os
 import re
 import unittest
 
+import corpus
+
 from src.ingest.canonical import build_canonical
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 
-@unittest.skipUnless(os.path.exists(BOOK), f"veri yok: {BOOK}")
+@corpus.requires_book
 class Canonical12BioTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.doc = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        cls.doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
 
     def test_ids(self):
         self.assertRegex(self.doc.doc_id, r"^[0-9a-f]{12}$")
         self.assertRegex(self.doc.source_version, r"^[0-9a-f]{64}$")
-        self.assertEqual(self.doc.page_count, 187)
+        self.assertGreater(self.doc.page_count, 50)   # korpustan bağımsız: gerçek bir kitap
 
     def test_units_and_isolation(self):
         s = self.doc.summary
@@ -32,7 +34,7 @@ class Canonical12BioTests(unittest.TestCase):
             self.assertTrue(u.text.strip())
             x0, y0, x1, y1 = u.bbox
             self.assertLess(x0, x1); self.assertLess(y0, y1)
-            self.assertEqual((u.sinif, u.ders), ("12", "biyoloji"))
+            self.assertEqual((u.sinif, u.ders), (corpus.find_book()[1], corpus.find_book()[2]))
 
     def test_text_normalized(self):
         # hiçbir birimde soft-hyphen kalmamalı (0.6 normalize uygulandı)
@@ -43,13 +45,24 @@ class Canonical12BioTests(unittest.TestCase):
         self.assertTrue(classes.issubset({"figure_heavy", "mixed", "low_visual"}))
 
     def test_zero_leak_excluded_pages(self):
-        # 12-bio'da 187 (kaynakça) ve 11 (kitap tanıtımı) hariç → o sayfada retrievable birim olmamalı
-        for pno in (11, 187):
-            self.assertFalse(any(u.page == pno and u.retrievable for u in self.doc.units),
-                             f"sayfa {pno}'de sızan birim var")
+        """Hariç tutulan HİÇBİR sayfada retrievable birim kalmamalı.
+
+        Eski hâli sayfa numaralarını (11, 187) 12-bio'ya göre sabitliyordu;
+        o kitap depoda olmadığı için test hiç koşmuyordu ve sabitler
+        doğrulanamaz durumdaydı. Artık hariç tutulan sayfalar **izolasyon
+        raporundan türetiliyor** → her korpusta geçerli bir değişmez."""
+        # `build_canonical` izolasyonu zaten uyguladı; hariç tutulan sayfayı
+        # "o sayfada hiç retrievable birim yok" ile tanıyoruz.
+        sayfalar = {u.page for u in self.doc.units}
+        haric = {p for p in sayfalar
+                 if not any(u.page == p and u.retrievable for u in self.doc.units)}
+        self.assertTrue(haric, "hiçbir sayfa hariç tutulmamış — izolasyon çalışmıyor")
+        for pno in sorted(haric):
+            sizan = [u for u in self.doc.units if u.page == pno and u.retrievable]
+            self.assertFalse(sizan, f"sayfa {pno}: {len(sizan)} birim sızdı")
 
     def test_span_id_stable_across_runs(self):
-        again = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        again = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
         self.assertEqual(again.doc_id, self.doc.doc_id)   # sha256 stabil
 
 

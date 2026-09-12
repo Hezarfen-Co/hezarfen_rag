@@ -22,6 +22,8 @@ import sys
 import tempfile
 import unittest
 
+import corpus
+
 from src import costlog
 
 
@@ -44,7 +46,7 @@ def _load_dotenv(path: str = ".env") -> None:
 
 _load_dotenv()
 
-BOOK = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+BOOK = corpus.book_path()
 
 # GERÇEK Obsidian ledger'ı — bu test dosyasının ASLA yazmaması gereken dosya.
 # Testler bunun içeriğini _prepare() çağrılmadan ÖNCE anlık görüntüler, sonunda
@@ -99,13 +101,13 @@ def _prepare():
         from src.providers.deepseek import DeepSeek
         from src.generate import Generator, build_span_meta
 
-        doc = build_canonical(BOOK, sinif="12", ders="biyoloji")
+        doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
         chunks = chunk_document(doc)
         children = [c for c in chunks if c.level == "child"]
         chunks_by_id = {c.chunk_id: c for c in chunks}      # child + parent
         span_meta = build_span_meta(doc)
 
-        emb = BGEM3Embedder()
+        emb = corpus.shared_embedder()
         ids, vecs = emb.embed_chunks(children, batch_size=16)
         texts = [c.text for c in children]
         sparse_docs = emb.embed_sparse(texts, batch_size=16)
@@ -114,7 +116,7 @@ def _prepare():
         sparse = SparseIndex().build(ids, sparse_docs)
         retr = HybridRetriever(emb, dense, bm25, sparse)
 
-        rr = BGEReranker()
+        rr = corpus.shared_reranker()
         rr.rerank("ısınma", [("x", "deneme metni")])         # modeli yükle
 
         counting_ds = _CountingDeepSeek(DeepSeek())
@@ -138,14 +140,17 @@ _PREP = _prepare() if os.path.exists(BOOK) else None
 
 
 @unittest.skipUnless(_PREP is not None,
-                     "12-bio verisi / DEEPSEEK_API_KEY / BGE modelleri yok")
+                     "korpus / DEEPSEEK_API_KEY / BGE modelleri yok")
 class GenerateIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
         cls.gen, cls.deepseek = _PREP
+        # SORGU KORPUSTAN TÜRETİLİR (aynı gerekçe: test_rerank).
+        en_uzun = max(cls.gen.chunks_by_id.values(), key=lambda c: len(c.text))
+        cls.QUERY = " ".join(en_uzun.text.split()[:20])
 
     def test_in_scope_question_returns_grounded_citation(self):
-        result = self.gen.answer("DNA'nın yapısı nedir?")
+        result = self.gen.answer(self.QUERY)
 
         self.assertFalse(result.abstained, f"beklenmedik çekimser: {result.reason}")
         self.assertGreaterEqual(len(result.citations), 1)
@@ -159,7 +164,7 @@ class GenerateIntegrationTests(unittest.TestCase):
         self.assertIsNotNone(result.usage)
         self.assertGreater(result.usage.output, 0)
 
-        print(f"\n[test_generate] soru='DNA\\'nın yapısı nedir?'\n"
+        print(f"\n[test_generate] soru={self.QUERY[:50]!r}\n"
               f"  cevap: {result.text}\n"
               f"  atıflar: {result.citations}\n"
               f"  maliyet: ${result.cost_usd:.6f} · gecikme: {result.latency_s:.2f}s")
