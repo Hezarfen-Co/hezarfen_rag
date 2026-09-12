@@ -473,29 +473,44 @@ class _LazyService:
         return self._yonlendir("generate_questions", req)
 
 
-def main() -> None:
+def create_app_with_warmup():
+    """uvicorn giriş noktası — sunucu HEMEN ayağa kalkar, boru hattı arka planda.
+
+    Koşum:
+        uvicorn src.service.http_app:create_app_with_warmup --factory
+
+    **Fabrika** olarak yazıldı (modül seviyesinde `app = ...` DEĞİL): modülü
+    içe aktarmanın yan etkisi olmamalı, yoksa her test içe aktarması bir
+    ısıtma thread'i başlatır ve model indirmeye kalkar.
+    """
     import threading
-    import uvicorn
     book = os.environ.get("BOOK_PATH", "data/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")
     for uyari in _yapilandirma_uyarilari():
-        print(f"[http][UYARI] {uyari}")
+        print(f"[http][UYARI] {uyari}", flush=True)
 
     service = _LazyService()
 
     def _isit():
-        t0 = __import__("time").time()
+        import time as _t
+        t0 = _t.time()
         try:
             service.ata(build_service(book, sinif=sinif, ders=ders))
-            print(f"[http] pipeline hazır ({__import__('time').time() - t0:.1f}s)")
+            print(f"[http] pipeline hazır ({_t.time() - t0:.1f}s)", flush=True)
         except Exception as e:                   # noqa: BLE001
             service.hata = f"{type(e).__name__}: {e}"
-            print(f"[http][HATA] pipeline kurulamadı: {service.hata}")
+            print(f"[http][HATA] pipeline kurulamadı: {service.hata}", flush=True)
 
-    print(f"[http] pipeline ARKA PLANDA kuruluyor: {book} ({sinif}/{ders})")
+    print(f"[http] pipeline ARKA PLANDA kuruluyor: {book} ({sinif}/{ders})",
+          flush=True)
     threading.Thread(target=_isit, name="warmup", daemon=True).start()
-    app = create_app(service)
+    return create_app(service)
+
+
+def main() -> None:
+    import uvicorn
+    app = create_app_with_warmup()
     host, port = os.environ.get("HOST", "127.0.0.1"), int(os.environ.get("PORT", "8000"))
     print(f"[http] hazır → http://{host}:{port}  (/health, /ready, /rag/*)")
     # #50/OPS-13: graceful shutdown yoktu -- SIGTERM ucusta olan istekleri

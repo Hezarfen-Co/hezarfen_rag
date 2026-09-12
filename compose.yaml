@@ -1,10 +1,12 @@
 # hezarfen_rag — proje-bazlı Podman compose (Docker DEĞİL).
 # Kardeş servisler (backend/frontend/chatbot) kendi compose'larıyla ayağa kalkar.
-# RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır — Çelebi
-# köprüsüyle aynı desen. Servis girişi Faz 1 sonrası (QUIC api-read) eklenecek.
+# RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır.
 #
 # Kullanım (backend ayaktayken):
 #   podman compose --profile product up -d --build
+#
+# #81: önceki hâlde `ports`, `healthcheck` ve `data` mount'u YOKTU; CMD de
+# servisi başlatmıyordu → `restart: unless-stopped` ile sonsuz restart döngüsü.
 services:
   rag:
     build:
@@ -13,21 +15,44 @@ services:
     image: localhost/hezarfen-rag:local
     container_name: hezarfen-rag
     profiles: ["product"]            # otomatik kalkmaz; backend hazır olunca çalıştır
+    env_file:
+      - .env                         # #81: .env servis yolunda YÜKLENMİYORDU
     environment:
-      DEEPSEEK_API_KEY: ${DEEPSEEK_API_KEY:-}   # üretim adımı (Faz 1.7) için
-      HF_HOME: /models                          # BGE-M3 model cache
+      HF_HOME: /models
       PYTHONUNBUFFERED: "1"
+      HOST: 0.0.0.0
+      PORT: "8000"
+      # Korpus konteyner içindeki mount yolundan okunur.
+      BOOK_PATH: /app/data/lise/10/biyoloji/kitap.pdf
+      SINIF: "10"
+      DERS: biyoloji
+      # Üretimde doldurulmalı (bkz. .env.example):
+      RAG_SERVICE_TOKEN: ${RAG_SERVICE_TOKEN:-}
+      RAG_ALLOWED_HOSTS: ${RAG_ALLOWED_HOSTS:-*}
+      RAG_USER_DAILY_USD: ${RAG_USER_DAILY_USD:-0}
+    ports:
+      - "127.0.0.1:8000:8000"        # yalnız yerel; dışa açmak bilinçli olmalı
     volumes:
-      - rag-models:/models                       # model cache kalıcı (BGE-M3 ~2GB)
-      # - ./data:/app/data:ro                    # ölçüm verisi (opsiyonel; git-ignored)
+      - rag-models:/models           # model cache kalıcı (BGE-M3 + reranker ~2,3 GB × 2)
+      - ./data:/app/data:ro,z        # korpus; imgeye GİRMEZ (.containerignore)
+      - rag-cost:/cost               # maliyet defteri (restart'ta kaybolmasın)
+    healthcheck:
+      # `/health` liveness'tır: süreç ayakta mı. Hazır olup olmadığı `/ready`de
+      # (#50/#82) — boru hattı ~40 s kurulurken kap SAĞLIKSIZ sayılmamalı.
+      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+      interval: 15s
+      timeout: 3s
+      retries: 3
+      start_period: 20s
     networks:
       - backend_net
     restart: unless-stopped
+
+volumes:
+  rag-models:
+  rag-cost:
 
 networks:
   backend_net:
     external: true
     name: hezarfen_backend_default
-
-volumes:
-  rag-models:
