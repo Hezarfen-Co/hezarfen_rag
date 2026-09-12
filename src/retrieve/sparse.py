@@ -19,11 +19,35 @@ class SparseIndex:
     def __init__(self):
         self._ids: list[str] = []
         self._docs: list[dict[str, float]] = []
+        self._doc_ids: list[str] = []          # her chunk'ın KAYNAĞI (#76)
 
-    def build(self, ids, sparse_dicts):
+    def build(self, ids, sparse_dicts, *, doc_id: str = ""):
         self._ids = list(ids)
         self._docs = [_norm_weights(d) for d in sparse_dicts]
+        self._doc_ids = [doc_id] * len(self._ids)
         return self
+
+    # M4-2 (#76): kaynak bazlı silme/ekleme. Sparse indeks saf Python listesi
+    # olduğu için artımlı çalışır (BM25'ten farklı olarak yeniden kurma yok).
+    def add(self, ids, sparse_dicts, *, doc_id: str = ""):
+        yeni = list(ids)
+        self._ids.extend(yeni)
+        self._docs.extend(_norm_weights(d) for d in sparse_dicts)
+        self._doc_ids.extend([doc_id] * len(yeni))
+        return self
+
+    def delete(self, doc_id: str) -> int:
+        tut = [i for i, d in enumerate(self._doc_ids) if d != doc_id]
+        silinen = len(self._ids) - len(tut)
+        if not silinen:
+            return 0
+        self._ids = [self._ids[i] for i in tut]
+        self._docs = [self._docs[i] for i in tut]
+        self._doc_ids = [self._doc_ids[i] for i in tut]
+        return silinen
+
+    def doc_ids(self) -> set:
+        return {d for d in self._doc_ids if d}
 
     def search(self, query_sparse, top_k: int = 30):
         q = _norm_weights(query_sparse)
