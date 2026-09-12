@@ -6,6 +6,9 @@ Model **lazy** yüklenir → import ucuz, testte model olmadan da kurulabilir.
 GPU varsa otomatik kullanılır (fp16). Dense vektörler L2-normalize (cosine = dot).
 """
 from __future__ import annotations
+
+import os
+import threading
 from typing import Protocol
 
 import numpy as np
@@ -26,6 +29,14 @@ def cosine_matrix(query, matrix) -> np.ndarray:
     qn = q / (np.linalg.norm(q) + 1e-12)
     mn = m / (np.linalg.norm(m, axis=1, keepdims=True) + 1e-12)
     return mn @ qn
+
+
+# #80: model surumu PINLENEBILIR olmali. `snapshot_download`'a `revision`
+# verilmediginde her indirme depo HEAD'ini alir; yayinci agirligi guncellerse
+# UYGULAMA SESSIZCE BASKA BIR MODELE GECER ve olculmus butun sayilar (kapi
+# degerleri dahil) o modele ait OLMAKTAN CIKAR. Bos birakmak eski davranistir;
+# uretimde bir commit sha'si verilmelidir.
+MODEL_REVISION = os.environ.get("HEZARFEN_EMBED_REVISION") or None
 
 
 class Embedder(Protocol):
@@ -52,6 +63,8 @@ class BGEM3Embedder:
         self.max_length = max_length
         self._use_fp16 = use_fp16
         self._model = None
+        # #80: cift-kontrollu kilit (bkz. `_load`)
+        self._load_lock = threading.Lock()
         # Opsiyonel EmbeddingCache (bkz. src/cache/embedding_cache.py). None ise
         # davranış ÖNCEKİYLE BİREBİR AYNI (mevcut testler bozulmaz).
         self.cache = cache
@@ -66,19 +79,55 @@ class BGEM3Embedder:
         from huggingface_hub import snapshot_download
         try:                                          # önce cache (ağsız)
             return snapshot_download(self.model_name, allow_patterns=_NEEDED_PATTERNS,
-                                     local_files_only=True)
+                                     revision=MODEL_REVISION, local_files_only=True)
         except Exception:                             # cache yok → gerekli dosyaları indir
-            return snapshot_download(self.model_name, allow_patterns=_NEEDED_PATTERNS)
+            return snapshot_download(self.model_name, allow_patterns=_NEEDED_PATTERNS,
+                                     revision=MODEL_REVISION)
 
+
+# M4-6 (#80, EXP-010/OPS-07) -- MODEL YASAM DONGUSU.
+#
+# KOSULARAK KANITLANDI: `_load` kontrol-sonra-ata (check-then-set) desenindeydi
+# ve HIC KILIT YOKTU. FastAPI uc noktalari `def` (sync) oldugu icin Starlette
+# bunlari anyio worker havuzunda (varsayilan 40) GERCEKTEN paralel kosturuyor.
+# Gercek sinifla olculdu: 8 thread -> **8 model yuklemesi** (1 olmaliydi).
+#
+# Basarisizlik: soguk servise 8 ogrenci ayni anda sorarsa BGE-M3 (+reranker)
+# 8 kez paralel yuklenir -> 8 paralel snapshot_download (~2,3 GB x 2 model)
+# ve/veya 8 kopya agirlik RAM'de -> OOM-kill. Hayatta kalsa bile yalniz son
+# atanan ornek kullanilir (digerleri bosa harcanmis is).
+#
+# CIFT KONTROLLU KILIT: hizli yol (model zaten yuklu) kilide HIC girmez;
+# yalniz ilk yukleme serilesir.
     def _load(self):
-        if self._model is None:
-            import torch
-            from FlagEmbedding import BGEM3FlagModel
-            fp16 = self._use_fp16
-            if fp16 is None:
-                fp16 = torch.cuda.is_available()      # fp16 yalnız GPU'da
-            self._model = BGEM3FlagModel(self._resolve_model_path(), use_fp16=fp16)
+        if self._model is not None:               # hızlı yol: kilide girme
+            return self._model
+        with self._load_lock:
+            if self._model is None:               # ikinci kontrol (kilit altında)
+                self._model = self._build_model()
         return self._model
+
+    def _build_model(self):
+        """Ağır yükleme — AYRI bir metot, çünkü eşzamanlılık sözleşmesi
+        (tam bir kez yükleme) torch'u hiç içe aktarmadan test edilebilmeli.
+
+        Testlerde `sys.modules["FlagEmbedding"]` yamalamak torch'un C uzantı
+        importunu bozuyordu (`SystemError: bad call flags`) — ürün hatası
+        değil ama kırılgan bir dikiş. Buradan yamalanır."""
+        import torch
+        from FlagEmbedding import BGEM3FlagModel
+        fp16 = self._use_fp16
+        if fp16 is None:
+            fp16 = torch.cuda.is_available()      # fp16 yalnız GPU'da
+        return BGEM3FlagModel(self._resolve_model_path(), use_fp16=fp16)
+
+    def warmup(self):
+        """Modeli AÇILIŞTA yükle — ilk isteği bekletmemek için.
+
+        Servis `main()` boru hattını arka planda kurarken bu zaten çağrılır
+        (#82); ayrıca elle/lifespan'dan çağrılabilir."""
+        self._load()
+        return self
 
     @property
     def loaded(self) -> bool:
