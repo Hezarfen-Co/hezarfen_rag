@@ -10,6 +10,7 @@ None ise HİÇBİR ek maliyet yok (mevcut davranış birebir korunur).
 from __future__ import annotations
 
 import contextlib
+import os
 import time
 import uuid
 from dataclasses import dataclass, field
@@ -64,3 +65,84 @@ class RequestTrace:
         return (f"[trace {self.request_id}] {self.total_ms:.0f}ms "
                 f"decision={d.get('abstained') and 'abstain' or 'answer'} "
                 f"reason={d.get('reason','')!r} events={len(self.events)}")
+
+
+# M4-11 (#85, EXP-010/OPS-12) — TRACE URETIMDE HIC URETILMIYORDU.
+#
+# grep ile dogrulandi: `RequestTrace` yalniz `trace.py` ve
+# `observability/__init__.py`'de geciyordu. `RagService.chat` `trace=`
+# gecirmiyor -> `Generator.answer(trace=None)` -> butun `_tr()` cagrilari
+# NO-OP. Sink yok, `request_id` yanita donmuyor.
+#
+# SONUC: YENIDEN-OYNATILABILIRLIK YOK. "Neden bu cevabi verdi?" sorusu geriye
+# donuk cevaplanamiyor; kalite regresyonu ve sikayet incelemesi imkansiz.
+#
+# HASSAS ICERIK: #49 (KVKK) ile uyumlu olmak zorunda -- ogrencinin sorgu
+# METNI ize YAZILMAZ; yalniz uzunluk + kisa hash tutulur. Sorgu metnini
+# yazmak, silinmesi gereken bir kisisel veriyi ikinci bir yere kopyalamak
+# demektir.
+
+TRACE_PATH = os.environ.get("HEZARFEN_TRACE_PATH") or ""
+TRACE_SAMPLE = float(os.environ.get("HEZARFEN_TRACE_SAMPLE", "1.0"))
+
+
+def redact(text: str | None) -> dict:
+    """Sorgu metnini ize yazmadan tanınabilir kılar (#49 ile uyumlu)."""
+    import hashlib
+    ham = text or ""
+    return {"len": len(ham),
+            "hash": hashlib.sha256(ham.encode("utf-8")).hexdigest()[:12]}
+
+
+def write_trace(trace, path: str | None = None, *, sample: float | None = None,
+                rng=None) -> bool:
+    """İzi JSONL sink'e yazar. Döner: yazıldı mı.
+
+    ÖRNEKLEME: yoğun trafikte her isteği yazmak diski doldurur. `sample=0.1`
+    izlerin %10'unu tutar. **Çekimser ve hatalı istekler HER ZAMAN yazılır** —
+    incelenmesi gereken tam olarak onlardır; örnekleme onları atarsa
+    izlenebilirlik en çok ihtiyaç duyulan yerde kaybolur.
+
+    Telemetri hatası isteği ASLA düşürmez (aynı ilke: costlog, audit).
+    """
+    import json as _json
+    import random as _random
+    hedef = path if path is not None else TRACE_PATH
+    if not hedef:
+        return False
+    d = trace.to_dict() if hasattr(trace, "to_dict") else dict(trace)
+    oran = TRACE_SAMPLE if sample is None else sample
+    # DIKKAT: `TraceEvent.to_dict()` meta'yi DUZLESTIRIR (ayri bir "meta"
+    # anahtari YOKTUR). Ilk surumde `e.get("meta", {})` yaziyordum ve bu yuzden
+    # ONEMLI izler hicbir zaman taninmiyor, ornekleme onlari da atiyordu --
+    # yani izlenebilirlik tam ihtiyac duyulan yerde kayboluyordu.
+    onemli = any(e.get("abstained") or e.get("name") == "error"
+                 for e in d.get("events", []))
+    if not onemli and oran < 1.0:
+        r = (rng or _random.random)()
+        if r >= oran:
+            return False
+    try:
+        os.makedirs(os.path.dirname(hedef) or ".", exist_ok=True)
+        with open(hedef, "a", encoding="utf-8") as fh:
+            fh.write(_json.dumps(d, ensure_ascii=False) + "\n")
+        return True
+    except Exception:                            # noqa: BLE001
+        return False
+
+
+def read_traces(path: str | None = None) -> list[dict]:
+    import json as _json
+    hedef = path if path is not None else TRACE_PATH
+    if not hedef or not os.path.isfile(hedef):
+        return []
+    out = []
+    with open(hedef, encoding="utf-8") as fh:
+        for satir in fh:
+            satir = satir.strip()
+            if satir:
+                try:
+                    out.append(_json.loads(satir))
+                except Exception:                # noqa: BLE001
+                    continue
+    return out

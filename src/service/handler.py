@@ -10,6 +10,7 @@ yeniden doğrulanır (yanlış sınıf/ders → red)."""
 from __future__ import annotations
 
 from ..budget import BudgetGate, check_request_size
+from ..observability.trace import RequestTrace, redact, write_trace
 from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
 
@@ -149,19 +150,41 @@ class RagService:
         if not karar.allowed:
             return _budget_denied(karar, "chat")
         opts = req.get("options") or {}
+        # #85 (EXP-010/OPS-12): iz URETIMDE HIC URETILMIYORDU. `trace=`
+        # gecirilmedigi icin generator'daki butun `_tr()` cagrilari no-op'tu ve
+        # "neden bu cevabi verdi?" sorusu geriye donuk cevaplanamiyordu.
+        # Sorgu METNI ize YAZILMAZ (#49/KVKK) -- yalniz uzunluk + kisa hash.
+        trace = RequestTrace(request_id=req.get("request_id"))
+        trace.event("request", kind="chat", query=redact(query),
+                    role=(role_ctx.role.value if role_ctx else None),
+                    sinif=(role_ctx.sinif if role_ctx else None),
+                    top_n=int(opts.get("top_n", 6)),
+                    candidate_n=int(opts.get("candidate_n", 40)))
         try:
             a = self.generator.answer(
                 query, history=req.get("history"),
                 top_n=int(opts.get("top_n", 6)),
                 candidate_n=int(opts.get("candidate_n", 40)),
-                role_ctx=role_ctx)
+                role_ctx=role_ctx, trace=trace)
         except LlmUnavailable:
+            trace.event("error", kind="llm_unavailable")
+            write_trace(trace)
             return _llm_unavailable("chat")
         # Harcama GERÇEKLEŞTİ → sayaca yaz. Kapı bir sonraki istekte bakar;
         # harcamadan sonra bakmak tavanı anlamsız kılardı.
         self.budget.record(getattr(a, "cost_usd", 0.0) or 0.0,
                            user=req.get("user"), tenant=req.get("tenant"))
-        return _answer_to_dict(a)
+        trace.event("response", abstained=bool(a.abstained), reason=a.reason or "",
+                    n_citations=len(a.citations),
+                    n_sentences=getattr(a, "n_sentences", 0),
+                    n_cited_sentences=getattr(a, "n_cited_sentences", 0),
+                    n_phantom=len(getattr(a, "invalid_citations", []) or []),
+                    cache_hit=bool(getattr(a, "cache_hit", False)),
+                    cost_usd=round(a.cost_usd, 6))
+        write_trace(trace)
+        out = _answer_to_dict(a)
+        out["request_id"] = trace.request_id       # #85: yanita KOY
+        return out
 
     # -------------------------------------------------------------- /rag/summarize
     def summarize(self, req: dict) -> dict:
