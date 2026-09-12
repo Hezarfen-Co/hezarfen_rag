@@ -79,7 +79,7 @@ class QuestionGenerator:
     def __init__(self, deepseek=None, *, module: str = "benzer-soru", cost_recorder=None):
         self.deepseek = deepseek if deepseek is not None else DeepSeek()
         self.module = module
-        self._record = cost_recorder if cost_recorder is not None else costlog.record
+        self._record = cost_recorder if cost_recorder is not None else costlog.record_safe
 
     def _abstain(self, reason: str) -> GeneratedQuestionSet:
         return GeneratedQuestionSet(items=[], abstained=True, reason=reason)

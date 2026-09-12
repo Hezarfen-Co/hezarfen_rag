@@ -266,7 +266,7 @@ class Generator:
         self.module = module
         # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
         # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).
-        self._record = cost_recorder if cost_recorder is not None else costlog.record
+        self._record = cost_recorder if cost_recorder is not None else costlog.record_safe
         # Opsiyonel — SUNUCU-TARAFI türetilmiş RoleContext (bkz. src/guard/roles.py).
         # İSTEMCİ header'ından ASLA doğrudan kurulmamalı (çağıran taraf/auth katmanı
         # sorumlu). Faz 1.6'dan beri retrieval'e GEÇİRİLİR (kasa izolasyonu);

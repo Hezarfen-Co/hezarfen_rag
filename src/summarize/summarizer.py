@@ -98,7 +98,7 @@ class Summarizer:
         self.module = module
         # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
         # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).
-        self._record = cost_recorder if cost_recorder is not None else costlog.record
+        self._record = cost_recorder if cost_recorder is not None else costlog.record_safe
         self.max_units_per_group = max_units_per_group
 
     # ------------------------------------------------------------------ genel

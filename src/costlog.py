@@ -21,6 +21,7 @@ from __future__ import annotations
 import contextlib
 import json
 import os
+import warnings
 import tempfile
 import time
 from datetime import datetime, timezone
@@ -52,6 +53,10 @@ OBSIDIAN_VAULT = os.path.join(
     "Hezarfen", "rag")
 VAULT = os.environ.get("HEZARFEN_COST_VAULT") or OBSIDIAN_VAULT
 LEDGER = os.path.join(VAULT, "runs.jsonl")
+# #84: varsayilan KAPALI -- render istek yolundan cikti.
+# Eski davranisi isteyen (ornek/tek kullanicili kosum) 1 yapar.
+RENDER_ON_RECORD = os.environ.get("HEZARFEN_COST_RENDER", "0") not in (
+    "0", "", "false", "False")
 MALIYET = os.path.join(VAULT, "Maliyet.md")
 
 # Modül = ürünün bir yeteneği (birim maliyeti ayrı izlenir).
@@ -134,6 +139,42 @@ def _next_id(runs: list[dict]) -> str:
     return f"R{n + 1:04d}"
 
 
+def _tail_lines(path: str, n_bytes: int = 65536) -> list[str]:
+    """Dosyanın SONUNDAN en çok `n_bytes` okuyup satırlara böler.
+
+    #84: id atamak için bütün defteri okumak O(n)'dir ve kilit ALTINDA olur —
+    yani her cevap, defter büyüdükçe daha uzun süre kuyrukta bekler. Ölçüldü:
+    50.000 satırda `record()` **745 ms**. id'ler artan olduğu için son satır
+    yeterlidir.
+    """
+    if not os.path.exists(path):
+        return []
+    boyut = os.path.getsize(path)
+    with open(path, "rb") as f:
+        f.seek(max(0, boyut - n_bytes))
+        ham = f.read()
+    if boyut > n_bytes:
+        ham = ham.split(b"\n", 1)[-1]        # ilk (yarım) satırı at
+    return [x for x in ham.decode("utf-8", "replace").splitlines() if x.strip()]
+
+
+def _next_id_fast(ledger: str) -> str:
+    """Son satırdan sıradaki id — bütün defteri okumadan.
+
+    Bozuk/eksik son satırlara dayanıklı: geriye doğru ilk okunabilir satır
+    kullanılır. Hiçbiri okunamazsa dosya tam taranır (nadir, güvenli yol).
+    """
+    satirlar = _tail_lines(ledger)
+    for satir in reversed(satirlar):
+        try:
+            rid = json.loads(satir).get("run_id", "")
+        except json.JSONDecodeError:
+            continue
+        if isinstance(rid, str) and rid.startswith("R") and rid[1:].isdigit():
+            return f"R{int(rid[1:]) + 1:04d}"
+    return _next_id(_load(ledger))
+
+
 def record(module: str, model: str, usage: Usage, items: int = 1, *,
            tier: str = "peak", config: dict | None = None,
            quality: dict | None = None, note: str = "",
@@ -156,17 +197,48 @@ def record(module: str, model: str, usage: Usage, items: int = 1, *,
         "quality": quality or {},
         "note": note,
     }
-    d = os.path.dirname(ledger)
-    if d:
-        os.makedirs(d, exist_ok=True)
-    # KRİTİK BÖLÜM: id-atama (max-scan) + append tek kilit altında → eşzamanlı iki
-    # süreç aynı id'yi almaz, satırlar iç-içe girmez (#28).
+    # #84 (EXP-010/OPS-04): `os.path.dirname(path)` dizinsiz yolda "" döner ve
+    # `makedirs("")` FileNotFoundError fırlatır — bu `record()` içinden gelince
+    # CEVAP ÜRETİLDİKTEN SONRA 500 oluyordu (para harcanmış, cevap kaybolmuş).
+    d = os.path.dirname(ledger) or "."
+    os.makedirs(d, exist_ok=True)
+    # KRİTİK BÖLÜM: id-atama + append tek kilit altında → eşzamanlı iki süreç
+    # aynı id'yi almaz, satırlar iç-içe girmez (#28). id artık SON SATIRDAN
+    # okunuyor; eskiden bütün defter kilit altında taranıyordu.
     with _file_lock(ledger):
-        rec["run_id"] = _next_id(_load(ledger))
+        rec["run_id"] = _next_id_fast(ledger)
         with open(ledger, "a", encoding="utf-8") as f:
             f.write(json.dumps(rec, ensure_ascii=False) + "\n")
-    render(ledger, maliyet)                         # kilit DIŞINDA + atomik (aşağı)
+    # #84: `render()` BURADAN KALDIRILDI. Her `record()` çağrısında tüm
+    # `runs.jsonl` okunup `Maliyet.md` baştan yazılıyordu — her LLM cevabında,
+    # her guard çağrısında, her özet parçasında. ÖLÇÜLDÜ:
+    #   1.000 satır → 12,7 ms · 10.000 → 145 ms · 50.000 → **745 ms**
+    # ve `flock` bunu süreçler arasında SERİLEŞTİRİYOR. 500 öğrenci × 5 soru/gün
+    # = 20 günde 50.000 satır → her cevaba +0,75 s.
+    # Render artık ayrı: `python -m src.costlog` (cron/CLI).
+    if RENDER_ON_RECORD:
+        render(ledger, maliyet)
     return rec
+
+
+def record_safe(**kwargs):
+    """`record()`'un ASLA fırlatmayan sarmalayıcısı — varsayılan kaydedici budur.
+
+    #84 (EXP-010/OPS-04): telemetri hatası **cevabı düşürmemeli**. Ölçülen
+    somut örnek: `os.path.dirname(path)` dizinsiz yolda `""` döndürüyor,
+    `makedirs("")` `FileNotFoundError` fırlatıyor ve bu `record()` içinden
+    geldiği için **cevap üretildikten SONRA HTTP 500** oluyordu — yani para
+    harcanmış, LLM çağrılmış, cevap hazır ve kullanıcıya hata gidiyor.
+
+    Guard katmanında bu sarmalama zaten vardı; üretici yollarında YOKTU.
+    Aynı ilke `guard/audit.py` için de geçerli.
+    """
+    try:
+        return record(**kwargs)
+    except Exception as e:                       # noqa: BLE001
+        warnings.warn(f"costlog: kayit basarisiz ({type(e).__name__}: {e}) — "
+                      "cevap etkilenmedi", RuntimeWarning, stacklevel=2)
+        return None
 
 
 # ----------------------------- render (AUTO bloklar) -----------------------------
@@ -313,12 +385,30 @@ def _demo():
     print("2 örnek run eklendi + Maliyet.md render edildi. (runs.jsonl'dan silerek temizleyebilirsin.)")
 
 
-if __name__ == "__main__":
-    import sys
-    cmd = sys.argv[1] if len(sys.argv) > 1 else "render"
-    if cmd == "render":
-        render(); print(f"Maliyet.md render edildi ({len(_load())} run).")
-    elif cmd == "demo":
+def main(argv=None) -> int:
+    """Render CLI — #84 ile istek yolundan ÇIKARILDI, buraya taşındı.
+
+    Eskiden `render()` her `record()` içinde koşuyordu (50.000 satırda 745 ms,
+    lineer). Artık cron/elle çağrılır. Argümanlar test edilebilsin diye
+    `main(argv)` biçiminde; eski `python -m src.costlog render|demo` kullanımı
+    korunur.
+    """
+    import argparse
+    ap = argparse.ArgumentParser(description="Maliyet defteri araçları")
+    ap.add_argument("komut", nargs="?", default="render",
+                    choices=("render", "demo"))
+    ap.add_argument("--ledger", default=None)
+    ap.add_argument("--out", default=None)
+    a = ap.parse_args(argv)
+    if a.komut == "demo":
         _demo()
-    else:
-        print(f"bilinmeyen komut: {cmd} (render | demo)")
+        return 0
+    ledger = a.ledger or LEDGER
+    out = a.out or MALIYET
+    render(ledger, out)
+    print(f"Maliyet.md render edildi ({len(_load(ledger))} run) -> {out}")
+    return 0
+
+
+if __name__ == "__main__":
+    raise SystemExit(main())

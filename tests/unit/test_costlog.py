@@ -25,7 +25,13 @@ class CostlogTests(unittest.TestCase):
             self.assertEqual(r1["run_id"], "R0001")
             self.assertEqual(r2["run_id"], "R0002")          # #28: monoton, çakışmasız
             self.assertAlmostEqual(r1["unit_cost_usd"], round(r1["cost_usd"] / 10, 6))
-            self.assertTrue(os.path.exists(M) and os.path.exists(L))
+            # SÖZLEŞME DEĞİŞTİ (#84, 2026-09-12): `record()` artık YALNIZ
+            # append yapar. Eskiden her çağrıda `Maliyet.md` baştan yazılıyordu
+            # ve bu, defter büyüdükçe her cevaba gecikme ekliyordu (ölçüldü:
+            # 50.000 satırda 745 ms, lineer; `flock` süreçler arasında
+            # serileştiriyor). Render artık `python -m src.costlog render`.
+            self.assertTrue(os.path.exists(L))
+            self.assertFalse(os.path.exists(M), "render istek yolunda kaldı")
 
     def test_unknown_model_does_not_crash_or_drop(self):
         with tempfile.TemporaryDirectory() as d:
