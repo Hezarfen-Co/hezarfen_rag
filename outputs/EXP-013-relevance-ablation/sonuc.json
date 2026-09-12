@@ -1,0 +1,62 @@
+{
+  "seed": 20260912,
+  "n": 120,
+  "top_n": 6,
+  "kitap": "data/lise/10/biyoloji/kitap.pdf",
+  "sonuc": {
+    "eski (yapisal, share=1.0)": {
+      "ayni_parent": {
+        "all_evidence_recall": 0.0,
+        "kismi": 0.875,
+        "hic": 0.125,
+        "secilen_ort": 6,
+        "ilgisiz_oran": 0.1194,
+        "sayfa_ort": 5.89
+      },
+      "farkli_parent": {
+        "all_evidence_recall": 0.1667,
+        "kismi": 0.6667,
+        "hic": 0.1667,
+        "secilen_ort": 6,
+        "ilgisiz_oran": 0.0931,
+        "sayfa_ort": 5.91
+      }
+    },
+    "yeni (ilgililik esigi)": {
+      "ayni_parent": {
+        "all_evidence_recall": 0.4583,
+        "kismi": 0.5083,
+        "hic": 0.0333,
+        "secilen_ort": 5.52,
+        "ilgisiz_oran": 0.0,
+        "sayfa_ort": 4.8
+      },
+      "farkli_parent": {
+        "all_evidence_recall": 0.15,
+        "kismi": 0.7833,
+        "hic": 0.0667,
+        "secilen_ort": 5.58,
+        "ilgisiz_oran": 0.0,
+        "sayfa_ort": 5.03
+      }
+    },
+    "esik YOK (saf skor)": {
+      "ayni_parent": {
+        "all_evidence_recall": 0.4833,
+        "kismi": 0.4917,
+        "hic": 0.025,
+        "secilen_ort": 6,
+        "ilgisiz_oran": 0.0736,
+        "sayfa_ort": 5.19
+      },
+      "farkli_parent": {
+        "all_evidence_recall": 0.15,
+        "kismi": 0.7833,
+        "hic": 0.0667,
+        "secilen_ort": 6,
+        "ilgisiz_oran": 0.0653,
+        "sayfa_ort": 5.42
+      }
+    }
+  }
+}

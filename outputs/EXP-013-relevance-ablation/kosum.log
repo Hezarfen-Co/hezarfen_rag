@@ -12,3 +12,19 @@ ayni-parent cift: 120, farkli-parent cift: 120
   [ayni] 120/120 rerank
   [farkli] 30/120 rerank
   [farkli] 60/120 rerank
+  [farkli] 90/120 rerank
+  [farkli] 120/120 rerank
+
+### eski (yapisal, share=1.0)
+  ayni_parent    all_ev=0.000 kismi=0.875 hic=0.125 secilen=6 ilgisiz=0.119 sayfa=5.89
+  farkli_parent  all_ev=0.167 kismi=0.667 hic=0.167 secilen=6 ilgisiz=0.093 sayfa=5.91
+
+### yeni (ilgililik esigi)
+  ayni_parent    all_ev=0.458 kismi=0.508 hic=0.033 secilen=5.52 ilgisiz=0.000 sayfa=4.8
+  farkli_parent  all_ev=0.150 kismi=0.783 hic=0.067 secilen=5.58 ilgisiz=0.000 sayfa=5.03
+
+### esik YOK (saf skor)
+  ayni_parent    all_ev=0.483 kismi=0.492 hic=0.025 secilen=6 ilgisiz=0.074 sayfa=5.19
+  farkli_parent  all_ev=0.150 kismi=0.783 hic=0.067 secilen=6 ilgisiz=0.065 sayfa=5.42
+
+[yazildi] outputs/EXP-013-relevance-ablation/sonuc.json
