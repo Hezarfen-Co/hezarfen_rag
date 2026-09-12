@@ -220,3 +220,39 @@ def summary(materyaller: list[Material]) -> dict:
         "kirilim": {f"{a}/{b}/{c}": n for (a, b, c), n in sorted(sayac.items(),
                                                                 key=lambda x: -x[1])},
     }
+
+
+# --------------------------------------------------------------- kazanımlar
+
+def objectives(materials: list[Material], *, curriculum: str = "guncel") -> dict:
+    """Katalogdan sınıf/ders başına **kazanım listesi** çıkarır.
+
+    Döner: `{(sinif, ders): [{"kod","metin","unite","mufredat"}, ...]}`
+
+    NEDEN GEREKLİ (#94): `data/.../kazanimlar.json` dosyaları **2017-23
+    müfredatının** kodlamasındaydı (`10.1.1.2 Mitozu açıklar`), ders kitapları
+    ise yeni müfredattan (tema tabanlı). Ölçüldü: 10. sınıf biyoloji kitabında
+    "mitoz" **0 kez** geçiyor. Kapsanmayan bir kazanımdan golden set item'ı ya
+    da öğrenci notu üretmek, ürün doğru davranıp çekimser kaldığında bunu bir
+    RAG başarısızlığı gibi gösterir — ölçüm böyle zehirlenir.
+
+    Katalog bu ayrımı KENDİSİ yapıyor: `grade` alanı `"9"` (yürürlükteki) ile
+    `"9. Sınıf (2017-23 Müfredatı)"` etiketlerini ayrı tutuyor. Yani hangi
+    kazanımın hangi müfredattan olduğu artık **veriden** okunur, tahminden değil.
+    """
+    out: dict[tuple[str, str], dict[str, dict]] = {}
+    for m in materials:
+        if not (m.sinif and m.ders and m.kazanim_kodu):
+            continue
+        if curriculum != "hepsi" and m.mufredat != curriculum:
+            continue
+        anahtar = (m.sinif, m.ders)
+        kayitlar = out.setdefault(anahtar, {})
+        # aynı kod birden çok materyalde geçebilir; ilk (en uzun metinli) tutulur
+        mevcut = kayitlar.get(m.kazanim_kodu)
+        metin = (m.kazanim or "").split("-", 1)[-1].strip() or (m.kazanim or "")
+        if mevcut is None or len(metin) > len(mevcut["metin"]):
+            kayitlar[m.kazanim_kodu] = {
+                "kod": m.kazanim_kodu, "metin": metin,
+                "unite": m.unite or "", "mufredat": m.mufredat}
+    return {k: sorted(v.values(), key=lambda r: r["kod"]) for k, v in out.items()}

@@ -81,3 +81,41 @@ Yalnız 7 derste `kazanimlar.json` var (19 dersin 7'si).
 .venv/bin/python outputs/korpus-butunluk/korpus_butunluk.py OUT.json  # ünite düzeyi
 .venv/bin/python outputs/korpus-butunluk/tani_gate.py                 # kapı skorları
 ```
+
+---
+
+## 8. DÜZELTME (2026-09-12) — teşhis yanlıştı, kök neden ters yönde
+
+EBA kataloğu indirildikten sonra karşılaştırma yapıldı ve §2'deki teşhis
+**yanlış çıktı**. Orada "kazanım dosyası eski müfredattan, kitap yenisinden"
+denmişti. Ölçüm bunun tersini gösteriyor:
+
+| karşılaştırma | sonuç |
+|---|---|
+| katalog `"10"` (güncel etiketi) ↔ `"10. Sınıf (2017-23 Müfredatı)"` | **aynı kazanım kodları** (biyoloji 17/17 ortak, fark 0) |
+| katalog güncel ↔ elimizdeki `kazanimlar.json` | **birebir aynı** (17/17, yalnız-dosyada 0, yalnız-katalogda 0) |
+
+Yani:
+
+* `kazanimlar.json` **doğru ve güncel** — EBA'nın 10. sınıf için yayımladığı
+  kazanımların aynısı. `(2017-23 Müfredatı)` etiketi **materyal kümesini**
+  ayırıyor, kazanım kümesini değil.
+* Uyumsuz olan **ders kitabıdır**: `data/lise/10/biyoloji/kitap.pdf` kapağında
+  "2025" yazan, **tema tabanlı** (1. Tema ENERJİ / 2. Tema EKOLOJİ) *Türkiye
+  Yüzyılı Maarif Modeli* baskısı. EBA'nın OGM Materyal tarafı ise hâlâ eski
+  ünite/kazanım yapısını yayımlıyor.
+
+**Karar sorusu değişti.** Artık "hangi kazanım dosyası" değil, **"hangi kitap
+baskısı hedef"**:
+
+* Öğrencinin elindeki kitap 2025 baskısıysa **kitap doğru**, kazanım eşlemesi
+  yeni müfredata göre yeniden kurulmalı (EBA henüz yayımlamamış).
+* Hedef eski müfredatsa **kitap değişmeli** (eski baskı bulunmalı).
+
+Bu, §4'teki "geçici önlem"i geçersiz kılmaz — `covered_objectives()` yine
+kitabın kapsamadığı kazanımları eliyor ve ölçüm zehirlenmesini önlüyor. Ama
+sebebi artık doğru biliniyor.
+
+**Yan kazanç:** katalogdan 9/11/12. sınıflar için **23 yeni sınıf-ders kazanım
+seti** çıkarıldı (`objectives.json`); bu sınıflarda daha önce hiç kazanım
+dosyası yoktu.

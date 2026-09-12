@@ -1,0 +1,14 @@
+warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
+Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:03<04:08,  1.55it/s]Loading weights: 100%|██████████| 391/391 [00:03<00:00, 121.13it/s]
+pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 342.04it/s]
+Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:00<00:07,  1.31it/s]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:05,  1.77it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:01<00:03,  2.10it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:01<00:03,  2.32it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:02<00:02,  2.52it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:02<00:01,  2.78it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:02<00:01,  3.21it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:02<00:00,  3.71it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.56it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  3.52it/s]
+pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 422.46it/s]
+Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:00<00:07,  1.28it/s]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:05,  1.74it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:01<00:03,  2.06it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:01<00:03,  2.27it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:02<00:02,  2.47it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:02<00:01,  2.70it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:02<00:01,  3.12it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:03<00:00,  3.61it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.43it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  3.44it/s]
+ayni-parent cift: 120, farkli-parent cift: 120
+Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:  24%|██▍       | 95/393 [00:00<00:00, 933.30it/s]Loading weights:  48%|████▊     | 189/393 [00:00<00:00, 903.65it/s]Loading weights:  71%|███████   | 280/393 [00:00<00:00, 885.95it/s]Loading weights:  94%|█████████▍| 369/393 [00:00<00:00, 734.36it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 817.88it/s]
+  [ayni] 30/120 rerank
+  [ayni] 60/120 rerank
+  [ayni] 90/120 rerank
+  [ayni] 120/120 rerank
+  [farkli] 30/120 rerank
+  [farkli] 60/120 rerank
