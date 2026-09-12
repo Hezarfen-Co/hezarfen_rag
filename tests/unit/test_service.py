@@ -10,9 +10,23 @@ from src.guard.roles import Role
 
 
 class _GenStub:
-    def __init__(self, ans): self.ans = ans; self.last_role = "UNSET"
-    def answer(self, query, *, history=None, top_n=6, candidate_n=40, role_ctx="UNSET"):
+    """Generator taklidi.
+
+    `**kw` ŞART: bu stub gerçek imzadan geri kaldığında test, ürün kodundaki
+    yeni bir parametreyi (örn. #85'te eklenen `trace=`) `TypeError` ile
+    yakalamak yerine kırılıyor. Stub'ın esnek olması, testin ölçmek istediği
+    şeyi (rol eşlemesi) ölçmeye devam etmesini sağlar; gerçek imza uyumu
+    entegrasyon/e2e testlerinin işidir."""
+
+    def __init__(self, ans):
+        self.ans = ans
+        self.last_role = "UNSET"
+        self.last_trace = None
+
+    def answer(self, query, *, history=None, top_n=6, candidate_n=40,
+               role_ctx="UNSET", trace=None, **kw):
         self.last_role = role_ctx
+        self.last_trace = trace
         return self.ans
 
 

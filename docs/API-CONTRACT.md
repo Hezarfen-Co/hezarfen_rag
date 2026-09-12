@@ -12,6 +12,34 @@ header/body'sinden körü körüne alınmaz** (RES-002 §2, RES-003 §7: RagArt'
 buydu). Kasa izolasyonu (öğrenci yalnız kendi sınıf/dersini görür) bu role'e dayanır;
 yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrulamaz.
 
+## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
+
+Denetimde (OPS-16) şu tespit edildi: bu sözleşme backend'e *"kaynak yükleme/
+indeksleme tetikleme"*, *"kalıcılık"*, *"rate limit / maliyet tavanı"* diyordu
+ama **RAG deposu bunları yapacak arayüzü sunmuyordu** → iki ekip birbirini
+bekliyordu. Sınır şöyle netleştirildi:
+
+| iş | kim | bu depoda durum |
+|---|---|---|
+| Kaynağın sahipliği, yetkisi, yaşam döngüsü (oluştur/sil) | **backend** | — |
+| Chunk + vektör + sparse indeksin kurulması | **RAG** | var (`build_service`) |
+| **Kaynak silme → chunk/vektör/cache kaskadı** | **RAG** | var (`src/corpus/deletion.py`, #76) |
+| Kaynak sürümü → cache geçersizleştirme | **RAG** | var (`corpus_version`, #77) |
+| Oran sınırı (kullanıcı bazlı) | **backend** | RAG'da ikinci katman var (#50) |
+| Maliyet tavanı (kullanıcı/kurum) | **her ikisi** | RAG'da var (#79) |
+| Atıf tıklanınca ACL yeniden kontrolü | **backend** | RAG kaynak kimliğini döndürür |
+| Çok-turlu rewrite | **RAG** | **artık bağlı** (#87/OPS-14) |
+
+**Not (OPS-14):** `history` alanı sözleşmede duruyordu ama `build_service` hiç
+`rewriter` geçirmediği için üretimde **sessizce atılıyordu**. Bağlandı;
+`RAG_REWRITE_HISTORY=0` ile kapatılabilir (geçmişli her soruda bir ek LLM
+çağrısı, ~$0,0002).
+
+**Henüz yok:** `POST /rag/ingest` ve `DELETE /rag/sources/{id}` HTTP uçları.
+Silme/indeksleme mantığı hazır (`src/corpus/deletion.py`) ama HTTP yüzeyi
+köprü sözleşmesine bağlı (#95) — backend RAG'ı QUIC köprüsüyle çağırıyor,
+HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
+
 ## 1. POST /rag/chat — kaynakla konuşma (soru-cevap)
 
 **İstek:**

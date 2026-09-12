@@ -364,6 +364,14 @@ CACHE_PATH = os.environ.get("RAG_CACHE_PATH") or ""
 CACHE_MAX_BYTES = int(os.environ.get("RAG_CACHE_MAX_BYTES", str(512 * 1024 * 1024)))
 CACHE_TTL_S = float(os.environ.get("RAG_CACHE_TTL_S", "3600"))
 
+# M4-13 (#87, EXP-010/OPS-14) — SOZLESME COK-TURLU REWRITE VAAT EDIYOR,
+# KOD YOK SAYIYOR. `build_service` hic `rewriter` gecirmiyordu; yani
+# `history` alani API-CONTRACT'ta duruyor ama uretimde SESSIZCE ATILIYORDU.
+# Kullanici "peki devami?" diye soruyor, sistem onceki turu hic gormuyor.
+# Maliyet: gecmisli her soruda BIR EK LLM cagrisi (~$0.0002). Kapatilabilir.
+REWRITE_HISTORY = os.environ.get("RAG_REWRITE_HISTORY", "1") not in (
+    "0", "", "false", "False")
+
 
 def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
                   ocr: bool = False, vlm: bool = False,
@@ -430,10 +438,15 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     # `reason="timeout"` donuyordu. Yani hazirlik sinyali YALAN soyluyordu.
     reranker = BGEReranker()
     reranker.warmup()
+    # #87/OPS-14: cok-turlu rewrite BAGLANDI (sozlesme zaten vaat ediyordu).
+    rewriter = None
+    if REWRITE_HISTORY:
+        from ..memory.history_rewrite import HistoryAwareRewriter
+        rewriter = HistoryAwareRewriter()
     gen = Generator(retr, reranker, by_id, span_meta, ders=ders,
                     safety_classifier=LLMSafetyClassifier(), context_packing=True,
                     corpus_version=cv, require_role=True,   # STRICT: rolsüz istek fail-closed
-                    response_cache=response_cache)
+                    response_cache=response_cache, rewriter=rewriter)
     return RagService(gen, doc=doc, summarizer=Summarizer(),
                       question_gen=QuestionGenerator(), ders=ders)
 
