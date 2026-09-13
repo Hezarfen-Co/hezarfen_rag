@@ -1,0 +1,20 @@
+{
+ "RRF (rerank yok)": {
+  "recall@6": 0.9394,
+  "recall@20": 0.9621,
+  "allev@20": 0.9394,
+  "ndcg@10": 0.945
+ },
+ "rerank ham 512/40": {
+  "recall@6": 0.8902,
+  "recall@20": 0.9394,
+  "allev@20": 0.8939,
+  "ndcg@10": 0.863
+ },
+ "rerank ham 192/40": {
+  "recall@6": 0.875,
+  "recall@20": 0.9242,
+  "allev@20": 0.8939,
+  "ndcg@10": 0.872
+ }
+}

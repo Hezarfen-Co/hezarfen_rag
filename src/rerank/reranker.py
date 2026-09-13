@@ -22,13 +22,50 @@ _NEEDED_PATTERNS = ["*.json", "*.model", "model.safetensors", "pytorch_model.bin
 MODEL_REVISION = os.environ.get("HEZARFEN_RERANK_REVISION") or None
 
 
+def _env_max_length(default: int = 512) -> int:
+    """`RAG_RERANK_MAX_LENGTH` — cross-encoder'in kirpma uzunlugu.
+
+    #96 (EXP-018) ile ayarlanabilir yapildi. CPU'da rerank gecikmesi bu
+    parametreye ve aday sayisina GUCLU bagli (bu makine, 3 sorgu ortalamasi,
+    yuk altinda):
+
+        max_length / aday |   40   |   20   |   12   |    8
+        ------------------|--------|--------|--------|--------
+                      512 | 95,9 s | 52,5 s | 32,2 s | 21,3 s
+                      256 | 47,6 s | 25,6 s | 12,1 s |  9,2 s
+                      192 | 37,2 s | 15,7 s |  9,0 s |  6,1 s
+
+    Kapi O-05 ucdan uca p50 <= 6 s istiyor; en agresif ayar TEK BASINA butun
+    butceyi yiyor. Yani CPU'da bu reranker ile kapi gecilemez -- karar GPU,
+    daha kucuk bir reranker ya da rerank'siz calismak arasindadir (#96).
+
+    VARSAYILAN DEGISMEDI (512): kisaltmanin KALITE bedeli bu golden set ile
+    olculemiyor (bkz. EXP-018 -- sorgular birimlerin kendi metni oldugu icin
+    olcum cross-encoder'in aleyhine calisiyor). Olcmeden varsayilani oynatmak
+    sessiz bir kalite kaybi olurdu.
+    """
+    ham = os.environ.get("RAG_RERANK_MAX_LENGTH")
+    if ham is None:
+        return default
+    try:
+        deger = int(ham)
+    except (TypeError, ValueError):
+        return default
+    # Cok kucuk deger pasaji anlamsizlastirir, cok buyugu modelin siniri asar.
+    return deger if 64 <= deger <= 8192 else default
+
+
+MAX_LENGTH_DEFAULT = _env_max_length()
+
+
 class BGEReranker:
     """BAAI/bge-reranker-v2-m3. rerank(query, [(id,text)]) → [(id,skor)] azalan."""
 
     def __init__(self, model_name: str = "BAAI/bge-reranker-v2-m3",
-                 use_fp16: bool | None = None, max_length: int = 512):
+                 use_fp16: bool | None = None, max_length: int | None = None):
         self.model_name = model_name
-        self.max_length = max_length
+        self.max_length = (MAX_LENGTH_DEFAULT if max_length is None
+                           else int(max_length))
         self._use_fp16 = use_fp16
         self._model = None
         # #80: cift-kontrollu kilit (bkz. `_load`)

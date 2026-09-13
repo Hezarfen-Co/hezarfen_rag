@@ -1,0 +1,37 @@
+{
+ "direct": {
+  "n": 20,
+  "rrf_r6": 1.0,
+  "rerank_r6": 0.95,
+  "rrf_ndcg": 0.9565,
+  "rerank_ndcg": 0.9315
+ },
+ "figure_table": {
+  "n": 15,
+  "rrf_r6": 1.0,
+  "rerank_r6": 1.0,
+  "rrf_ndcg": 1.0,
+  "rerank_ndcg": 0.9508
+ },
+ "global": {
+  "n": 11,
+  "rrf_r6": 0.6818,
+  "rerank_r6": 0.7045,
+  "rrf_ndcg": 0.8069,
+  "rerank_ndcg": 0.7555
+ },
+ "multi_hop": {
+  "n": 10,
+  "rrf_r6": 0.95,
+  "rerank_r6": 0.7,
+  "rrf_ndcg": 0.9365,
+  "rerank_ndcg": 0.7134
+ },
+ "synthesis": {
+  "n": 10,
+  "rrf_r6": 1.0,
+  "rerank_r6": 1.0,
+  "rrf_ndcg": 1.0,
+  "rerank_ndcg": 0.8618
+ }
+}

@@ -266,3 +266,56 @@ class DiversityRegressionTests(unittest.TestCase):
 
 if __name__ == "__main__":
     unittest.main()
+
+
+class MaxLengthConfigTests(unittest.TestCase):
+    """#96 (EXP-018) — kırpma uzunluğu CPU gecikmesini belirliyor.
+
+    ÖLÇÜLDÜ (bu makine, 3 sorgu ortalaması): 40 adayda max_length 512 → 95,9 s,
+    192 → 37,2 s. 8 adayda 192 → 6,1 s. Kapı O-05 uçtan uca p50 ≤ 6 s istiyor;
+    en agresif ayar TEK BAŞINA bütün bütçeyi yiyor.
+    """
+
+    def test_default_is_unchanged(self):
+        """Kısaltmanın KALİTE bedeli mevcut golden set ile ölçülemiyor
+        (sorgular birimlerin kendi metni → ölçüm cross-encoder'in aleyhine).
+        Ölçmeden varsayılanı oynatmak sessiz bir kalite kaybı olurdu."""
+        from src.rerank.reranker import MAX_LENGTH_DEFAULT, BGEReranker
+        self.assertEqual(MAX_LENGTH_DEFAULT, 512)
+        self.assertEqual(BGEReranker().max_length, 512)
+
+    def test_env_overrides(self):
+        import os
+        from unittest import mock
+
+        from src.rerank.reranker import _env_max_length
+        with mock.patch.dict(os.environ, {"RAG_RERANK_MAX_LENGTH": "192"}):
+            self.assertEqual(_env_max_length(), 192)
+
+    def test_explicit_argument_wins(self):
+        from src.rerank.reranker import BGEReranker
+        self.assertEqual(BGEReranker(max_length=256).max_length, 256)
+
+    def test_broken_env_falls_back(self):
+        import os
+        from unittest import mock
+
+        from src.rerank.reranker import _env_max_length
+        for bozuk in ("", "uzun", "512.5", "None"):
+            with self.subTest(bozuk=bozuk):
+                with mock.patch.dict(os.environ,
+                                     {"RAG_RERANK_MAX_LENGTH": bozuk}):
+                    self.assertEqual(_env_max_length(), 512)
+
+    def test_absurd_values_are_refused(self):
+        """8 token'lık bir pasaj anlamsızdır; 100000 modelin sınırını aşar ve
+        çalışma anında patlar — açılışta sessizce kabul edilmemeli."""
+        import os
+        from unittest import mock
+
+        from src.rerank.reranker import _env_max_length
+        for disarida in ("8", "0", "-512", "100000"):
+            with self.subTest(deger=disarida):
+                with mock.patch.dict(os.environ,
+                                     {"RAG_RERANK_MAX_LENGTH": disarida}):
+                    self.assertEqual(_env_max_length(), 512)
