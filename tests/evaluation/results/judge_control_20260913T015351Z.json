@@ -1,0 +1,354 @@
+{
+  "n": 20,
+  "positive": {
+    "faithfulness": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    },
+    "answer_relevancy": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    },
+    "answer_correctness": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    }
+  },
+  "negative": {
+    "faithfulness": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    },
+    "answer_relevancy": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    },
+    "answer_correctness": {
+      "n": 0,
+      "mean": null,
+      "ci": null
+    }
+  },
+  "discrimination": {
+    "faithfulness": null,
+    "answer_relevancy": null,
+    "answer_correctness": null
+  },
+  "by_kind": {},
+  "errors": [
+    "g10-syn-27972b5b::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-27972b5b::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-27972b5b::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-e5004afc::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-e5004afc::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-e5004afc::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-8c9bd8e0::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-8c9bd8e0::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-8c9bd8e0::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5468533e::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5468533e::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5468533e::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-a8d49215::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-a8d49215::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-a8d49215::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5cae8515::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5cae8515::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-5cae8515::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-975c35ba::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-975c35ba::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-975c35ba::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-ad8e750f::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-ad8e750f::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-ad8e750f::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-6e40d0c3::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-6e40d0c3::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-6e40d0c3::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-e078c0d0::positive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-e078c0d0::positive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-e078c0d0::positive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-3a23cc1b::fabricated_fact: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-3a23cc1b::fabricated_fact: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-3a23cc1b::fabricated_fact: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-104b892b::fabricated_fact: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-104b892b::fabricated_fact: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-104b892b::fabricated_fact: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-60ce7f42::off_topic: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-60ce7f42::off_topic: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-fig-60ce7f42::off_topic: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-f06581a9::off_topic: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-f06581a9::off_topic: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-turn-f06581a9::off_topic: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-39408a62::empty: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-39408a62::empty: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-39408a62::empty: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-f8c8de37::empty: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-f8c8de37::empty: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-f8c8de37::empty: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-3eec7864::evasive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-3eec7864::evasive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-syn-3eec7864::evasive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-1939fd21::evasive: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-1939fd21::evasive: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-global-1939fd21::evasive: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-67faaf94::negation: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-67faaf94::negation: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-direct-67faaf94::negation: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-c6fa44e0::negation: faithfulness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-c6fa44e0::negation: answer_relevancy: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver.",
+    "g10-hop-c6fa44e0::negation: answer_correctness: RuntimeError: API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da DeepSeek(api_key=...) ile ver."
+  ],
+  "cases": [
+    {
+      "id": "g10-syn-27972b5b::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-turn-e5004afc::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-global-8c9bd8e0::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-global-5468533e::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-fig-a8d49215::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-global-5cae8515::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-fig-975c35ba::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-direct-ad8e750f::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-hop-6e40d0c3::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-direct-e078c0d0::positive",
+      "kind": "verbatim_gold",
+      "expected": "high",
+      "targets": [
+        "faithfulness",
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-direct-3a23cc1b::fabricated_fact",
+      "kind": "fabricated_fact",
+      "expected": "low",
+      "targets": [
+        "faithfulness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-syn-104b892b::fabricated_fact",
+      "kind": "fabricated_fact",
+      "expected": "low",
+      "targets": [
+        "faithfulness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-fig-60ce7f42::off_topic",
+      "kind": "off_topic",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-turn-f06581a9::off_topic",
+      "kind": "off_topic",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy",
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-global-39408a62::empty",
+      "kind": "empty",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-direct-f8c8de37::empty",
+      "kind": "empty",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-syn-3eec7864::evasive",
+      "kind": "evasive",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-global-1939fd21::evasive",
+      "kind": "evasive",
+      "expected": "low",
+      "targets": [
+        "answer_relevancy"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-direct-67faaf94::negation",
+      "kind": "negation",
+      "expected": "low",
+      "targets": [
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    },
+    {
+      "id": "g10-hop-c6fa44e0::negation",
+      "kind": "negation",
+      "expected": "low",
+      "targets": [
+        "answer_correctness"
+      ],
+      "faithfulness": null,
+      "answer_relevancy": null,
+      "answer_correctness": null
+    }
+  ],
+  "meta": {
+    "judge_model": "deepseek-chat",
+    "golden": "tests/golden/golden_10biy_v2.json",
+    "seconds": 0.0
+  }
+}

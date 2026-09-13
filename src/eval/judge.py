@@ -45,10 +45,33 @@ DEEPEVAL_AVAILABLE = True   # bu modül import edilebildiyse kurulum başarılı
 JUDGE_METHOD = "deepeval"
 
 
+
+def _parse_schema(text: str, schema):
+    """Model çıktısını `schema` (pydantic) nesnesine çevirir.
+
+    JSON modu istense de model bazen çıktıyı kod bloğuyla sarıyor ya da
+    önüne/arkasına açıklama ekliyor; ham `json.loads` bunda patlar. İlk ve
+    son süslü paraneze kadar kırpmak DeepEval'in kendi `trimAndLoadJson`
+    davranışıyla aynı yaklaşımdır.
+    """
+    import json as _json
+    ham = (text or "").strip()
+    if ham.startswith("```"):
+        ham = ham.split("```")[1] if "```" in ham[3:] else ham[3:]
+        if ham.lstrip().startswith("json"):
+            ham = ham.lstrip()[4:]
+    bas, son = ham.find("{"), ham.rfind("}")
+    if bas != -1 and son > bas:
+        ham = ham[bas:son + 1]
+    veri = _json.loads(ham)
+    return schema(**veri)
+
+
 class DeepSeekJudgeModel(DeepEvalBaseLLM):
     """DeepEval `DeepEvalBaseLLM` sarmalayıcısı — hakem = gerçek DeepSeek API.
 
-    `generate()` DeepEval sözleşmesi gereği yalnız `str` döner; GERÇEK token
+    `generate()` DeepEval sözleşmesi gereği `schema` verilmediğinde `str`,
+    verildiğinde O ŞEMANIN NESNESİNİ döndürür; GERÇEK token
     kullanımı (maliyet için) `self.usages` listesine yan-kanal olarak eklenir.
     `async_mode=False` ile metriklere verildiği için `a_generate` fiilen
     kullanılmaz ama arayüz (abstract method) gereği tanımlanmalı."""
@@ -80,7 +103,17 @@ class DeepSeekJudgeModel(DeepEvalBaseLLM):
             # fallback: API 'json' kelimesi gecmiyor diye reddederse duz istekle dene
             result = self._ds.chat(prompt, temperature=self.temperature, max_tokens=4096)
         self.usages.append(result.usage)
-        return result.text
+        if schema is None:
+            return result.text
+        # KONTROL KOSUMUYLA BULUNDU (#72): burasi her kosulda `str`
+        # donduruyordu. deepeval 2.9.3'te `schema` verilen cagri O SEMANIN
+        # NESNESINI bekliyor; metin donunce HER metrik `AttributeError:
+        # 'str' object has no attribute 'truths'/'statements'/'steps'` ile
+        # patliyordu. Yani hakem HIC CALISMIYORDU ve bu hiçbir yerde
+        # gorunmuyordu -- `evaluate()` istisnayi `errors`'a yazip None skor
+        # donduruyor, rapor da None'lari atliyordu. Kalibrasyon kosumunun
+        # ilk ciktisi bu oldu: once hakemin kendisi tamir edilmeli.
+        return _parse_schema(result.text, schema)
 
     async def a_generate(self, prompt: str, schema=None) -> str:
         return self.generate(prompt, schema=schema)
@@ -107,7 +140,22 @@ _CORRECTNESS_CRITERIA = (
     "karşılaştırıldığında olgusal olarak DOĞRU mu? Gold'da olmayan ama context'le "
     "çelişmeyen ek detay cezalandırılmaz; gold ile ÇELİŞEN ya da UYDURMA (gold'da "
     "karşılığı olmayan iddia) bilgi düşük puan almalı. Eksik ama yanlış olmayan "
-    "cevap kısmi puan alır. Köşeli parantez atıf işaretleri [1][2] göz ardı edilir."
+    "cevap kısmi puan alır. Köşeli parantez atıf işaretleri [1][2] göz ardı edilir. "
+    # KALIBRASYONLA BULUNDU (#72): gold'daki bir iddia TERSİNE çevrildiğinde
+    # ("artar" -> "azalır") hakem 0,9 veriyordu. Öğrenciye yanlış öğretilen bir
+    # olgu, eksik öğretilenden daha zararlıdır; ölçü bunu yansıtmalı.
+    "ÖNEMLİ: gold'daki bir iddianın YÖNÜ tersine çevrilmişse (artar/azalır, "
+    "vardır/yoktur, üretir/tüketir gibi) bu ciddi bir olgusal hatadır ve cevap "
+    "0,2'nin altında puan almalıdır — cevabın geri kalanı doğru olsa bile."
+)
+
+
+_GROUNDEDNESS_CRITERIA = (
+    "Actual output'taki HER iddia, Retrieval context'te AÇIKÇA yer alıyor mu? "
+    "Bağlamda karşılığı bulunmayan her ek iddia (tarih, sayı, kişi adı, yer, "
+    "sayfa numarası, örnek) puanı ciddi biçimde düşürür — bağlamla çelişmese "
+    "bile. Bağlamdan çıkarılamayan tek bir cümle varsa puan 0,5'in altında "
+    "olmalıdır. Köşeli parantez atıf işaretleri [1][2] göz ardı edilir."
 )
 
 
@@ -119,6 +167,8 @@ class JudgeResult:
     answer_relevancy_reason: str = ""
     answer_correctness: float | None = None
     answer_correctness_reason: str = ""
+    groundedness: float | None = None
+    groundedness_reason: str = ""
     usage: Usage = field(default_factory=Usage)
     cost_usd: float = 0.0
     model: str = ""
@@ -145,6 +195,18 @@ class LlmJudge:
         self.relevancy_metric = AnswerRelevancyMetric(
             threshold=threshold, model=self.judge_model, include_reason=True,
             async_mode=False)
+        # KALIBRASYONLA BULUNDU (#72): DeepEval'in `FaithfulnessMetric`'i
+        # yalnız bağlamla ÇELİŞEN iddiaları cezalandırıyor. Gold cevabın
+        # içine uydurma bir cümle eklendiğinde ("Bu konu 1923'te Ankara'da
+        # kanıtlanmıştır") faithfulness **1,000** verdi; 20 vakalık kontrol
+        # koşumunda ayırt etme gücü **0,020** çıktı, yani metrik bu ürünün
+        # en kritik hata türüne (uydurma) KÖR. Bizim tanımımızda "uydurma",
+        # çelişmek değil DESTEKSİZ olmaktır; onu ayrı ölçüyoruz.
+        self.groundedness_metric = GEval(
+            name="Groundedness", criteria=_GROUNDEDNESS_CRITERIA,
+            evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT,
+                               LLMTestCaseParams.RETRIEVAL_CONTEXT],
+            model=self.judge_model, async_mode=False, threshold=threshold)
         self.correctness_metric = GEval(
             name="AnswerCorrectness", criteria=_CORRECTNESS_CRITERIA,
             evaluation_params=[LLMTestCaseParams.ACTUAL_OUTPUT,
@@ -155,6 +217,17 @@ class LlmJudge:
                 retrieved_contexts: list[str], gold_answer: str | None) -> JudgeResult:
         checkpoint = len(self.judge_model.usages)
         errors: list[str] = []
+        # KALIBRASYONLA BULUNDU (#72): BOŞ cevap faithfulness=1 ve
+        # answer_relevancy=1 alıyordu — hiçbir şey söylemeyen bir cevap üç
+        # metriğin ikisinde TAM PUAN. Boş cevabın kalitesi ölçülmez, sıfırdır;
+        # ayrıca LLM'e sormak bedava değil.
+        if not (answer_text or "").strip():
+            return JudgeResult(
+                faithfulness=0.0, faithfulness_reason="cevap bos",
+                answer_relevancy=0.0, answer_relevancy_reason="cevap bos",
+                answer_correctness=0.0, answer_correctness_reason="cevap bos",
+                groundedness=0.0, groundedness_reason="cevap bos",
+                model=self.judge_model.get_model_name())
         contexts = retrieved_contexts or ["(bağlam getirilmedi)"]
         tc = LLMTestCase(input=question, actual_output=answer_text or "",
                          retrieval_context=contexts, expected_output=gold_answer or "")
@@ -175,6 +248,14 @@ class LlmJudge:
         except Exception as e:
             errors.append(f"answer_relevancy: {type(e).__name__}: {e}")
 
+        g_score = g_reason = None
+        try:
+            self.groundedness_metric.measure(tc)
+            g_score = self.groundedness_metric.score
+            g_reason = self.groundedness_metric.reason
+        except Exception as e:
+            errors.append(f"groundedness: {type(e).__name__}: {e}")
+
         c_score = c_reason = None
         if gold_answer:
             try:
@@ -192,5 +273,6 @@ class LlmJudge:
         return JudgeResult(faithfulness=f_score, faithfulness_reason=f_reason or "",
                            answer_relevancy=r_score, answer_relevancy_reason=r_reason or "",
                            answer_correctness=c_score, answer_correctness_reason=c_reason or "",
+                           groundedness=g_score, groundedness_reason=g_reason or "",
                            usage=usage, cost_usd=usd,
                            model=self.judge_model.get_model_name(), errors=errors)
