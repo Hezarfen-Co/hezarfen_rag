@@ -547,7 +547,7 @@ class CitationParserHardeningTests(unittest.TestCase):
         self.assertIn("[0,1]", res.text)
 
     def test_non_ascii_digit_is_not_a_citation(self):
-        """`\d` + `str.isdigit()` Unicode'dur: `[١]` (Arapça-Hint) `1` sayılıyordu."""
+        r"""`\d` + `str.isdigit()` Unicode'dur: `[١]` (Arapça-Hint) `1` sayılıyordu."""
         from src.generate.citations import parse_citations
         self.assertEqual(parse_citations("Cevap [١].", 3), ([], [], []))
 

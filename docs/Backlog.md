@@ -119,6 +119,36 @@ kişisel graf) — yanlış eşleşme haritayı baştan bozar.
 yoksa eski müfredat kitapları mı? `eba_dl` yeniden koşulacaksa bu da alınmalı.
 Geçici önlem uygulandı: `senaryo.kapsanan_kazanimlar()` kapsanmayanları eliyor.
 
+### BL-012 — Kırılma kataloğunda kapsanmayan 9 senaryo
+**Kaynak:** #74 (EXP-010 #M3-11), 2026-09-13 · **Durum:** AÇIK
+
+Obsidian `benchmark.md §8.4`'teki 49 kırılma senaryosu artık makine-okunur
+(`tests/breakage_catalog.py`) ve her biri testlere bağlı; harita çürürse
+`tests/unit/test_breakage_coverage.py` kırılıyor (242 atıf doğrulanıyor).
+
+**Ölçülen kapsam:** bağlı **40/49 = %81,6** (kapı T-06 eşiği %80) ·
+boşluksuz **25/49 = %51,0**. Tek yüzdeye bakmak yanıltır: 15 senaryo
+"kapsanıyor ama eksiği var" durumunda (ör. E-03 2000 sayfa yerine 60 sayfaya
+kadar sınandı).
+
+**Hiç kapsanmayan 9 senaryo:**
+
+| # | Senaryo | Neden açık |
+|---|---|---|
+| E-09 | Zip-bomb / 500 MB dosya | İngest'te boyut/tip sınırı YOK. Yükleme ucu olmadığı için şimdilik düşük risk; öğretmen yüklemesi açılınca **engel olur**. |
+| E-22 | Türkçe olmayan sorgu (EN/AR/karışık) | Dil kapısı yok; guard'ın İngilizce zararlı isteği yakalayıp yakalamadığı ölçülmedi. |
+| E-29 | Çelişkili kaynaklar | Çelişki tespiti yok; iki sayfa farklı şey diyorsa biri sessizce seçiliyor. |
+| E-31 | Öğrenci ödevini yaptırmaya çalışıyor | **Politika kararı Kadir'de** (#90): çöz mü, yönlendir mi? |
+| E-46 | Veli öğrencinin sorusunu görmek istiyor | **Politika kararı** (BL-011). |
+| E-64 | LLM dil karıştırır (Çince/Korece sızma) | Çıktı dili kapısı yok. **EXP-009'da GERÇEKLEŞTİ** (nemotron-lightning). Şu anki üretici modelde görülmedi ama korunmuyor — okulda görülürse ürün "bozuk" damgası yer. |
+| E-65 | LLM kaynak metnini birebir kopyalar | Kopyalama oranı ölçülmüyor (P-01 kapısı boşta). |
+| E-67 | LLM red mesajını taklit eder | Modelin kendi "çekimserim" metnini üretip gerçek red gibi görünmesi ölçülmedi. |
+| E-80 | Servis yeniden başlar | İndeks in-memory; yeniden başlatmada her şey kayıp (**#75**). |
+
+**Önceliklendirme önerisi (karar Kadir'de):** E-64 ve E-80 demo riski taşıyor;
+E-31/E-46 politika kararı bekliyor ve kod işi değil; E-09 yükleme ucu açılana
+kadar bekleyebilir.
+
 ### BL-010 — Köprü (hab/2) istemcisi yazılmadı
 **Kaynak:** `docs/BACKEND-INTEGRATION.md`, 2026-09-11 · **Durum:** AÇIK
 
