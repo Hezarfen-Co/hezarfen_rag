@@ -64,6 +64,55 @@ SENTENCE_POLICY = os.environ.get("RAG_SENTENCE_POLICY", "measure")
 
 _ABSTAIN_MATCH_THRESHOLD = 0.90   # (#58 ile kullanımdan kalktı; geri uyum için duruyor)
 
+# #60 — FAIL-CLOSED KANIT EŞİĞİ. Tepe rerank skoru bunun altındaysa LLM HİÇ
+# ÇAĞRILMAZ ve öğrenci "kaynaklarda bulamadım" alır. Ürünün en görünür
+# davranışını tek başına belirler.
+#
+# 0,30 KALİBRE EDİLMİŞ BİR DEĞER DEĞİL — koda yazılmış bir varsayılandı.
+# EXP-017'de 225 item'lık golden set üzerinde ölçüldü (LLM'siz, $0):
+#
+#   senaryo         tepe skor (dev)          | esik bandi
+#   unanswerable    0,091 – 0,101            | hepsi < 0,35
+#   out_of_scope    0,222                    |
+#   adversarial     0,147 – 0,337            |
+#   figure_table    0,495 – 1,000            | hepsi > 0,49
+#   global          0,515 – 0,991            |
+#   direct          0,673 – 1,000            |
+#   multi_hop       0,762 – 0,996            |
+#   synthesis       0,797 – 0,999            |
+#   hard_negative   0,081 – 0,882            | ** ORTULUYOR **
+#
+# Yani 0,35–0,49 bandında eşik nereye konursa konsun `hard_negative` DIŞINDA
+# her şey ayrışıyor; band içinde seçim fark etmiyor. Hard negative'ler eşikle
+# ÇÖZÜLEMEZ (0,88 skorla geliyorlar) — bu ayrı bir mekanizma işi.
+#
+# Değer DEĞİŞTİRİLMEDİ: 0,30 ile 0,49 arasındaki farkı %95 güvenle ayırt etmek
+# 1844 cevapsız item gerektiriyor, elimizde 26 var (GA'lar tamamen örtüşüyor).
+# Ölçüm karar için YETERSİZ; sabit bir varsayılanı ölçüm olmadan oynatmak,
+# ölçmemekten farksız olurdu. Env ile ayarlanabilir yapıldı ki eval ile üretim
+# ayrışmasın (ACC-10'un tekrarı olmasın) ve karar koda dokunmadan verilebilsin.
+def _env_abstain_score(default: float = 0.30) -> float:
+    """`RAG_ABSTAIN_SCORE`'u okur; bozuk/aralık dışı değerde varsayılana döner.
+
+    AYRI BİR FONKSİYON olmasının sebebi test edilebilirlik: modül sabitini
+    `importlib.reload` ile sınamak bu modülde ÇALIŞMAZ. Reload, `_USE_INIT_ROLE`
+    sentinel'inin YENİ bir örneğini yaratır; başka modüllerdeki
+    `role_ctx is _USE_INIT_ROLE` kimlik kontrolleri bozulur ve alakasız testler
+    (test_memory, test_generate) kırılır. Bu tuzağa daha önce düşüldü.
+    """
+    ham = os.environ.get("RAG_ABSTAIN_SCORE")
+    if ham is None:
+        return default
+    try:
+        deger = float(ham)
+    except (TypeError, ValueError):
+        return default
+    # Aralık dışı bir eşik sessizce ürünü kapatırdı (1,5 => her şey çekimser).
+    return deger if 0.0 <= deger <= 1.0 else default
+
+
+ABSTAIN_SCORE_DEFAULT = _env_abstain_score()
+
 
 @dataclass
 class GroundedAnswer:
@@ -251,7 +300,8 @@ class Generator:
     """Kaynak-sınırlı üretim: retrieve → rerank → FAIL-CLOSED eşiği → grounded LLM → atıf eşleme."""
 
     def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
-                 ders: str = "", abstain_score: float = 0.30, module: str = "chat",
+                 ders: str = "", abstain_score: float | None = None,
+                 module: str = "chat",
                  cost_recorder=None, role_ctx=None, response_cache=None,
                  safety_classifier=None, context_packing: bool = False,
                  context_max_tokens: int = 8000, context_reorder: bool = True,
@@ -263,7 +313,8 @@ class Generator:
         self.deepseek = deepseek if deepseek is not None else DeepSeek()
         self.ders = ders
         # PROVİZYONEL eşik — golden set (Faz 1.8) sonrası kalibre edilecek.
-        self.abstain_score = abstain_score
+        self.abstain_score = (ABSTAIN_SCORE_DEFAULT if abstain_score is None
+                              else float(abstain_score))
         self.module = module
         # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
         # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).

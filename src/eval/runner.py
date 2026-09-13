@@ -223,7 +223,7 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     from ..guard import LLMSafetyClassifier
     from ..memory import HistoryAwareRewriter
     generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
-                          ders=ders, abstain_score=0.30, module="eval",
+                          ders=ders, module="eval",   # esik: #60, env ile ortak
                           safety_classifier=LLMSafetyClassifier(deepseek, module="eval"),
                           context_packing=True,   # token bütçesi + lost-in-the-middle
                           rewriter=HistoryAwareRewriter(deepseek, module="eval"))  # çok-turlu

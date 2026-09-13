@@ -32,6 +32,7 @@ yolları · gecikme/token/donanım/maliyet · nihai durum (`İNSAN İNCELEMESİ 
 | EXP-014 | GÖSTERİM | Ürün davranışı (DeepSeek, 10 soru + özet): 5 cevap hepsi atıflı (ort. 3 atıf), 5 çekimser hepsi doğru sebeple, hayalet atıf 0, tek-sayfalı atıf 15/15 | İNSAN İNCELEMESİ BEKLİYOR |
 | EXP-015 | DAĞITIM | Konteyner gerçekten koşuldu: `/health` 8. saniyede 200, uçtan uca cevap ✅. İki hata bulundu: `/ready` yalan söylüyordu (düzeltildi), CPU'da rerank 65,2 s → servis interaktif değil (açık) | İNSAN İNCELEMESİ BEKLİYOR |
 | EXP-016 | DENEY | Hakem kalibrasyonu: hakem HİÇ çalışmıyordu (60/60 hata); `faithfulness` uydurmaya kör (ayrım 0,020) → yeni `groundedness` metriği ile 0,805 | İNSAN İNCELEMESİ BEKLİYOR |
+| EXP-017 | DENEY | Çekimserlik eşiği: 0,30 hiç kalibre edilmemişti. Ayrışma bandı 0,35–0,49 ölçüldü; eşik DEĞİŞTİRİLMEDİ çünkü 0,30↔0,49 farkını ayırt etmek 1844 cevapsız item gerektiriyor (elde 26). Hard negative eşikle çözülemez | İNSAN İNCELEMESİ BEKLİYOR |
 | RES-001 | ARAŞTIRMA (literatür+deney tasarımı) | Kaynakla konuşma, kanıtlı özetleme, Türkçe RAG model doğrulaması | Kadir incelemesi bekliyor (mimari/benchmark değişikliği ÖNERİR) |
 | RES-002 | ARAŞTIRMA | RagArt çözümlemesi (ders alınacak desenler + açıklar) | İNSAN İNCELEMESİ BEKLİYOR |
 | RES-003 | ARAŞTIRMA (KUZEY YILDIZI) | Ürün-seviyesi RAG referans mimarisi + öncelik sırası | Kadir kaynaklı (2026-09-05) |
