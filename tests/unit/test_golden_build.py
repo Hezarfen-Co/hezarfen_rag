@@ -11,58 +11,58 @@ satır değişmedi.
 """
 import unittest
 
-from src.eval.golden_build import _baslik_konu_mu, _sade_baslik
+from src.eval.golden_build import _is_topic_heading, _clean_heading
 
 
-class SadeBaslikTests(unittest.TestCase):
+class CleanHeadingTests(unittest.TestCase):
     """PDF'in başlık katmanı ham hâliyle soruya konamaz."""
 
-    def test_satir_tekrari_temizlenir(self):
+    def test_repeated_lines_are_collapsed(self):
         # PyMuPDF gölgeli başlıkları iki kez döndürüyor.
-        self.assertEqual(_sade_baslik("10. Sınıf\n10. Sınıf"), "10. Sınıf")
+        self.assertEqual(_clean_heading("10. Sınıf\n10. Sınıf"), "10. Sınıf")
 
-    def test_sozcuk_tekrari_temizlenir(self):
-        self.assertEqual(_sade_baslik("1.\n1.\nTEMA\nTEMA"), "1. TEMA")
+    def test_repeated_words_are_collapsed(self):
+        self.assertEqual(_clean_heading("1.\n1.\nTEMA\nTEMA"), "1. TEMA")
 
-    def test_satir_sonu_baslik_icinde_kalmaz(self):
+    def test_newline_never_survives_in_a_heading(self):
         # "SEMBOLLERİN\nAÇIKLAMASI" soruya gömülünce iki satıra bölünüyordu.
-        self.assertEqual(_sade_baslik("SEMBOLLERİN\nAÇIKLAMASI"),
+        self.assertEqual(_clean_heading("SEMBOLLERİN\nAÇIKLAMASI"),
                          "SEMBOLLERİN AÇIKLAMASI")
 
-    def test_bos_girdi_cokmez(self):
+    def test_empty_input_does_not_crash(self):
         for x in ("", None, "   ", "\n\n"):
-            self.assertEqual(_sade_baslik(x), "")
+            self.assertEqual(_clean_heading(x), "")
 
 
-class BaslikKonuMuTests(unittest.TestCase):
+class IsTopicHeadingTests(unittest.TestCase):
     """Başlık katmanında konu adı OLMAYAN şeyler de var."""
 
-    def test_gercek_konu_kabul_edilir(self):
+    def test_a_real_topic_is_accepted(self):
         for ad in ("Krebs (Sitrik Asit) Döngüsü", "Azot Döngüsü",
                    "Mide ve Bağırsak Adaptasyonları",
                    "IŞIK ENERJİSİ KULLANILARAK BESİN SENTEZİ (FOTOSENTEZ)"):
             with self.subTest(ad=ad):
-                self.assertTrue(_baslik_konu_mu(ad))
+                self.assertTrue(_is_topic_heading(ad))
 
-    def test_kimyasal_denklem_reddedilir(self):
+    def test_chemical_equation_is_rejected(self):
         # "6CO2 + 12H2O Işık C6H12O6 + 6O2 + 6H2O konusunu anlatır mısın?"
         # diye bir öğrenci sorusu yoktur.
         for ad in ("6CO2 + 12H2O Işık C6H12O6 + 6O2 + 6H2O",
                    "Glikoz 2 Laktik asit + 2 ATP",
                    "C6H12O6 + 6O2 → 6CO2 + 6H2O"):
             with self.subTest(ad=ad):
-                self.assertFalse(_baslik_konu_mu(ad))
+                self.assertFalse(_is_topic_heading(ad))
 
-    def test_sekil_etiketi_reddedilir(self):
+    def test_figure_label_is_rejected(self):
         # Şekil içindeki harf dizileri de "heading" olarak geliyor.
-        self.assertFalse(_baslik_konu_mu("P P P Pi P P"))
+        self.assertFalse(_is_topic_heading("P P P Pi P P"))
 
-    def test_cumle_baslik_degildir(self):
-        self.assertFalse(_baslik_konu_mu(
+    def test_a_sentence_is_not_a_heading(self):
+        self.assertFalse(_is_topic_heading(
             "Suyun fotolizi ile oluşan hidrojenler NADP+ tarafından tutulur."))
 
-    def test_soru_cumlesi_reddedilir(self):
-        self.assertFalse(_baslik_konu_mu("Bitkilerin kütlesi nasıl artar? B"))
+    def test_a_question_is_rejected(self):
+        self.assertFalse(_is_topic_heading("Bitkilerin kütlesi nasıl artar? B"))
 
 
 class GlobalItemTests(unittest.TestCase):
@@ -76,20 +76,20 @@ class GlobalItemTests(unittest.TestCase):
     def setUpClass(cls):
         import json
         import os
-        yol = os.path.join("tests", "golden", "golden_10biy_v2.json")
-        if not os.path.isfile(yol):
+        path = os.path.join("tests", "golden", "golden_10biy_v2.json")
+        if not os.path.isfile(path):
             raise unittest.SkipTest("golden set uretilmemis")
-        veri = json.load(open(yol, encoding="utf-8"))
-        cls.global_items = [i for i in veri["items"] if i["senaryo"] == "global"]
+        data = json.load(open(path, encoding="utf-8"))
+        cls.global_items = [i for i in data["items"] if i["senaryo"] == "global"]
 
-    def test_set_bos_degil(self):
+    def test_the_set_is_not_empty(self):
         self.assertGreaterEqual(len(self.global_items), 10)
 
-    def test_soru_tek_satirdir(self):
+    def test_questions_are_single_line(self):
         for i in self.global_items:
             self.assertNotIn("\n", i["soru"], i["id"])
 
-    def test_sayfa_araligi_sorusu_yok(self):
+    def test_no_page_range_questions(self):
         """"40-52. sayfaları özetle" retrieval sorusu değil, `/rag/summarize`
         kapsam girdisidir. Ölçümde recall@5 = 0,034 çıkmasının nedeniydi."""
         import re
@@ -97,34 +97,34 @@ class GlobalItemTests(unittest.TestCase):
             self.assertIsNone(re.search(r"\d+\s*-\s*\d+\.\s*sayfa", i["soru"]),
                               i["soru"])
 
-    def test_gold_kanit_gercektir(self):
+    def test_gold_evidence_is_real(self):
         for i in self.global_items:
             self.assertGreaterEqual(len(i["gold_kaynak_spanlar"]), 3, i["id"])
             self.assertTrue(i["gold_sayfalar"], i["id"])
             self.assertTrue(i["gold_cevap"].strip(), i["id"])
 
-    def test_kitabin_tamamina_yayilir(self):
+    def test_items_span_the_whole_book(self):
         """Adayları baştan kesmek 22 item'ın hepsini ilk temadan alıyordu;
         `global` ölçümü kitabın yalnız üçte birini görüyordu."""
-        sayfalar = [i["gold_sayfalar"][0] for i in self.global_items]
-        self.assertGreater(max(sayfalar) - min(sayfalar), 80,
+        pages = [i["gold_sayfalar"][0] for i in self.global_items]
+        self.assertGreater(max(pages) - min(pages), 80,
                            "global item'lar kitabin tek bolgesinde toplanmis")
 
 
-class MultiTurnAlanTests(unittest.TestCase):
+class MultiTurnFieldTests(unittest.TestCase):
     """Alan adı uyuşmazlığı ölçümü sıfırlamıştı."""
 
     @classmethod
     def setUpClass(cls):
         import json
         import os
-        yol = os.path.join("tests", "golden", "golden_10biy_v2.json")
-        if not os.path.isfile(yol):
+        path = os.path.join("tests", "golden", "golden_10biy_v2.json")
+        if not os.path.isfile(path):
             raise unittest.SkipTest("golden set uretilmemis")
-        veri = json.load(open(yol, encoding="utf-8"))
-        cls.items = [i for i in veri["items"] if i["senaryo"] == "multi_turn"]
+        data = json.load(open(path, encoding="utf-8"))
+        cls.items = [i for i in data["items"] if i["senaryo"] == "multi_turn"]
 
-    def test_gecmis_alani_runner_ile_ayni_adi_tasir(self):
+    def test_history_field_matches_the_runner(self):
         # Üretici `gecmis`, runner `konusma_gecmisi` okuyordu: geçmiş hiç
         # ulaşmıyordu ve multi_turn recall@5 = 0,000 çıkıyordu.
         for i in self.items:

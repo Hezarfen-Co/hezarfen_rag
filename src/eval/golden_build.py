@@ -11,7 +11,7 @@ soru yazdırmak, modeli kendi ürettiği soruyla sınamak olurdu (dairesel ölç
 
 KATEGORİLERİN KAYNAĞI:
 * `direct` / `synthesis` / `multi_hop` — gerçek birimler (tek / aynı parent /
-  ayrı sayfalar)
+  ayrı pages)
 * `figure_table` — görsel yoğunluğu yüksek sayfalardaki birimler
 * `global` — ünite başlıkları (kitabın yapısı)
 * **`unanswerable` — kitabın KAPSAMADIĞI kazanımlar.** Bu, #94'ün (müfredat
@@ -116,8 +116,8 @@ HARD_NEGATIVE_SORULARI = [
 ]
 
 
-def _iid(onek: str, *parcalar) -> str:
-    h = hashlib.sha256("|".join(map(str, parcalar)).encode("utf-8")).hexdigest()
+def _iid(onek: str, *parts) -> str:
+    h = hashlib.sha256("|".join(map(str, parts)).encode("utf-8")).hexdigest()
     return f"{onek}-{h[:8]}"
 
 
@@ -161,15 +161,15 @@ def in_domain_unanswerable(kok: str, kasa: str, sinif: str, ders: str,
         if baska == str(sinif):
             continue
         for ad in ("objectives.json", "kazanimlar.json"):
-            yol = os.path.join(kok, kasa, baska, ders, ad)
-            if not os.path.isfile(yol):
+            path = os.path.join(kok, kasa, baska, ders, ad)
+            if not os.path.isfile(path):
                 continue
             try:
-                with open(yol, encoding="utf-8") as fh:
-                    veri = json.load(fh)
+                with open(path, encoding="utf-8") as fh:
+                    data = json.load(fh)
             except Exception:                    # noqa: BLE001
                 continue
-            for k in veri if isinstance(veri, list) else []:
+            for k in data if isinstance(data, list) else []:
                 kod = k.get("kod")
                 if kod and kod not in gorulen:
                     gorulen.add(kod)
@@ -178,29 +178,29 @@ def in_domain_unanswerable(kok: str, kasa: str, sinif: str, ders: str,
     return out
 
 
-def _sade_baslik(metin: str) -> str:
+def _clean_heading(metin: str) -> str:
     """Başlık metnini tek satıra indirger ve PDF'ten gelen tekrarı temizler.
 
     PyMuPDF gölgeli/çift basılmış başlıkları iki kez döndürüyor
     ("10. Sınıf\n10. Sınıf"); ham hâliyle soruya konsa öğrenciye saçma görünür.
     """
-    parcalar = [p.strip() for p in (metin or "").split("\n") if p.strip()]
-    benzersiz: list[str] = []
-    for p in parcalar:
-        if not benzersiz or benzersiz[-1] != p:
-            benzersiz.append(p)
-    duz = re.sub(r"\s+", " ", " ".join(benzersiz)).strip()
+    parts = [p.strip() for p in (metin or "").split("\n") if p.strip()]
+    unique_lines: list[str] = []
+    for p in parts:
+        if not unique_lines or unique_lines[-1] != p:
+            unique_lines.append(p)
+    flat = re.sub(r"\s+", " ", " ".join(unique_lines)).strip()
     # PDF gölgeli başlıkları sözcük düzeyinde de tekrarlıyor
     # ("1. 1. TEMA TEMA ENERJİ" -> "1. TEMA ENERJİ").
-    sozcukler: list[str] = []
-    for k in duz.split(" "):
-        if not sozcukler or sozcukler[-1].lower() != k.lower():
-            sozcukler.append(k)
-    return " ".join(sozcukler)
+    tokens: list[str] = []
+    for k in flat.split(" "):
+        if not tokens or tokens[-1].lower() != k.lower():
+            tokens.append(k)
+    return " ".join(tokens)
 
 
 
-def _baslik_konu_mu(ad: str) -> bool:
+def _is_topic_heading(ad: str) -> bool:
     """Başlık gerçek bir KONU adı mı?
 
     PDF'in başlık katmanı yalnız bölüm adlarını içermiyor: kimyasal denklemler
@@ -215,18 +215,18 @@ def _baslik_konu_mu(ad: str) -> bool:
     # tarafından tutulur.").
     if re.search(r"[a-zçğıöşü]\.(\s|$)", ad):
         return False
-    kelimeler = ad.split()
+    words = ad.split()
     # Harf+rakam karışımı bir sözcük (H2O, 6CO2, C6H12O6) → formül.
-    for k in kelimeler:
+    for k in words:
         if any(c.isdigit() for c in k) and any(c.isalpha() for c in k):
             return False
     # Sözcüklerin çoğu gerçek sözcük olmalı: "P P P Pi P P" elenir.
-    gercek = sum(1 for k in kelimeler if len(k) >= 3 and k[0].isalpha())
-    return gercek >= max(2, int(len(kelimeler) * 0.6))
+    real_words = sum(1 for k in words if len(k) >= 3 and k[0].isalpha())
+    return real_words >= max(2, int(len(words) * 0.6))
 
 
 def build(doc, *, objectives=None, uncovered=None,
-          kapsanan_objectives=None, seed: int = 20260913,
+          covered=None, seed: int = 20260913,
           n_direct: int = 40, n_synthesis: int = 20, n_multi_hop: int = 20,
           n_figure: int = 30, n_global: int = 20, n_unanswerable: int = 20,
           n_multi_turn: int = 15) -> list:
@@ -273,10 +273,10 @@ def build(doc, *, objectives=None, uncovered=None,
             gold_cevap=a.text + "\n" + b.text, kategori="orta", risk="orta"))
 
     # --- multi_hop: AYRI sayfalardan iki birim ----------------------------
-    sayfalar = sorted(sayfa_gruplari)
-    ciftler = [(sayfa_gruplari[sayfalar[i]][0], sayfa_gruplari[sayfalar[j]][0])
-               for i in range(len(sayfalar))
-               for j in (i + 3,) if j < len(sayfalar)]
+    pages = sorted(sayfa_gruplari)
+    ciftler = [(sayfa_gruplari[pages[i]][0], sayfa_gruplari[pages[j]][0])
+               for i in range(len(pages))
+               for j in (i + 3,) if j < len(pages)]
     for a, b in rng.sample(ciftler, min(n_multi_hop, len(ciftler))):
         items.append(_temel(
             id=_iid("g10-hop", a.span_id, b.span_id), senaryo="multi_hop",
@@ -286,7 +286,7 @@ def build(doc, *, objectives=None, uncovered=None,
             gold_sayfalar=sorted({a.page, b.page}),
             gold_cevap=a.text + "\n" + b.text, kategori="zor", risk="yuksek"))
 
-    # --- figure_table: görsel yoğun sayfalar ------------------------------
+    # --- figure_table: görsel yoğun pages ------------------------------
     gorselli = [u for u in birimler
                 if getattr(u, "page_visual", "") in ("visual", "mixed")]
     for u in rng.sample(gorselli, min(n_figure, len(gorselli))):
@@ -315,24 +315,24 @@ def build(doc, *, objectives=None, uncovered=None,
     #    eski müfredatın ÜNİTE adlarını taşıyor, `covered_objectives` bunları
     #    gevşek eşleşmeyle "kapsanmış" sayıyor. (b) Gold kanıt olarak kitabın
     #    İLK 3 BİRİMİ veriliyordu — ünite adıyla hiçbir ilgisi olmayan
-    #    sayfalar. Böyle bir item'da ürün doğru davransa bile "başarısız"
+    #    pages. Böyle bir item'da ürün doğru davransa bile "başarısız"
     #    sayılırdı; ölçüm aracının kendisi bozuktu.
-    tema_deseni = re.compile(r"\btema\b", re.IGNORECASE)
-    nokta_deseni = re.compile(r"\.{4,}")            # içindekiler nokta dizisi
+    theme_re = re.compile(r"\btema\b", re.IGNORECASE)
+    dot_leader_re = re.compile(r"\.{4,}")            # içindekiler nokta dizisi
 
     # Şablon başlıklar ("Konuya Başlarken" 18 kez, "Kontrol Noktası" 5 kez)
     # konu değil, sayfa düzeni öğesidir: birden çok sayfada geçen başlığı ele.
-    baslik_sayfalari: dict[str, set] = {}
+    heading_pages: dict[str, set] = {}
     for u in doc.retrievable_units:
         if getattr(u, "kind", "") == "heading":
-            baslik_sayfalari.setdefault(
-                _sade_baslik(u.text).lower(), set()).add(u.page)
+            heading_pages.setdefault(
+                _clean_heading(u.text).lower(), set()).add(u.page)
 
     # Bölünmüş başlıkları birleştir: "1.2 IŞIK ENERJİSİ KULLANILARAK BESİN" +
     # "SENTEZİ (FOTOSENTEZ)" PDF'te iki ayrı birimdir; ayrı ayrı alınırsa
     # yarım cümlelik anlamsız sorular üretilir.
     tum = list(doc.retrievable_units)
-    gruplar, i = [], 0
+    groups, i = [], 0
     while i < len(tum):
         if getattr(tum[i], "kind", "") != "heading":
             i += 1
@@ -343,69 +343,69 @@ def build(doc, *, objectives=None, uncovered=None,
                # Numaralı alt bölüm ("1.5 SİNDİRİM") YENİ başlıktır, üsttekinin
                # devamı değil; birleştirmek "BESİNLERDEN ENERJİYE 1.5 SİNDİRİM"
                # gibi iki başlığı kaynaştırırdı.
-               and not re.match(r"^\d+\.\d", _sade_baslik(tum[j + 1].text))):
+               and not re.match(r"^\d+\.\d", _clean_heading(tum[j + 1].text))):
             j += 1
-        gruplar.append(tum[i:j + 1])
+        groups.append(tum[i:j + 1])
         i = j + 1
 
-    okuma_sirasi = {id(u): i for i, u in enumerate(tum)}
+    reading_order = {id(u): i for i, u in enumerate(tum)}
 
-    def _sira(u) -> int:
-        return okuma_sirasi.get(id(u), -1)
+    def _order(u) -> int:
+        return reading_order.get(id(u), -1)
 
-    bas_sinir, son_sinir = doc.page_count * 0.10, doc.page_count * 0.92
-    global_adaylar, gorulen_baslik = [], set()
-    son_tema = ""
-    for grup in gruplar:
+    first_page_cut, last_page_cut = doc.page_count * 0.10, doc.page_count * 0.92
+    global_candidates, seen_headings = [], set()
+    current_theme = ""
+    for group in groups:
         # Şablon parçaları BİRLEŞTİRMEDEN ÖNCE at: "1.2 IŞIK ENERJİSİ ..." ile
         # "Konuya Başlarken" aynı sayfada ardışık iki başlık birimidir; önce
         # birleştirilirse soru "... Konuya Başlarken konusunu anlatır mısın?"
         # olur.
-        parcalar = [u for u in grup
-                    if len(baslik_sayfalari.get(
-                        _sade_baslik(u.text).lower(), ())) == 1]
-        if not parcalar:
+        parts = [u for u in group
+                    if len(heading_pages.get(
+                        _clean_heading(u.text).lower(), ())) == 1]
+        if not parts:
             continue
-        ad = _sade_baslik(" ".join(u.text or "" for u in parcalar))
+        ad = _clean_heading(" ".join(u.text or "" for u in parts))
         ad = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", ad)   # "1.2 " ön eki
-        h = parcalar[0]
-        if tema_deseni.search(ad):
+        h = parts[0]
+        if theme_re.search(ad):
             # Tema başlığı sayfada "İÇERİK ÇERÇEVESİ ..." metniyle birlikte
             # geliyor; etiket olarak yalnız "TEMA <AD>" kısmı anlamlı.
-            son_tema = re.sub(r"^(.*?\btema\b\s+\S+).*$", r"\1", ad,
+            current_theme = re.sub(r"^(.*?\btema\b\s+\S+).*$", r"\1", ad,
                               flags=re.IGNORECASE).strip()
         # Ön/arka madde ("SEMBOLLERİN AÇIKLAMASI", "İÇİNDEKİLER") konu değil.
-        if not (bas_sinir <= h.page <= son_sinir):
+        if not (first_page_cut <= h.page <= last_page_cut):
             continue
-        if nokta_deseni.search(ad):                 # içindekiler satırı
+        if dot_leader_re.search(ad):                 # içindekiler satırı
             continue
         if not (2 <= len(ad.split()) <= 8):
             continue
-        if not _baslik_konu_mu(ad):
+        if not _is_topic_heading(ad):
             continue
-        if ad.lower() in gorulen_baslik:
+        if ad.lower() in seen_headings:
             continue
         # Gold kanıt, başlığın ARDINDAN gelen birimlerdir. İlk sürümde
         # `abs(u.page - h.page) <= 1` kullanıyordum; bu, başlıktan ÖNCEKİ
         # sayfanın (yani bir önceki konunun) metnini gold yapıyordu ve 4
         # item'da recall@20 = 0 çıkmasının nedeni buydu — ürün doğru sayfayı
         # getirse bile "kaçırdı" sayılıyordu.
-        yakin = [u for u in birimler
+        nearby = [u for u in birimler
                  if h.page <= u.page <= h.page + 1
-                 and _sira(u) > _sira(h)][:4]
-        if len(yakin) < 3:                          # ardında gerçek içerik
+                 and _order(u) > _order(h)][:4]
+        if len(nearby) < 3:                          # ardında gerçek içerik
             continue
-        gorulen_baslik.add(ad.lower())
-        global_adaylar.append((son_tema or varsayilan_unite,
+        seen_headings.add(ad.lower())
+        global_candidates.append((current_theme or varsayilan_unite,
                                f"{ad} konusunu genel hatlarıyla anlatır mısın?",
-                               yakin))
+                               nearby))
 
     # Adayları kitabın TAMAMINA yay: baştan kesmek 22 item'ın hepsini ilk
     # temadan alırdı ve `global` ölçümü kitabın yalnız üçte birini görürdü.
-    if len(global_adaylar) > n_global:
-        adim = len(global_adaylar) / n_global
-        global_adaylar = [global_adaylar[int(i * adim)] for i in range(n_global)]
-    for ad, soru, ilgili in global_adaylar[:n_global]:
+    if len(global_candidates) > n_global:
+        adim = len(global_candidates) / n_global
+        global_candidates = [global_candidates[int(i * adim)] for i in range(n_global)]
+    for ad, soru, ilgili in global_candidates[:n_global]:
         items.append(_temel(
             id=_iid("g10-global", soru), senaryo="global",
             hop_sayisi=len({u.page for u in ilgili}), unite=ad, soru=soru,

@@ -142,11 +142,11 @@ class CircuitBreakerTests(unittest.TestCase):
                                 clock=lambda: self.t[0])
 
     def test_opens_after_threshold(self):
-        self.assertEqual(self.b.state, "kapali")
+        self.assertEqual(self.b.state, "closed")
         self.b.record_failure()
-        self.assertEqual(self.b.state, "kapali")
+        self.assertEqual(self.b.state, "closed")
         self.b.record_failure()
-        self.assertEqual(self.b.state, "acik")
+        self.assertEqual(self.b.state, "open")
         self.assertFalse(self.b.allow())
 
     def test_open_breaker_fails_fast(self):
@@ -164,7 +164,7 @@ class CircuitBreakerTests(unittest.TestCase):
     def test_half_open_allows_exactly_one_probe(self):
         self.b.record_failure(); self.b.record_failure()
         self.t[0] = 11
-        self.assertEqual(self.b.state, "yari-acik")
+        self.assertEqual(self.b.state, "half_open")
         self.assertTrue(self.b.allow())
         self.assertFalse(self.b.allow(), "ikinci deneme de geçti")
 
@@ -173,7 +173,7 @@ class CircuitBreakerTests(unittest.TestCase):
         self.t[0] = 11
         self.b.allow()
         self.b.record_success()
-        self.assertEqual(self.b.state, "kapali")
+        self.assertEqual(self.b.state, "closed")
         self.assertTrue(self.b.allow())
 
     def test_failure_in_half_open_reopens(self):
@@ -181,12 +181,12 @@ class CircuitBreakerTests(unittest.TestCase):
         self.t[0] = 11
         self.b.allow()
         self.b.record_failure()
-        self.assertEqual(self.b.state, "acik")
+        self.assertEqual(self.b.state, "open")
 
     def test_snapshot_exposes_state_for_readiness(self):
         s = self.b.snapshot()
-        self.assertEqual(s["durum"], "kapali")
-        self.assertIn("esik", s)
+        self.assertEqual(s["state"], "closed")
+        self.assertIn("threshold", s)
 
 
 class TimeoutDefaultTests(unittest.TestCase):

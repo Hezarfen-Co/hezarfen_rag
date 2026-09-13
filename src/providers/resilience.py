@@ -83,18 +83,18 @@ class CircuitBreaker:
 
     def _state_unlocked(self) -> str:
         if self._opened_at is None:
-            return "kapali"
+            return "closed"
         if self._clock() - self._opened_at >= self.cooldown_s:
-            return "yari-acik"
-        return "acik"
+            return "half_open"
+        return "open"
 
     def allow(self) -> bool:
         """Çağrıya izin var mı. Yarı-açıkta yalnız TEK deneme geçer."""
         with self._lock:
-            durum = self._state_unlocked()
-            if durum == "kapali":
+            state = self._state_unlocked()
+            if state == "closed":
                 return True
-            if durum == "acik":
+            if state == "open":
                 return False
             if self._half_open_inflight:
                 return False           # deneme zaten uçuşta
@@ -109,8 +109,8 @@ class CircuitBreaker:
 
     def record_failure(self) -> None:
         with self._lock:
-            yari_acikta = (self._opened_at is not None
-                           and self._clock() - self._opened_at >= self.cooldown_s)
+            half_open = (self._opened_at is not None
+                         and self._clock() - self._opened_at >= self.cooldown_s)
             self._half_open_inflight = False
             # TESTLE BULUNDU: yarı-açıkta başarısız olan deneme kesiciyi HEMEN
             # yeniden açmalı. İlk sürümde yalnız sayaç artıyordu; sayaç eşiğin
@@ -118,7 +118,7 @@ class CircuitBreaker:
             # "yarı-açık" görünmeye devam ediyordu — yani arızalı sağlayıcıya
             # her istekte yeniden bir deneme gidiyordu ve kesici fiilen
             # çalışmıyordu.
-            if yari_acikta:
+            if half_open:
                 self._opened_at = self._clock()
                 self._failures = 0
                 return
@@ -129,8 +129,9 @@ class CircuitBreaker:
 
     def snapshot(self) -> dict:
         with self._lock:
-            return {"durum": self._state_unlocked(), "ardisik_hata": self._failures,
-                    "esik": self.threshold, "bekleme_s": self.cooldown_s}
+            return {"state": self._state_unlocked(),
+                    "consecutive_failures": self._failures,
+                    "threshold": self.threshold, "cooldown_s": self.cooldown_s}
 
 
 def backoff_delay(attempt: int, *, base: float | None = None,
