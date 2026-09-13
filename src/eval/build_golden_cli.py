@@ -41,7 +41,9 @@ def main(argv=None) -> int:
     print(f"[golden] kazanim={len(hepsi)} kapsanmayan={len(kapsanmayan)} "
           f"alan-ici-cevapsiz={len(cevapsiz)}", flush=True)
 
-    items = build(doc, objectives=hepsi, uncovered=cevapsiz, seed=a.seed,
+    kapsanan_liste = [k for k in hepsi if k.get("kod") in kapsanan]
+    items = build(doc, objectives=hepsi, uncovered=cevapsiz,
+                  kapsanan_objectives=kapsanan_liste, seed=a.seed,
                   n_global=22, n_unanswerable=22)
     yol = a.out or os.path.join("tests", "golden",
                                 f"golden_{a.sinif}{a.ders[:3]}_v2.json")

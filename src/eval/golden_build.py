@@ -31,6 +31,7 @@ import hashlib
 import json
 import os
 import random
+import re
 
 from .golden_schema import SCHEMA_VERSION, validate
 
@@ -177,7 +178,55 @@ def in_domain_unanswerable(kok: str, kasa: str, sinif: str, ders: str,
     return out
 
 
-def build(doc, *, objectives=None, uncovered=None, seed: int = 20260913,
+def _sade_baslik(metin: str) -> str:
+    """Başlık metnini tek satıra indirger ve PDF'ten gelen tekrarı temizler.
+
+    PyMuPDF gölgeli/çift basılmış başlıkları iki kez döndürüyor
+    ("10. Sınıf\n10. Sınıf"); ham hâliyle soruya konsa öğrenciye saçma görünür.
+    """
+    parcalar = [p.strip() for p in (metin or "").split("\n") if p.strip()]
+    benzersiz: list[str] = []
+    for p in parcalar:
+        if not benzersiz or benzersiz[-1] != p:
+            benzersiz.append(p)
+    duz = re.sub(r"\s+", " ", " ".join(benzersiz)).strip()
+    # PDF gölgeli başlıkları sözcük düzeyinde de tekrarlıyor
+    # ("1. 1. TEMA TEMA ENERJİ" -> "1. TEMA ENERJİ").
+    sozcukler: list[str] = []
+    for k in duz.split(" "):
+        if not sozcukler or sozcukler[-1].lower() != k.lower():
+            sozcukler.append(k)
+    return " ".join(sozcukler)
+
+
+
+def _baslik_konu_mu(ad: str) -> bool:
+    """Başlık gerçek bir KONU adı mı?
+
+    PDF'in başlık katmanı yalnız bölüm adlarını içermiyor: kimyasal denklemler
+    ("6CO2 + 12H2O Işık C6H12O6..."), şekil etiketleri ("P P P Pi P P") ve
+    soru cümleleri de aynı biçimde geliyor. Bunlardan üretilen `global`
+    sorusu öğrencinin soracağı bir soru değildir ve ölçümü kirletir.
+    """
+    if "?" in ad or "=" in ad or "→" in ad or "+" in ad:
+        return False
+    # Cümle, başlık değildir: PDF'in başlık katmanı vurgulu cümleleri de
+    # başlık olarak veriyor ("Suyun fotolizi ile oluşan hidrojenler NADP+
+    # tarafından tutulur.").
+    if re.search(r"[a-zçğıöşü]\.(\s|$)", ad):
+        return False
+    kelimeler = ad.split()
+    # Harf+rakam karışımı bir sözcük (H2O, 6CO2, C6H12O6) → formül.
+    for k in kelimeler:
+        if any(c.isdigit() for c in k) and any(c.isalpha() for c in k):
+            return False
+    # Sözcüklerin çoğu gerçek sözcük olmalı: "P P P Pi P P" elenir.
+    gercek = sum(1 for k in kelimeler if len(k) >= 3 and k[0].isalpha())
+    return gercek >= max(2, int(len(kelimeler) * 0.6))
+
+
+def build(doc, *, objectives=None, uncovered=None,
+          kapsanan_objectives=None, seed: int = 20260913,
           n_direct: int = 40, n_synthesis: int = 20, n_multi_hop: int = 20,
           n_figure: int = 30, n_global: int = 20, n_unanswerable: int = 20,
           n_multi_turn: int = 15) -> list:
@@ -248,25 +297,114 @@ def build(doc, *, objectives=None, uncovered=None, seed: int = 20260913,
             gold_cevap=u.text, kategori="orta", gorsel_bagimliligi=True,
             risk="orta"))
 
-    # --- global: ünite adları + SAYFA ARALIKLARI ---------------------------
-    # Yalnız ünite adlarını kullanmak yetmiyordu: korpusta 3 ünite var, hedef
-    # ise %10. Kitabın kendi sayfa aralıkları da meşru bir "global" sorudur
-    # (öğrenci "şu bölümü özetle" der), ve gold kanıtı o aralığın gerçek
-    # birimleridir.
-    global_adaylar = []
-    for ad in (unite_adlari or [varsayilan_unite]):
-        ilgili = birimler[:3]
-        global_adaylar.append((ad, f"{ad} konusunu genel hatlarıyla özetler misin?",
-                               ilgili))
-    adim = max(8, doc.page_count // max(1, n_global))
-    for bas in range(min(sayfalar), max(sayfalar), adim):
-        son = bas + adim - 1
-        ilgili = [u for u in birimler if bas <= u.page <= son][:4]
-        if len(ilgili) < 2:
+    # --- global: KİTABIN KENDİ BAŞLIKLARI -------------------------------
+    # Meşru `global` sorusu KONU düzeyindedir: "şu konuyu genel hatlarıyla
+    # anlat". Gold kanıt, o başlığın çevresindeki GERÇEK birimlerdir.
+    #
+    # KULLANILMAYAN İKİ KAYNAK ve nedenleri (ikisi de ölçülerek elendi):
+    #
+    # 1) SAYFA ARALIĞI ("40-52. sayfaları özetler misin?") — ölçümde `global`
+    #    recall@5 = **0,034** çıktı. Bu bir ürün hatası DEĞİL, YANLIŞ ARAYÜZÜ
+    #    ÖLÇMEKTİ: sayfa aralığı özeti `/rag/summarize`'ın KAPSAM girdisidir,
+    #    retrieval sorgusu değil. Meta sorgunun içerikle anlamsal benzerliği
+    #    yoktur ve olması da beklenmez.
+    #
+    # 2) KAZANIM DOSYASININ ÜNİTE ADLARI ("Hücre Bölünmeleri") — iki ayrı
+    #    kusur taşıyordu. (a) #94: elimizdeki kitap 2025 Maarif Modeli ve
+    #    TEMA tabanlı ("1. TEMA ENERJİ", "2. Tema EKOLOJİ"); kazanım dosyası
+    #    eski müfredatın ÜNİTE adlarını taşıyor, `covered_objectives` bunları
+    #    gevşek eşleşmeyle "kapsanmış" sayıyor. (b) Gold kanıt olarak kitabın
+    #    İLK 3 BİRİMİ veriliyordu — ünite adıyla hiçbir ilgisi olmayan
+    #    sayfalar. Böyle bir item'da ürün doğru davransa bile "başarısız"
+    #    sayılırdı; ölçüm aracının kendisi bozuktu.
+    tema_deseni = re.compile(r"\btema\b", re.IGNORECASE)
+    nokta_deseni = re.compile(r"\.{4,}")            # içindekiler nokta dizisi
+
+    # Şablon başlıklar ("Konuya Başlarken" 18 kez, "Kontrol Noktası" 5 kez)
+    # konu değil, sayfa düzeni öğesidir: birden çok sayfada geçen başlığı ele.
+    baslik_sayfalari: dict[str, set] = {}
+    for u in doc.retrievable_units:
+        if getattr(u, "kind", "") == "heading":
+            baslik_sayfalari.setdefault(
+                _sade_baslik(u.text).lower(), set()).add(u.page)
+
+    # Bölünmüş başlıkları birleştir: "1.2 IŞIK ENERJİSİ KULLANILARAK BESİN" +
+    # "SENTEZİ (FOTOSENTEZ)" PDF'te iki ayrı birimdir; ayrı ayrı alınırsa
+    # yarım cümlelik anlamsız sorular üretilir.
+    tum = list(doc.retrievable_units)
+    gruplar, i = [], 0
+    while i < len(tum):
+        if getattr(tum[i], "kind", "") != "heading":
+            i += 1
             continue
-        global_adaylar.append((
-            varsayilan_unite,
-            f"{bas}-{son}. sayfalar arasındaki konuyu özetler misin?", ilgili))
+        j = i
+        while (j + 1 < len(tum) and getattr(tum[j + 1], "kind", "") == "heading"
+               and tum[j + 1].page == tum[i].page
+               # Numaralı alt bölüm ("1.5 SİNDİRİM") YENİ başlıktır, üsttekinin
+               # devamı değil; birleştirmek "BESİNLERDEN ENERJİYE 1.5 SİNDİRİM"
+               # gibi iki başlığı kaynaştırırdı.
+               and not re.match(r"^\d+\.\d", _sade_baslik(tum[j + 1].text))):
+            j += 1
+        gruplar.append(tum[i:j + 1])
+        i = j + 1
+
+    okuma_sirasi = {id(u): i for i, u in enumerate(tum)}
+
+    def _sira(u) -> int:
+        return okuma_sirasi.get(id(u), -1)
+
+    bas_sinir, son_sinir = doc.page_count * 0.10, doc.page_count * 0.92
+    global_adaylar, gorulen_baslik = [], set()
+    son_tema = ""
+    for grup in gruplar:
+        # Şablon parçaları BİRLEŞTİRMEDEN ÖNCE at: "1.2 IŞIK ENERJİSİ ..." ile
+        # "Konuya Başlarken" aynı sayfada ardışık iki başlık birimidir; önce
+        # birleştirilirse soru "... Konuya Başlarken konusunu anlatır mısın?"
+        # olur.
+        parcalar = [u for u in grup
+                    if len(baslik_sayfalari.get(
+                        _sade_baslik(u.text).lower(), ())) == 1]
+        if not parcalar:
+            continue
+        ad = _sade_baslik(" ".join(u.text or "" for u in parcalar))
+        ad = re.sub(r"^\d+(?:\.\d+)*\.?\s+", "", ad)   # "1.2 " ön eki
+        h = parcalar[0]
+        if tema_deseni.search(ad):
+            # Tema başlığı sayfada "İÇERİK ÇERÇEVESİ ..." metniyle birlikte
+            # geliyor; etiket olarak yalnız "TEMA <AD>" kısmı anlamlı.
+            son_tema = re.sub(r"^(.*?\btema\b\s+\S+).*$", r"\1", ad,
+                              flags=re.IGNORECASE).strip()
+        # Ön/arka madde ("SEMBOLLERİN AÇIKLAMASI", "İÇİNDEKİLER") konu değil.
+        if not (bas_sinir <= h.page <= son_sinir):
+            continue
+        if nokta_deseni.search(ad):                 # içindekiler satırı
+            continue
+        if not (2 <= len(ad.split()) <= 8):
+            continue
+        if not _baslik_konu_mu(ad):
+            continue
+        if ad.lower() in gorulen_baslik:
+            continue
+        # Gold kanıt, başlığın ARDINDAN gelen birimlerdir. İlk sürümde
+        # `abs(u.page - h.page) <= 1` kullanıyordum; bu, başlıktan ÖNCEKİ
+        # sayfanın (yani bir önceki konunun) metnini gold yapıyordu ve 4
+        # item'da recall@20 = 0 çıkmasının nedeni buydu — ürün doğru sayfayı
+        # getirse bile "kaçırdı" sayılıyordu.
+        yakin = [u for u in birimler
+                 if h.page <= u.page <= h.page + 1
+                 and _sira(u) > _sira(h)][:4]
+        if len(yakin) < 3:                          # ardında gerçek içerik
+            continue
+        gorulen_baslik.add(ad.lower())
+        global_adaylar.append((son_tema or varsayilan_unite,
+                               f"{ad} konusunu genel hatlarıyla anlatır mısın?",
+                               yakin))
+
+    # Adayları kitabın TAMAMINA yay: baştan kesmek 22 item'ın hepsini ilk
+    # temadan alırdı ve `global` ölçümü kitabın yalnız üçte birini görürdü.
+    if len(global_adaylar) > n_global:
+        adim = len(global_adaylar) / n_global
+        global_adaylar = [global_adaylar[int(i * adim)] for i in range(n_global)]
     for ad, soru, ilgili in global_adaylar[:n_global]:
         items.append(_temel(
             id=_iid("g10-global", soru), senaryo="global",
@@ -292,8 +430,10 @@ def build(doc, *, objectives=None, uncovered=None, seed: int = 20260913,
         items.append(_temel(
             id=_iid("g10-turn", u.span_id), senaryo="multi_turn", hop_sayisi=1,
             unite=_unite(u), soru="peki bunun devamı nedir?",
-            gecmis=[{"role": "user", "content": _soru_uret(u.text, 15)},
-                    {"role": "assistant", "content": "Kısa bir cevap [1]."}],
+            konusma_gecmisi=[{"role": "user",
+                              "content": _soru_uret(u.text, 15)},
+                             {"role": "assistant",
+                              "content": "Kısa bir cevap [1]."}],
             gold_kaynak_spanlar=[u.span_id], gold_sayfalar=[u.page],
             gold_cevap=u.text, kategori="multi_turn", risk="orta"))
 

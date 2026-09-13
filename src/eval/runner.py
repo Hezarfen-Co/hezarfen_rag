@@ -41,7 +41,34 @@ from .judge import LlmJudge, JUDGE_METHOD, DEEPEVAL_AVAILABLE
 # Varsayılan v1 (190 item, TASLAK); GOLDEN_PATH env değişkeniyle override edilebilir.
 GOLDEN_PATH = os.environ.get(
     "GOLDEN_PATH", os.path.join("tests", "golden", "golden_12bio_v1.json"))
-BOOK_PATH = os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+# Kitap yolu env ile verilebilir. Varsayilan 12-biyoloji idi ve o kitap bu
+# depoda YOK (#92) -> eval hicbir zaman kosamiyordu. Artik var olan ilk kitap
+# secilir; yol acikca verilirse o kullanilir.
+def _default_book() -> str:
+    acik = os.environ.get("BOOK_PATH")
+    if acik:
+        return acik
+    for sinif, ders in (("10", "biyoloji"), ("10", "fizik"), ("11", "biyoloji"),
+                        ("12", "biyoloji")):
+        yol = os.path.join("data", "lise", sinif, ders, "kitap.pdf")
+        if os.path.isfile(yol):
+            return yol
+    return os.path.join("data", "lise", "12", "biyoloji", "kitap.pdf")
+
+
+BOOK_PATH = _default_book()
+
+
+def _scope_from_path(book_path: str) -> tuple[str, str]:
+    """Kitap yolundan (sinif, ders). Eval'in KORPUSA gore kosmasi sart --
+    sabit "12"/"biyoloji" yazmak, baska bir korpusta kasa izolasyonunu
+    yanlis kurar ve butun item'lari reddettirir."""
+    parcalar = book_path.replace("\\", "/").split("/")
+    try:
+        i = parcalar.index("lise")
+        return parcalar[i + 1], parcalar[i + 2]
+    except (ValueError, IndexError):
+        return "12", "biyoloji"
 RESULTS_DIR = os.path.join("tests", "evaluation", "results")
 
 # Generator.answer() varsayilanlariyla BIREBIR AYNI (generator.py) -- eval,
@@ -156,7 +183,8 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     """TAM pipeline'i BIR KEZ kurar (agir: PDF parse + embed + index + rerank
     model yukleme). Donen dict runner'in geri kalaninda kullanilir."""
     t0 = time.time()
-    doc = _retry(lambda: build_canonical(book_path, sinif="12", ders="biyoloji"),
+    sinif, ders = _scope_from_path(book_path)
+    doc = _retry(lambda: build_canonical(book_path, sinif=sinif, ders=ders),
                 label="build_canonical")
     chunks = chunk_document(doc)
     children = [c for c in chunks if c.level == "child"]
@@ -195,7 +223,7 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     from ..guard import LLMSafetyClassifier
     from ..memory import HistoryAwareRewriter
     generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
-                          ders="biyoloji", abstain_score=0.30, module="eval",
+                          ders=ders, abstain_score=0.30, module="eval",
                           safety_classifier=LLMSafetyClassifier(deepseek, module="eval"),
                           context_packing=True,   # token bütçesi + lost-in-the-middle
                           rewriter=HistoryAwareRewriter(deepseek, module="eval"))  # çok-turlu
@@ -459,6 +487,11 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
             "retrieval": vars(retr_metrics),
             "retrieval_post_rerank": vars(retr_post_metrics),
             "citation": vars(M.CitationMetrics()),
+            # retrieval_only'de LLM yok -> history-aware rewrite KOSAMAZ.
+            # Cok-turlu item'in ham sorgusu ("peki bunun devami nedir?")
+            # iceriksizdir; burada olculen sayi ANLAMSIZDIR ve urun hatasi
+            # gibi okunmamalidir. Isaretleniyor.
+            "not_measurable": (item.get("senaryo") == "multi_turn"),
             "guardrail": {"passed": None, "fail_closed": None,
                           "abstained": None, "reason": "retrieval_only"},
             "generation": {"text": "", "abstained": None, "reason": "retrieval_only",
@@ -490,7 +523,10 @@ def _eval_item(item: dict, pipeline: dict, judge: LlmJudge | None,
     t0 = time.time()
     # multi_turn item'larda konuşma geçmişini ver → history-aware rewrite devreye
     # girer (bkz. src/memory). Diğer item'larda history=None (davranış değişmez).
-    history = item.get("konusma_gecmisi")
+    # Alan adi iki golden surumunde farkli ("konusma_gecmisi" / "gecmis");
+    # ikisini de kabul et, yoksa cok-turlu item'lar SESSIZCE gecmissiz kosar ve
+    # olcum urun hatasi gibi gorunur (olculdu: multi_turn recall@5 = 0,0).
+    history = item.get("konusma_gecmisi") or item.get("gecmis")
     result = _retry(lambda: generator.answer(query, history=history,
                                              top_n=GEN_TOP_N, candidate_n=GEN_CANDIDATE_N,
                                              temperature=EVAL_TEMPERATURE),
