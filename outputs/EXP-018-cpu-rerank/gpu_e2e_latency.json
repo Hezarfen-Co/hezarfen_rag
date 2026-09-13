@@ -1,0 +1,82 @@
+[
+ {
+  "soru": "Ekosistem nedir?",
+  "s": 5.52,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 2,
+  "cost": 0.000435
+ },
+ {
+  "soru": "Üreticiler, tüketiciler ve ayrıştırıcılar arasındaki fark nedir?",
+  "s": 5.12,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 3,
+  "cost": 0.000396
+ },
+ {
+  "soru": "Fotosentez ile kemosentez arasındaki farkı açıklar mısın?",
+  "s": 5.11,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 2,
+  "cost": 0.000622
+ },
+ {
+  "soru": "Besin zinciri ile madde döngüleri arasında nasıl bir ilişki var?",
+  "s": 4.81,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 4,
+  "cost": 0.00048
+ },
+ {
+  "soru": "Bir ekosistemde enerji akışı neden tek yönlüdür?",
+  "s": 3.91,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 2,
+  "cost": 0.000375
+ },
+ {
+  "soru": "Azot döngüsünü anlatır mısın?",
+  "s": 6.04,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 1,
+  "cost": 0.00276
+ },
+ {
+  "soru": "Süksesyon nedir?",
+  "s": 4.2,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 2,
+  "cost": 0.001326
+ },
+ {
+  "soru": "Biyoçeşitlilik kaybının nedenleri nelerdir?",
+  "s": 5.83,
+  "abstained": false,
+  "reason": "",
+  "n_cit": 4,
+  "cost": 0.002392
+ },
+ {
+  "soru": "Mitoz bölünmenin evreleri nelerdir?",
+  "s": 2.02,
+  "abstained": true,
+  "reason": "insufficient_data",
+  "n_cit": 0,
+  "cost": 0.0
+ },
+ {
+  "soru": "Fransız İhtilali hangi yıl oldu?",
+  "s": 3.31,
+  "abstained": true,
+  "reason": "insufficient_data",
+  "n_cit": 0,
+  "cost": 0.0
+ }
+]

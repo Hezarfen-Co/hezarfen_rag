@@ -1,4 +1,4 @@
-# EXP-018 — CPU'da rerank gecikmesi ve reranker'ın kalite katkısı
+# EXP-018 — Gecikme: CPU'da rerank duvarı, GPU'da uçtan uca ve eşzamanlılık
 
 **Tür:** DENEY · **Tarih:** 2026-09-13 · **Commit:** `124805e`
 **İlgili:** #96 (EXP-015'te açıldı) · **Durum:** `İNSAN İNCELEMESİ BEKLİYOR`
@@ -71,6 +71,60 @@ reranker'ın önde olduğu tek kategori — ama n=11 ve fark 0,023 (0,25 item).
 > Bu set "reranker işe yarıyor mu" sorusunu **cevaplayamaz** ve bu sonuca
 > dayanarak reranker'ı kaldırmak, ölçüm kusurunu ürün kararına çevirmek olurdu.
 
+---
+
+## BULGU 3 — GPU'da servis İNTERAKTİF (kapı O-05 geçiyor)
+
+Konteyner CPU torch kuruyor (`--index-url .../whl/cpu`), bu yüzden EXP-015'in
+96 s'si **konteynerin değil, CPU'nun** sonucuydu. Servisi ana makinede GPU ile
+koşup gerçek `/rag/chat` isteklerini ölçtüm — EXP-015'te yapılmayan ölçüm bu.
+
+Kurulum: RTX 4060 Laptop (8188 MiB), 10/biyoloji, DeepSeek üretici.
+Servis hazır olma süresi **47,6 s** (model yükleme + indeks kurma).
+
+| süre | çekimser | atıf | soru |
+|---|---|---|---|
+| 5,52 s | hayır | 2 | Ekosistem nedir? |
+| 5,12 s | hayır | 3 | Üreticiler, tüketiciler ve ayrıştırıcılar arasındaki fark nedir? |
+| 5,11 s | hayır | 2 | Fotosentez ile kemosentez arasındaki farkı açıklar mısın? |
+| 4,81 s | hayır | 4 | Besin zinciri ile madde döngüleri arasında nasıl bir ilişki var? |
+| 3,91 s | hayır | 2 | Bir ekosistemde enerji akışı neden tek yönlüdür? |
+| 6,04 s | hayır | 1 | Azot döngüsünü anlatır mısın? |
+| 4,20 s | hayır | 2 | Süksesyon nedir? |
+| 5,83 s | hayır | 4 | Biyoçeşitlilik kaybının nedenleri nelerdir? |
+| 2,02 s | **evet** | 0 | Mitoz bölünmenin evreleri nelerdir? *(kitapta yok)* |
+| 3,31 s | **evet** | 0 | Fransız İhtilali hangi yıl oldu? *(alan dışı)* |
+
+**p50 = 4,96 s · p90 = 6,04 s · maliyet $0,00088/soru**
+
+8/8 kitapta olan soru atıflı cevaplandı, 2/2 kitapta olmayan doğru sebeple
+(`insufficient_data`) çekimser kaldı.
+
+> **Kapı O-05 (p50 ≤ 6 s) GPU'da GEÇİYOR.** #96 bir CPU sorunudur, ürün
+> sorunu değil.
+
+## BULGU 4 — Eşzamanlılık duvarı: sınıf değil, tek öğrenci
+
+Kapı **O-06** hiç ölçülmemişti. Aynı servis, eşzamanlı gerçek istekler:
+
+| eşzamanlı öğrenci | p50 | max | duvar saati | hata |
+|---|---|---|---|---|
+| 1 | 4,96 s | 6,04 s | — | 0 |
+| 3 | 6,08 s | 8,78 s | 8,8 s | 0 |
+| 5 | 9,31 s | 10,50 s | 10,5 s | 0 |
+| 8 | **11,54 s** | 14,53 s | 14,5 s | 0 |
+
+Hata yok, `request_id`'ler benzersiz (8/8) — doğruluk tarafı sağlam. Ama
+gecikme **eşzamanlı istekle neredeyse doğrusal** büyüyor: embed ve rerank GIL
+altında ve tek GPU'da sıraya giriyor.
+
+> **Tek öğrenci interaktif, sınıf değil.** 8 öğrencide p50 zaten kapının iki
+> katı. 30 kişilik bir sınıf doğrusal eğilimle ~40 s'ye çıkar (bu bir
+> **tahmindir**, ölçüm değil — 8'in üstü ölçülmedi).
+
+Demo için pratik sonuç: **öğretmenin tek ekrandan gösterdiği demo sorunsuz;
+"herkes telefonundan aynı anda sorsun" demosu patlar.**
+
 ## Yapılan değişiklik (tek)
 
 `RAG_RERANK_MAX_LENGTH` eklendi; **varsayılan 512 olarak KALDI**. Amaç, bir CPU
@@ -82,7 +136,7 @@ anlamsızdır, 100000 modelin sınırını aşıp çalışma anında patlardı.
 
 | Seçenek | Gecikme | Risk |
 |---|---|---|
-| **A. Demo makinesinde GPU** | 1,9 s rerank, uçtan uca ~5,6 s | Donanım şartı; okulun makinesi belirsiz |
+| **A. Demo makinesinde GPU** | **ÖLÇÜLDÜ: p50 4,96 s** — kapıyı geçiyor | Donanım şartı; konteyner imgesi de CUDA torch ile yeniden kurulmalı (bugün `--index-url .../whl/cpu`), ayrıca `nvidia-container-toolkit` kurulu DEĞİL |
 | **B. Daha küçük reranker** (`bge-reranker-base`, ~278M) | ölçülmedi | Türkçe kalite bilinmiyor |
 | **C. CPU'da rerank'siz** (yalnız RRF) | ~3 s | Kalite bedeli **bilinmiyor** (bu set ölçemiyor) |
 | **D. 192/8'e düş** | 6,1 s *(sadece rerank)* | O-05'i yine geçmez |
@@ -95,13 +149,15 @@ cevaplayamaz.
 
 | Soru | Karar |
 |---|---|
-| Demo makinesinde GPU olacak mı? (A'yı tek başına çözer) | |
+| Demo makinesinde GPU olacak mı? (**ölçüldü: A tek başına çözüyor**) | |
+| Demo "tek ekran" mı olacak, "herkes kendi cihazından" mı? (ikincisi 8 kişide bile kapıyı geçmiyor) | |
 | Yoksa hangi seçenek denensin: küçük reranker mı, rerank'siz mi? | |
 | #91'de golden set'e kaç **insan yazımı soru** eklenecek? | |
 
 ## Ham çıktı
 
-- Gecikme ızgarası: `outputs/EXP-018-cpu-rerank/cpu_rerank.json`
+- CPU gecikme ızgarası: `outputs/EXP-018-cpu-rerank/cpu_rerank.json`
+- GPU uçtan uca: `outputs/EXP-018-cpu-rerank/gpu_e2e_latency.json`
 - Kalite karşılaştırması: `outputs/EXP-018-cpu-rerank/rerank_quality.json`,
   `rq2.json` (ham sıralama), `rq3.json` (senaryo kırılımı)
 
