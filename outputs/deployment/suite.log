@@ -1,183 +1,0 @@
-warning: The `fitz` API is deprecated and will be removed in future. Use `import pymupdf` instead.
-Loading weights:   0%|          | 0/391 [00:00<?, ?it/s]Loading weights:   1%|▏         | 5/391 [00:00<01:13,  5.24it/s]Loading weights:  75%|███████▍  | 293/391 [00:01<00:00, 360.15it/s]Loading weights: 100%|██████████| 391/391 [00:01<00:00, 356.09it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 421.49it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:15,  1.33it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.27it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.94it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.49it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.00it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.40it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.75it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.02it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.31it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.63it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  6.00it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.49it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.16it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.81it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.30it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.61it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.45it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 647.49it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.36it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.30it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.98it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.55it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.05it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.44it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.75it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.02it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.32it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.61it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.94it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.41it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.05it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.67it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.12it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.39it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.46it/s]
-Loading weights:   0%|          | 0/393 [00:00<?, ?it/s]Loading weights:  30%|██▉       | 116/393 [00:00<00:00, 1138.15it/s]Loading weights:  59%|█████▊    | 230/393 [00:00<00:00, 1049.09it/s]Loading weights:  91%|█████████ | 358/393 [00:00<00:00, 1137.42it/s]Loading weights: 100%|██████████| 393/393 [00:00<00:00, 1167.47it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 662.61it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.34it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.30it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.99it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.56it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.08it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.48it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.82it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.11it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.40it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.68it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  6.03it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.51it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.17it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.82it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.27it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.61it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.53it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 599.60it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:15,  1.32it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.26it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.96it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.51it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.02it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.43it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.78it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.07it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.34it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.60it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.94it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.41it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.06it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.72it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.19it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.48it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.44it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 661.01it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.34it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.26it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.95it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.52it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.02it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.41it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.73it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.00it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.32it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.61it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.95it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.40it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.04it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.64it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.07it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.37it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.42it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 589.65it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.33it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.28it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.98it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.52it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.03it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.43it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.78it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.07it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.34it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.63it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.97it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.45it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.10it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.77it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.25it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.56it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.48it/s]
-pre tokenize:   0%|          | 0/21 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 21/21 [00:00<00:00, 679.56it/s]
-Inference Embeddings:   0%|          | 0/21 [00:00<?, ?it/s]Inference Embeddings:   5%|▍         | 1/21 [00:00<00:14,  1.35it/s]Inference Embeddings:  10%|▉         | 2/21 [00:00<00:08,  2.28it/s]Inference Embeddings:  14%|█▍        | 3/21 [00:01<00:06,  2.96it/s]Inference Embeddings:  19%|█▉        | 4/21 [00:01<00:04,  3.52it/s]Inference Embeddings:  24%|██▍       | 5/21 [00:01<00:03,  4.02it/s]Inference Embeddings:  29%|██▊       | 6/21 [00:01<00:03,  4.41it/s]Inference Embeddings:  33%|███▎      | 7/21 [00:01<00:02,  4.73it/s]Inference Embeddings:  38%|███▊      | 8/21 [00:02<00:02,  5.01it/s]Inference Embeddings:  43%|████▎     | 9/21 [00:02<00:02,  5.29it/s]Inference Embeddings:  48%|████▊     | 10/21 [00:02<00:01,  5.58it/s]Inference Embeddings:  52%|█████▏    | 11/21 [00:02<00:01,  5.93it/s]Inference Embeddings:  57%|█████▋    | 12/21 [00:02<00:01,  6.38it/s]Inference Embeddings:  62%|██████▏   | 13/21 [00:02<00:01,  7.03it/s]Inference Embeddings:  67%|██████▋   | 14/21 [00:02<00:00,  7.65it/s]Inference Embeddings:  76%|███████▌  | 16/21 [00:03<00:00,  9.06it/s]Inference Embeddings:  86%|████████▌ | 18/21 [00:03<00:00, 11.34it/s]Inference Embeddings: 100%|██████████| 21/21 [00:03<00:00,  6.42it/s]
-pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 367.09it/s]
-Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:01<00:15,  1.52s/it]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:07,  1.14it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:02<00:05,  1.55it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:02<00:03,  1.87it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:03<00:02,  2.16it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:03<00:02,  2.47it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:03<00:01,  2.91it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:03<00:00,  3.42it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.24it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  2.82it/s]
-pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 399.38it/s]
-Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:01<00:15,  1.52s/it]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:07,  1.14it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:02<00:05,  1.55it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:02<00:03,  1.87it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:03<00:02,  2.16it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:03<00:02,  2.47it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:03<00:01,  2.90it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:03<00:00,  3.41it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.24it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  6.74it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  2.80it/s]
-.pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 403.44it/s]
-Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:01<00:15,  1.52s/it]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:07,  1.14it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:02<00:05,  1.55it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:02<00:03,  1.87it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:03<00:02,  2.16it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:03<00:02,  2.47it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:03<00:01,  2.91it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:03<00:00,  3.42it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.25it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  2.83it/s]
-....ss...pre tokenize:   0%|          | 0/11 [00:00<?, ?it/s]pre tokenize: 100%|██████████| 11/11 [00:00<00:00, 358.27it/s]
-Inference Embeddings:   0%|          | 0/11 [00:00<?, ?it/s]Inference Embeddings:   9%|▉         | 1/11 [00:01<00:15,  1.52s/it]Inference Embeddings:  18%|█▊        | 2/11 [00:01<00:07,  1.14it/s]Inference Embeddings:  27%|██▋       | 3/11 [00:02<00:05,  1.54it/s]Inference Embeddings:  36%|███▋      | 4/11 [00:02<00:03,  1.86it/s]Inference Embeddings:  45%|████▌     | 5/11 [00:03<00:02,  2.15it/s]Inference Embeddings:  55%|█████▍    | 6/11 [00:03<00:02,  2.45it/s]Inference Embeddings:  64%|██████▎   | 7/11 [00:03<00:01,  2.89it/s]Inference Embeddings:  73%|███████▎  | 8/11 [00:03<00:00,  3.40it/s]Inference Embeddings:  82%|████████▏ | 9/11 [00:03<00:00,  4.23it/s]Inference Embeddings: 100%|██████████| 11/11 [00:03<00:00,  2.81it/s]
-.....................................................................................Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-Cannot set non-stroke color: 2 components specified, but only 1 (grayscale), 3 (RGB), and 4 (CMYK) are supported
-................................................................................................................................./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/generator.py:521: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = pricing_cost_usd(result.model, result.usage)
-......../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/generator.py:521: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = pricing_cost_usd(result.model, result.usage)
-.........................................<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc068f834c0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc068f835b0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00c4d16c0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc068f836a0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901a80>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901b70>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901c60>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901d50>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901e40>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006901f30>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902110>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902200>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902020>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069022f0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069023e0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069024d0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069025c0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069026b0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc0069027a0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902890>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902980>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902a70>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902b60>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902c50>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902d40>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902e30>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902f20>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006903010>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da894e0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da895d0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da896c0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da897b0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da898a0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89a80>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89990>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89c60>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89b70>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89d50>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8a4d0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89e40>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da89f30>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8a020>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8a5c0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8a6b0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-<frozen importlib._bootstrap_external>:781: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8a7a0>
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-....................................................................................................................................................................[eval] UYARI: dondurulmus judge kumesindeki 2 id bu golden set'te YOK: ['yok1', 'yok2']...
-./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12bio_v1.json' mode='r' encoding='utf-8'>
-  return json.load(open(path, encoding="utf-8"))["items"]
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12kimya_v1.json' mode='r' encoding='utf-8'>
-  return json.load(open(path, encoding="utf-8"))["items"]
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_eval_judge_sampling.py:150: ResourceWarning: unclosed file <_io.TextIOWrapper name='tests/golden/golden_12fizik_v1.json' mode='r' encoding='utf-8'>
-  return json.load(open(path, encoding="utf-8"))["items"]
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-................................................../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/generator.py:521: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = pricing_cost_usd(result.model, result.usage)
-./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/costlog.py:184: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = cost_usd(model, usage, tier)             # saf hesap — kilidin DIŞINDA
-..................................s............................................................................................................./home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_generate.py:994: RuntimeWarning: ResponseCache verildi ama `corpus_version` BOS -- cache DEVRE DISI birakildi. Surumsuz anahtar, korpus degisince eski (hatta silinmis) kaynaklara atif donmesine yol acar (#77).
-  gen.answer("DNA nedir?")
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_generate.py:995: RuntimeWarning: ResponseCache verildi ama `corpus_version` BOS -- cache DEVRE DISI birakildi. Surumsuz anahtar, korpus degisince eski (hatta silinmis) kaynaklara atif donmesine yol acar (#77).
-  gen.answer("DNA nedir?")
-.................................................................................../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc007dbb100>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da896c0>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00c4d3c40>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da8be20>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc00da895d0>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/.venv/lib/python3.13/site-packages/filelock/_api.py:1785: ResourceWarning: unclosed database in <sqlite3.Connection object at 0x7fc006902890>
-  def _audit_fork_safety(  # pragma: no cover - CPython disables tracing while Python audit hooks run
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-......................................................../home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/generate/question_gen.py:131: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = pricing_cost_usd(result.model, result.usage)
-............/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/src/summarize/summarizer.py:178: UserWarning: pricing: bilinmeyen model 'stub' (çözülen 'stub') → maliyet 0.0 sayıldı; pricing.PRICING'e ekle.
-  usd = pricing_cost_usd(result.model, result.usage)
-.............................................................................................s................................................................................................................................................................................................/home/kadiryonak/Masaüstü/Kodlama/HelloWorld/Hezarfen/hezarfen_rag/tests/unit/test_trace.py:190: ResourceWarning: unclosed file <_io.TextIOWrapper name='/tmp/tmpz6zqbrjj/t.jsonl' mode='r' encoding='utf-8'>
-  ham = open(yol, encoding="utf-8").read()
-ResourceWarning: Enable tracemalloc to get the object allocation traceback
-..............................
-----------------------------------------------------------------------
-Ran 1101 tests in 426.043s
-
-OK (skipped=4)
-
-[test_generate] soru='Kemosentez Ototrof olarak beslenen canlılar, inorg'
-  cevap: Ototrof canlılar, inorganik maddelerden organik madde sentezlerken kullandıkları enerji kaynağına göre iki ana grupta incelenir [1]. Bunlardan fotosentetik ototroflarda gerekli enerji ışıktan sağlanır [1]. Kemosentetik ototroflarda ise inorganik maddeler oksitlenerek açığa çıkan enerjiyle organik madde sentezlenir [1].
-  atıflar: [{'n': 1, 'chunk_id': '534db77d8289:c54', 'span_ids': ['534db77d8289#39.2', '534db77d8289#39.3', '534db77d8289#39.4', '534db77d8289#39.5'], 'pages': [39], 'ders': 'biyoloji'}]
-  maliyet: $0.000467 · gecikme: 1.49s
-
-[test_generate] kapsam-disi soru - abstained=True, reason=insufficient_data, llm_calls_delta=0
-
-[test_generate] temp ledger: /tmp/hezarfen_test_generate_ledger_066vy0gu/runs.jsonl (1 run) · gerçek ledger değişmedi: /home/kadiryonak/Masaüstü/Obsidian Vault/Hezarfen-Vault/Hezarfen/rag/runs.jsonl
-Maliyet.md render edildi (20 run) -> /tmp/tmpipo7fw5z/Maliyet.md
