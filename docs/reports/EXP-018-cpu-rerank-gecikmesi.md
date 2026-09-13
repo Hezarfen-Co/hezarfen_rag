@@ -145,6 +145,49 @@ anlamsızdır, 100000 modelin sınırını aşıp çalışma anında patlardı.
 **insan yazımı soru** gerekiyor (#91) — mevcut golden set bu soruyu
 cevaplayamaz.
 
+---
+
+## BULGU 5 — GPU'yu asıl isteyen parça: YALNIZ reranker
+
+CPU'da sorgu başına gecikme parçalara ayrıldı:
+
+| parça | CPU | not |
+|---|---|---|
+| sorgu embed (dense+sparse) | **0,122 s** | önemsiz |
+| hibrit arama (327 chunk) | milisaniye | önemsiz |
+| **rerank (40 aday)** | **95,9 s** | **bütün sorun burada** |
+| LLM üretimi (DeepSeek API) | ~2–3 s | zaten uzak servis |
+
+Yani GPU, sorgu anında **yalnız reranker için** gerekiyor. Rerank uzak bir
+servise taşınırsa CPU sorgu tarafında yeterli olur (~3 s).
+
+**Ama ikinci bir CPU maliyeti var:** indeks kurulumu.
+
+| | GPU | CPU |
+|---|---|---|
+| servis hazır olma (327 chunk, 198 sayfa) | **47,6 s** | **548,5 s** (9 dk) |
+
+İndeks **in-memory** olduğu için (#75 açık) bu bedel **her yeniden başlatmada**
+ödenir. CPU'ya geçiş, rerank API'ye taşınsa bile 9 dakikalık açılışı miras alır
+— #75 çözülmeden CPU kurulumu operasyonel olarak kırılgandır.
+
+## Doğrulama — GPU imgesi ve koruma (2026-09-13)
+
+| kontrol | sonuç |
+|---|---|
+| GPU imgesi kuruldu | ✓ `localhost/hezarfen-rag:gpu`, 6,77 GB (CPU imgesi 2,04 GB) |
+| imgede torch | ✓ `2.14.0+cu130`, ana makineyle aynı |
+| `--device nvidia.com/gpu=all` | ✗ `unresolvable CDI devices` — **toolkit kurulu değil** |
+| `RAG_REQUIRE_CUDA=1` koruması | ✓ açılışta hata, `/ready` 503 |
+| `/ready` teşhisi | ✓ `cuda: {available:false, torch_cuda_build:"13.0", required:true}` |
+| hazır değilken `/rag/chat` | ✓ **8 ms**'de `service_warming_up` (96 s beklemiyor) |
+
+`/ready` çıktısı operatöre doğru yeri gösteriyor: torch **doğru derleme** ama
+GPU **görünmüyor** → sorun imgede değil, ana makine kurulumunda.
+
+**GPU'lu konteynerin uçtan uca ölçümü YAPILMADI** — toolkit kurulumu root
+gerektiriyor ve henüz yapılmadı. "GPU konteyner çalışıyor" DENMEDİ.
+
 ## Kadir'in doldurması gereken alanlar
 
 | Soru | Karar |
@@ -153,6 +196,7 @@ cevaplayamaz.
 | Demo "tek ekran" mı olacak, "herkes kendi cihazından" mı? (ikincisi 8 kişide bile kapıyı geçmiyor) | |
 | Yoksa hangi seçenek denensin: küçük reranker mı, rerank'siz mi? | |
 | #91'de golden set'e kaç **insan yazımı soru** eklenecek? | |
+| Rerank uzak bir API'ye taşınsın mı? (GPU ihtiyacını sorgu anında kaldırır; sağlayıcı + maliyet + Türkçe kalite doğrulanmalı) | |
 
 ## Ham çıktı
 
