@@ -323,7 +323,12 @@ def create_app(service, *, service_token: str | None = None,
                                                   "son_tarih_s": deadline,
                                                   "docs_acik": bool(docs_on),
                                                   "host_siniri": hosts != ["*"],
-                                                  "cors": bool(origins)}})
+                                                  "cors": bool(origins)},
+                                     # #96: operator "neden bu kadar yavas?"
+                                     # sorusunu /ready'den cevaplayabilmeli.
+                                     # CPU'ya sessiz dusus aksi halde yalniz
+                                     # gecikmeden anlasilir.
+                                     "cuda": cuda_status()})
 
     @app.post("/rag/chat")
     def chat(req: ChatRequest, request: Request,
@@ -373,6 +378,66 @@ REWRITE_HISTORY = os.environ.get("RAG_REWRITE_HISTORY", "1") not in (
     "0", "", "false", "False")
 
 
+
+# #96 (EXP-018) — GPU ZORUNLULUĞU.
+#
+# ÖLÇÜLDÜ (RTX 4060 Laptop, 10/biyoloji, gerçek `/rag/chat`):
+#   CPU: 40 adaylık rerank 95,9 s · uçtan uca ~96 s  -> kapı O-05 GEÇİLMEZ
+#   GPU: 40 adaylık rerank  1,9 s · p50 4,96 s       -> GEÇİLİR
+#
+# torch, CUDA bulamazsa SESSİZCE CPU'ya düşer. Konteynerde bu, sağlıklı
+# görünen ama her soruya bir buçuk dakikada cevap veren bir servis demektir —
+# demo sırasında "bozuk" diye okunur ve nedeni görünmez (log'da tek satır bile
+# yok). `RAG_REQUIRE_CUDA=1` bu düşüşü AÇILIŞTA hataya çevirir.
+#
+# Varsayılan KAPALI: GPU'suz geliştirme ve CPU kurulumu bozulmasın.
+REQUIRE_CUDA = os.environ.get("RAG_REQUIRE_CUDA", "").strip().lower() in (
+    "1", "true", "yes", "on")
+
+
+def cuda_status() -> dict:
+    """CUDA görünürlüğü — `/ready` bunu makine-okunur raporlar.
+
+    torch import edilemezse bile ÇÖKMEZ: bu bir teşhis fonksiyonudur.
+    """
+    try:
+        import torch
+    except Exception as e:                                   # noqa: BLE001
+        return {"available": False, "reason": f"torch yok: {type(e).__name__}",
+                "device_count": 0, "required": REQUIRE_CUDA}
+    try:
+        var = bool(torch.cuda.is_available())
+        return {"available": var,
+                "device_count": (torch.cuda.device_count() if var else 0),
+                "device_name": (torch.cuda.get_device_name(0) if var else ""),
+                "torch_cuda_build": torch.version.cuda,
+                "required": REQUIRE_CUDA}
+    except Exception as e:                                   # noqa: BLE001
+        return {"available": False, "reason": f"{type(e).__name__}: {e}",
+                "device_count": 0, "required": REQUIRE_CUDA}
+
+
+def require_cuda_or_fail() -> None:
+    """`RAG_REQUIRE_CUDA=1` iken GPU yoksa AÇILIŞTA hata.
+
+    Sessizce CPU'ya düşmektense açıkça durmak yeğdir: 96 s'lik bir "çalışan"
+    servis, çalışmayan bir servisten daha kötüdür — ilki demo sırasında
+    fark edilir, ikincisi kurulumda.
+    """
+    if not REQUIRE_CUDA:
+        return
+    d = cuda_status()
+    if not d.get("available"):
+        raise RuntimeError(
+            "RAG_REQUIRE_CUDA=1 ama CUDA GORUNMUYOR (" + str(d.get("reason") or
+            f"torch cuda derlemesi={d.get('torch_cuda_build')}") + "). "
+            "Kontrol listesi: (1) imge GPU torch ile kuruldu mu "
+            "(--build-arg TORCH_INDEX=.../whl/cu130), (2) ana makinede "
+            "nvidia-container-toolkit kurulu ve `nvidia-ctk cdi generate` "
+            "calistirildi mi, (3) kaba `--device nvidia.com/gpu=all` verildi mi. "
+            "CPU'ya dusmek 40 adaylik rerank icin ~96 s demektir (kapi O-05: 6 s).")
+
+
 def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
                   ocr: bool = False, vlm: bool = False,
                   include_parents: bool | None = None):
@@ -381,6 +446,7 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
 
     `include_parents`: parent chunk'lar `chunks_by_id`'ye girsin mi (yani
     `rerank_select` parent genisletmesi ETKIN olsun mu). None -> env varsayilani."""
+    require_cuda_or_fail()        # #96: sessizce CPU'ya dusme
     if include_parents is None:
         include_parents = INCLUDE_PARENTS_DEFAULT
     from ..ingest.canonical import build_canonical
@@ -464,6 +530,12 @@ def _yapilandirma_uyarilari() -> list[str]:
         u.append("RAG_EXPOSE_DOCS açık → /docs ve /openapi.json dışarıya açık")
     if RATE_LIMIT_PER_MIN <= 0:
         u.append("RAG_RATE_LIMIT_PER_MIN=0 → oran sınırı kapalı")
+    d = cuda_status()
+    if not d.get("available") and not REQUIRE_CUDA:
+        # Uyarı, hata değil: CPU kurulumu meşrudur ama gecikmesi ölçüldü.
+        u.append("CUDA yok → CPU'da çalışılıyor; 40 adaylık rerank ~96 s "
+                 "(kapı O-05: p50 ≤ 6 s). Interaktif kullanım için GPU gerekir "
+                 "(#96/EXP-018).")
     return u
 
 

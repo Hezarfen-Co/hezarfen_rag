@@ -3,7 +3,8 @@
 # RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır.
 #
 # Kullanım (backend ayaktayken):
-#   podman compose --profile product up -d --build
+#   podman compose --profile product up -d --build          (CPU)
+#   podman compose --profile gpu     up -d --build          (GPU)
 #
 # #81: önceki hâlde `ports`, `healthcheck` ve `data` mount'u YOKTU; CMD de
 # servisi başlatmıyordu → `restart: unless-stopped` ile sonsuz restart döngüsü.
@@ -47,6 +48,41 @@ services:
     networks:
       - backend_net
     restart: unless-stopped
+
+  # #96 (EXP-018) — GPU SERVISI.
+  #
+  # ÖLÇÜLDÜ (RTX 4060 Laptop, 10/biyoloji, gerçek /rag/chat):
+  #   CPU: rerank 95,9 s · uçtan uca ~96 s   -> kapı O-05 (p50 <= 6 s) GEÇİLMEZ
+  #   GPU: rerank  1,9 s · uçtan uca p50 4,96 s, p90 6,04 s -> GEÇİLİR
+  #
+  # ÖN KOŞUL (ana makinede, BİR KEZ): NVIDIA Container Toolkit + CDI tanımı.
+  # Bu makinede ölçüldü: `nvidia-ctk` YOK ve `/etc/cdi` YOK, yani bu adım
+  # yapılmadan kap GPU'yu GÖREMEZ ve sessizce CPU'ya düşer (96 s).
+  #
+  #   curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo \
+  #     | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
+  #   sudo dnf install -y nvidia-container-toolkit
+  #   sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
+  #   podman run --rm --device nvidia.com/gpu=all docker.io/library/python:3.11-slim nvidia-smi
+  #
+  # SESSİZ CPU'YA DÜŞMEYİ ENGELLE: `RAG_REQUIRE_CUDA=1` ile servis GPU yoksa
+  # AÇILIŞTA HATA VERİR. Bu bilinçli: 96 s'lik bir "çalışan" servis, çalışmayan
+  # bir servisten daha kötüdür -- demo sırasında fark edilir.
+  rag-gpu:
+    extends:
+      service: rag
+    build:
+      context: .
+      dockerfile: Containerfile
+      args:
+        TORCH_INDEX: https://download.pytorch.org/whl/cu130
+    image: localhost/hezarfen-rag:gpu
+    container_name: hezarfen-rag-gpu
+    profiles: ["gpu"]
+    environment:
+      RAG_REQUIRE_CUDA: "1"
+    devices:
+      - nvidia.com/gpu=all
 
 volumes:
   rag-models:

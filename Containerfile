@@ -20,12 +20,38 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
-# Konteynerde CPU torch (yerel geliştirmede GPU/cu130 kullanılır; GPU
-# passthrough ayrı kurulum ister). TIRNAK ŞART — bkz. yukarıdaki OPS-17 notu.
+# #96 (EXP-018) — TORCH DEĞİŞKENİ SEÇİLEBİLİR.
+#
+# Önceki hâl CPU torch'u SABİT kuruyordu. Ölçüldü (RTX 4060, 10/biyoloji,
+# gerçek /rag/chat):
+#
+#            | rerank (40 aday) | uçtan uca p50
+#   CPU      |      95,9 s      |     96 s
+#   GPU      |       1,9 s      |   **4,96 s**
+#
+# Kapı O-05 p50 <= 6 s istiyor: CPU'da GEÇİLEMEZ, GPU'da GEÇİLİYOR. Yani imgeyi
+# CPU torch'a sabitlemek, ürünü okul demosunda interaktif OLMAYAN tek
+# yapılandırmaya kilitlemek demekti.
+#
+# VARSAYILAN CPU KALDI — GPU imgesi ~2,5 GB daha büyük ve çalışması için ana
+# makinede NVIDIA Container Toolkit ŞART (bkz. compose.yaml). GPU'suz bir
+# makinede cu130 tekerleği kurmak yalnız yer kaplar.
+#
+#   CPU (varsayılan):
+#     podman build -t hezarfen-rag:cpu .
+#   GPU:
+#     podman build --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu130 \
+#                  -t hezarfen-rag:gpu .
+ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
+
+# TIRNAK ŞART — bkz. yukarıdaki OPS-17 notu.
 COPY requirements.txt .
-RUN pip install --no-cache-dir "torch>=2.6" --index-url https://download.pytorch.org/whl/cpu \
+RUN pip install --no-cache-dir "torch>=2.6" --index-url "${TORCH_INDEX}" \
  && pip install --no-cache-dir -r requirements.txt \
- && test ! -e /app/=2.6      # yönlendirme çöpü oluşmadığını DOĞRULA
+ && test ! -e /app/=2.6      # yönlendirme çöpü oluşmadığını DOĞRULA \
+ && python -c "import torch, sys; \
+print('torch', torch.__version__, 'cuda-build:', torch.version.cuda); \
+sys.exit(0)"
 
 COPY src ./src
 
