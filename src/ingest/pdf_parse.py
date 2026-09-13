@@ -204,6 +204,33 @@ def _ocr_blocks(text: str, page_no: int, width: float, height: float,
     return out
 
 
+
+class UnreadableSource(ValueError):
+    """Kaynak dosya okunamıyor — dosyanın kendisiyle ilgili, kodla değil.
+
+    `reason`: "encrypted" | "corrupt" | "empty_file" | "not_pdf" | "unknown".
+    Çağıran katman bu ayrımı kullanıcıya anlamlı bir mesaja çevirir; ham
+    PyMuPDF istisnası bunu yapamaz.
+    """
+
+    def __init__(self, path: str, *, reason: str = "unknown"):
+        self.path = path
+        self.reason = reason
+        super().__init__(f"kaynak okunamadi ({reason}): {path}")
+
+
+def _unreadable_reason(e: Exception) -> str:
+    ad = type(e).__name__
+    metin = str(e).lower()
+    if ad == "EmptyFileError" or "empty file" in metin:
+        return "empty_file"
+    if "encrypted" in metin or "password" in metin:
+        return "encrypted"
+    if ad == "FileDataError" or "as type pdf" in metin or "cannot open" in metin:
+        return "corrupt"
+    return "unknown"
+
+
 def parse_pdf(path: str, *, ocr: bool = False, ocr_lang: str = "tur",
               ocr_min_chars: int = 20) -> ParsedDoc:
     """PDF → sayfa (metin blokları + bbox + font + tip, okuma sırasında).
@@ -213,7 +240,21 @@ def parse_pdf(path: str, *, ocr: bool = False, ocr_lang: str = "tur",
     atlanır). Varsayılan KAPALI — text-layer'lı kitaplar için OCR bağımlılığı yok."""
     if not os.path.exists(path):
         raise FileNotFoundError(path)
-    doc = fitz.open(path)
+    try:
+        doc = fitz.open(path)
+        if getattr(doc, "needs_pass", False):
+            doc.close()
+            raise UnreadableSource(path, reason="encrypted")
+    except UnreadableSource:
+        raise
+    except Exception as e:                                  # noqa: BLE001
+        # ÖLÇÜLDÜ: bozuk dosya `FileDataError`, sıfır baytlık dosya
+        # `EmptyFileError`, şifreli dosya ise ValueError("document closed or
+        # encrypted") atıyordu. Üçü de PyMuPDF'in İÇ istisnaları: çağıran
+        # katman bunları "kaynak okunamadı" ile "kodda hata var"dan ayırt
+        # edemiyordu. Öğretmen bozuk bir PDF yüklediğinde ürün ona ne
+        # söyleyeceğini bilemezdi.
+        raise UnreadableSource(path, reason=_unreadable_reason(e)) from e
     try:
         pages: list[Page] = []
         for i, page in enumerate(doc):
