@@ -13,6 +13,7 @@ Test:        create_app(stub_service) + fastapi.testclient.TestClient  (model ge
 from __future__ import annotations
 
 import os
+import warnings
 
 from fastapi import FastAPI, Header, HTTPException, Request
 from fastapi.responses import JSONResponse
@@ -451,10 +452,11 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
         include_parents = INCLUDE_PARENTS_DEFAULT
     from ..ingest.canonical import build_canonical
     from ..chunk import chunk_document
-    from ..embed import BGEM3Embedder
+    from ..embed.provider import build_embedder, provider_warnings as _emb_warn
     from ..index import DenseIndex, BM25Index
     from ..retrieve import SparseIndex, HybridRetriever
-    from ..rerank import BGEReranker
+    from ..rerank.provider import (build_reranker, check_abstain_compatibility,
+                                    provider_warnings as _rr_warn)
     from ..generate import Generator, QuestionGenerator, build_span_meta
     from ..summarize.summarizer import Summarizer
     from ..guard.llm_classifier import LLMSafetyClassifier
@@ -477,7 +479,9 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     # (parent genisletme ACC-03'e gore atifi yanlis sayfaya kaydiriyor).
     by_id = ({c.chunk_id: c for c in all_chunks} if include_parents
              else {c.chunk_id: c for c in children})
-    emb = BGEM3Embedder()
+    # #96: gomme saglayicisi env ile secilir (local | api). Varsayilan local --
+    # olculmus butun kalite sayilari (EXP-011/013/017/018) o yola aittir.
+    emb = build_embedder()
     # #82 (EXP-010/OPS-10): dense ve sparse TEK geçişte üretilir. Ayrı
     # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü
     # (10-biyoloji, 327 chunk, GPU): iki geçiş 8,4 s -> tek geçiş 3,9 s (%53).
@@ -502,7 +506,15 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     # reranker TEMBEL kaliyordu. `/ready` "hazir" diyor, ilk gercek soru gelince
     # reranker ~2 GB indirmeye kalkiyor ve istek son tarihini (60 s) asip
     # `reason="timeout"` donuyordu. Yani hazirlik sinyali YALAN soyluyordu.
-    reranker = BGEReranker()
+    reranker = build_reranker()
+    # Kanit kapisi bu saglayiciyla anlamli mi? Degilse ACILISTA hata: sessizce
+    # devre disi kalmis bir fail-closed kapi, hic olmayandan daha tehlikelidir
+    # (operator korumali sandigi icin).
+    from ..generate.generator import ABSTAIN_SCORE_DEFAULT
+    check_abstain_compatibility(reranker, abstain_score=ABSTAIN_SCORE_DEFAULT)
+    for _u in (_emb_warn(emb) + _rr_warn(reranker)):
+        warnings.warn(_u, RuntimeWarning, stacklevel=2)
+        print(f"[http][UYARI] {_u}", flush=True)
     reranker.warmup()
     # #87/OPS-14: cok-turlu rewrite BAGLANDI (sozlesme zaten vaat ediyordu).
     rewriter = None

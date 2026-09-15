@@ -117,7 +117,9 @@ class BuildServiceGuardTests(unittest.TestCase):
         import inspect
         kaynak = inspect.getsource(http_app.build_service)
         kontrol = kaynak.index("require_cuda_or_fail()")
-        for agir in ("build_canonical(", "BGEM3Embedder(", "BGEReranker("):
+        # Saglayici katmani (#96) eklendikten sonra adlar degisti; test bu
+        # degisikligi yakaladi -- kontrolun AGIR ISTEN ONCE olmasi sarti degil.
+        for agir in ("build_canonical(", "build_embedder(", "build_reranker("):
             self.assertLess(kontrol, kaynak.index(agir),
                             f"CUDA kontrolu {agir} sonrasinda")
 
