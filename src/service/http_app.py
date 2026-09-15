@@ -21,6 +21,15 @@ from pydantic import BaseModel, Field
 from starlette.middleware.cors import CORSMiddleware
 from starlette.middleware.trustedhost import TrustedHostMiddleware
 
+# #96 saglayici secimi. MODUL SEVIYESINDE olmak ZORUNDA: `SharedModels` de
+# bunlari kullaniyor ve `build_service` icine gomuldugunde calisma aninda
+# `NameError: name 'build_embedder' is not defined` veriyordu -- yalnizca
+# gercek servis kosuldugunda ortaya cikan, testlerin kacirdigi bir hata.
+from ..embed.provider import build_embedder
+from ..embed.provider import provider_warnings as _emb_warn
+from ..rerank.provider import (build_reranker, check_abstain_compatibility,
+                               provider_warnings as _rr_warn)
+
 # NOT: fastapi import'lari MODUL DUZEYINDE olmak ZORUNDA. `from __future__ import
 # annotations` ile tum anotasyonlar STRING olur ve FastAPI bunlari modulun global
 # ad uzayinda cozer; `Request` fonksiyon icinde import edilirse cozemez ve
@@ -329,7 +338,13 @@ def create_app(service, *, service_token: str | None = None,
                                      # sorusunu /ready'den cevaplayabilmeli.
                                      # CPU'ya sessiz dusus aksi halde yalniz
                                      # gecikmeden anlasilir.
-                                     "cuda": cuda_status()})
+                                     "cuda": cuda_status(),
+                                     # #86: operator "hangi ders hazir"
+                                     # sorusunu tahminle degil uctan
+                                     # cevaplayabilmeli; ilk sorusu yavas
+                                     # olacak dersler gorunur olmali.
+                                     **({"korpus": service.status()}
+                                        if hasattr(service, "status") else {})})
 
     @app.post("/rag/chat")
     def chat(req: ChatRequest, request: Request,
@@ -439,9 +454,76 @@ def require_cuda_or_fail() -> None:
             "CPU'ya dusmek 40 adaylik rerank icin ~96 s demektir (kapi O-05: 6 s).")
 
 
+class SharedModels:
+    """Korpuslar arasında PAYLAŞILAN ağır bileşenler (#86 çok-korpus).
+
+    ÖLÇÜLEN SORUN: `build_service` her çağrıda kendi embedder ve reranker'ını
+    kuruyordu. Tek kitapta sorun değil; 15 kitaplık bir okul kurulumunda 15 ×
+    (BGE-M3 2,3 GB + reranker 2,3 GB) demek — 8 GB GPU'da OOM.
+
+    Modeller korpustan BAĞIMSIZDIR (aynı ağırlıklar, farklı metin). İndeksler
+    ise korpusa özeldir ve paylaşılamaz.
+    """
+
+    def __init__(self):
+        import threading
+        # RLock ZORUNLU: `reranker` ozelligi kilidi tutarken uyari uretmek icin
+        # `self.embedder`'a bakiyor, o da AYNI kilidi istiyor. Duz `Lock` ile
+        # bu bir DEADLOCK'tur ve KOSARAK BULUNDU: korpus kurulum thread'i
+        # sessizce sonsuza kadar bekliyor, `/ready` hep "kuruluyor" diyor,
+        # hicbir hata log'u dusmuyordu. Belirti "cok yavas"; sebep "hic
+        # ilerlemiyor".
+        self._lock = threading.RLock()
+        self._embedder = None
+        self._reranker = None
+        self._response_cache = None
+
+    @property
+    def embedder(self):
+        with self._lock:
+            if self._embedder is None:
+                self._embedder = build_embedder()
+            return self._embedder
+
+    @property
+    def reranker(self):
+        with self._lock:
+            if self._reranker is None:
+                r = build_reranker()
+                from ..generate.generator import ABSTAIN_SCORE_DEFAULT
+                check_abstain_compatibility(
+                    r, abstain_score=ABSTAIN_SCORE_DEFAULT)
+                # Kilit altinda ozellik cagirmak yerine mevcut ornege bak:
+                # gomme henuz kurulmadiysa onun uyarisi zaten `build_service`
+                # akisinda uretilir.
+                _emb = self._embedder
+                for _u in ((_emb_warn(_emb) if _emb is not None else [])
+                           + _rr_warn(r)):
+                    warnings.warn(_u, RuntimeWarning, stacklevel=2)
+                    print(f"[http][UYARI] {_u}", flush=True)
+                r.warmup()
+                self._reranker = r
+            return self._reranker
+
+    @property
+    def response_cache(self):
+        """Cache TEK backend'te paylaşılır; anahtar zaten `ders` ve
+        `corpus_version` taşıdığı için korpuslar birbirinin cevabını görmez
+        (bkz. cache/response_cache.py + test_cache_invalidation)."""
+        with self._lock:
+            if self._response_cache is None and CACHE_PATH:
+                from ..cache.base import SQLiteCache
+                from ..cache.response_cache import ResponseCache
+                backend = SQLiteCache(CACHE_PATH, max_bytes=CACHE_MAX_BYTES)
+                backend.evict_lru()
+                self._response_cache = ResponseCache(backend, ttl=CACHE_TTL_S)
+            return self._response_cache
+
+
 def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
                   ocr: bool = False, vlm: bool = False,
-                  include_parents: bool | None = None):
+                  include_parents: bool | None = None,
+                  shared: "SharedModels | None" = None):
     """Gerçek pipeline'ı kurup RagService döndürür (ağır: PDF parse + BGE modelleri +
     indeks). main()/üretim için. corpus_version cache anahtarına girer (#30).
 
@@ -452,11 +534,8 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
         include_parents = INCLUDE_PARENTS_DEFAULT
     from ..ingest.canonical import build_canonical
     from ..chunk import chunk_document
-    from ..embed.provider import build_embedder, provider_warnings as _emb_warn
     from ..index import DenseIndex, BM25Index
     from ..retrieve import SparseIndex, HybridRetriever
-    from ..rerank.provider import (build_reranker, check_abstain_compatibility,
-                                    provider_warnings as _rr_warn)
     from ..generate import Generator, QuestionGenerator, build_span_meta
     from ..summarize.summarizer import Summarizer
     from ..guard.llm_classifier import LLMSafetyClassifier
@@ -481,7 +560,7 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
              else {c.chunk_id: c for c in children})
     # #96: gomme saglayicisi env ile secilir (local | api). Varsayilan local --
     # olculmus butun kalite sayilari (EXP-011/013/017/018) o yola aittir.
-    emb = build_embedder()
+    emb = shared.embedder if shared is not None else build_embedder()
     # #82 (EXP-010/OPS-10): dense ve sparse TEK geçişte üretilir. Ayrı
     # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü
     # (10-biyoloji, 327 chunk, GPU): iki geçiş 8,4 s -> tek geçiş 3,9 s (%53).
@@ -492,13 +571,16 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
                            SparseIndex().build(ids, sparse),
                            meta=meta)
     # #83: cache YALNIZ acik yol ve corpus_version varsa kurulur.
-    response_cache = embedding_cache = None
-    if CACHE_PATH:
-        from ..cache.base import SQLiteCache
-        from ..cache.response_cache import ResponseCache
-        backend = SQLiteCache(CACHE_PATH, max_bytes=CACHE_MAX_BYTES)
-        backend.evict_lru()               # acilista tavanin altina in
-        response_cache = ResponseCache(backend, ttl=CACHE_TTL_S)
+    if shared is not None:
+        response_cache = shared.response_cache
+    else:
+        response_cache = None
+        if CACHE_PATH:
+            from ..cache.base import SQLiteCache
+            from ..cache.response_cache import ResponseCache
+            backend = SQLiteCache(CACHE_PATH, max_bytes=CACHE_MAX_BYTES)
+            backend.evict_lru()           # acilista tavanin altina in
+            response_cache = ResponseCache(backend, ttl=CACHE_TTL_S)
 
     span_meta = build_span_meta(doc)
     # #80/#82 — RERANKER'I DA ISIT. KONTEYNERDE KOSULARAK BULUNDU:
@@ -506,16 +588,19 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     # reranker TEMBEL kaliyordu. `/ready` "hazir" diyor, ilk gercek soru gelince
     # reranker ~2 GB indirmeye kalkiyor ve istek son tarihini (60 s) asip
     # `reason="timeout"` donuyordu. Yani hazirlik sinyali YALAN soyluyordu.
-    reranker = build_reranker()
-    # Kanit kapisi bu saglayiciyla anlamli mi? Degilse ACILISTA hata: sessizce
-    # devre disi kalmis bir fail-closed kapi, hic olmayandan daha tehlikelidir
-    # (operator korumali sandigi icin).
-    from ..generate.generator import ABSTAIN_SCORE_DEFAULT
-    check_abstain_compatibility(reranker, abstain_score=ABSTAIN_SCORE_DEFAULT)
-    for _u in (_emb_warn(emb) + _rr_warn(reranker)):
-        warnings.warn(_u, RuntimeWarning, stacklevel=2)
-        print(f"[http][UYARI] {_u}", flush=True)
-    reranker.warmup()
+    if shared is not None:
+        reranker = shared.reranker           # uyarilar + kapi kontrolu orada
+    else:
+        reranker = build_reranker()
+        # Kanit kapisi bu saglayiciyla anlamli mi? Degilse ACILISTA hata:
+        # sessizce devre disi kalmis bir fail-closed kapi, hic olmayandan daha
+        # tehlikelidir (operator korumali sandigi icin).
+        from ..generate.generator import ABSTAIN_SCORE_DEFAULT
+        check_abstain_compatibility(reranker, abstain_score=ABSTAIN_SCORE_DEFAULT)
+        for _u in (_emb_warn(emb) + _rr_warn(reranker)):
+            warnings.warn(_u, RuntimeWarning, stacklevel=2)
+            print(f"[http][UYARI] {_u}", flush=True)
+        reranker.warmup()
     # #87/OPS-14: cok-turlu rewrite BAGLANDI (sozlesme zaten vaat ediyordu).
     rewriter = None
     if REWRITE_HISTORY:
@@ -599,6 +684,11 @@ class _LazyService:
         return self._yonlendir("generate_questions", req)
 
 
+def _c_parse(spec):
+    from .multi import _parse
+    return _parse(spec)
+
+
 def create_app_with_warmup():
     """uvicorn giriş noktası — sunucu HEMEN ayağa kalkar, boru hattı arka planda.
 
@@ -615,6 +705,41 @@ def create_app_with_warmup():
     ders = os.environ.get("DERS", "biyoloji")
     for uyari in _yapilandirma_uyarilari():
         print(f"[http][UYARI] {uyari}", flush=True)
+
+    # #86 — COK-KORPUS. `RAG_CORPORA` verilirse servis birden cok derse
+    # cevap verir. Verilmezse davranis ESKISIYLE AYNI (tek BOOK_PATH) --
+    # mevcut kurulumlar bozulmasin.
+    #
+    # ÜRÜN AÇISINDAN NEDEN ÖNEMLİ: diskte 15 kitap var (lise 10) ve tek-korpus
+    # modda ürün yalnız birine cevap veriyor. Okul demosunda öğrenci kimyaya
+    # geçtiği anda "kaynaklarda bulunamadı" alır; bu RAG hatası gibi görünür
+    # ama o korpus hiç yüklü değildir.
+    from .multi import (CORPORA, WARM_ON_START, MultiCorpusService,
+                        discover)
+    if CORPORA:
+        specs = ([tuple(x) for x in discover()] if CORPORA == ["all"]
+                 else list(CORPORA))
+        multi = MultiCorpusService(specs)
+        print(f"[http] cok-korpus: {len(multi.known())} ders "
+              f"({', '.join(f'{a}/{b}' for a, b in multi.known()[:6])}"
+              f"{' ...' if len(multi.known()) > 6 else ''})", flush=True)
+        # Korpuslar TEMBEL kurulur; istenirse acilista isitilir. Hepsini
+        # acilista kurmak ~12 dk sagir servis demekti (tek kitap GPU'da 47,6 s)
+        # ve indeks kalici olmadigi icin (#75) bu bedel HER restart'ta odenir.
+        if WARM_ON_START:
+            hedef = (multi.known() if WARM_ON_START.lower() == "all"
+                     else [_c_parse(x) for x in WARM_ON_START.split(",") if x.strip()])
+
+            def _isit_cok():
+                import time as _t
+                t0 = _t.time()
+                sonuc = multi.warm(hedef)
+                print(f"[http] isitma bitti ({_t.time() - t0:.1f}s): {sonuc}",
+                      flush=True)
+
+            threading.Thread(target=_isit_cok, name="warmup-multi",
+                             daemon=True).start()
+        return create_app(multi)
 
     service = _LazyService()
 
