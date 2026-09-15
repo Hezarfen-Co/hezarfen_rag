@@ -55,6 +55,11 @@ sys.exit(0)"
 
 COPY src ./src
 
+# Dağıtım varsayılanları — TEK yazıldıkları yer. Sunucu bunları
+# hezarfen_rag.env (env_file) ile ezer.
+# (Korpus seçimi — BOOK_PATH/SINIF/DERS — compose.yaml'da interpolasyon
+# varsayılanı olarak durur: cihaza özel oldukları için dağıtım dosyasından
+# gelirler.)
 ENV HF_HOME=/models \
     PYTHONUNBUFFERED=1 \
     HOST=0.0.0.0 \
@@ -70,6 +75,11 @@ USER hezarfen
 
 # Sunucu ÖNCE ayağa kalkar, boru hattı arka planda kurulur (#82) → sağlık
 # yoklaması ilk saniyeden itibaren cevap verir.
-CMD ["python", "-m", "uvicorn", "src.service.http_app:create_app_with_warmup", \
-     "--factory", "--host", "0.0.0.0", "--port", "8000", \
-     "--timeout-graceful-shutdown", "20"]
+#
+# Fabrika (`--factory`) şart: modül seviyesinde `app = ...` her içe aktarmada
+# ısıtma thread'i başlatırdı (tests/unit/test_deployment.EntrypointTests).
+# Adres/port ORTAMDAN gelir (yukarıdaki ENV bloğu = varsayılanların tek
+# kaynağı, hezarfen_rag.env = operatörün ezmesi): sabit `--host 0.0.0.0 --port
+# 8000` yazmak, ortamdan gelen PORT'u yok sayardı — daha önce aynı sayı üç
+# yerde (ENV, app main(), CMD) tutuluyordu.
+CMD ["sh", "-c", "exec python -m uvicorn src.service.http_app:create_app_with_warmup --factory --host \"$HOST\" --port \"$PORT\" --timeout-graceful-shutdown \"${RAG_GRACEFUL_SHUTDOWN_S:-20}\""]

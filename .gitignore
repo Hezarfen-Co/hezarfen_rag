@@ -25,3 +25,11 @@ data/
 eba_dl/
 # Backend tarafinin sahte verisi; bu depoya ait degil.
 mockdata/
+
+# Compose/system env files: the operator's hezarfen_rag.env and the
+# deploy-owned stack.env (HEZARFEN_TAG) are machine-local; template is .env.example.
+hezarfen_rag.env
+stack.env
+
+# CI deploy bundle (image tarball + compose files + tag).
+stage/

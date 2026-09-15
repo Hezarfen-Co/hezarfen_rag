@@ -62,6 +62,35 @@ podman compose --profile product up -d --build     # CPU
 podman compose --profile gpu     up -d --build     # GPU
 ```
 
+Dağıtım varsayılanlarının **tek kaynağı** `Containerfile`'ın `ENV` bloğudur
+(HF_HOME, HOST, PORT, BOOK_PATH, SINIF, DERS). `compose.yaml` hiçbir
+`environment:` girdisi taşımaz; sunucudaki değerler
+`~/hezarfen_rag/hezarfen_rag.env` dosyasından gelir (şablon: `.env.example`,
+`env_file:` ile okunur, dosyayı otomatik hiçbir şey yazmaz). Değerler konteyner
+**başlarken** okunur: değişiklikten sonra yeniden oluştur, yoksa eski değerlerle
+çalışmaya devam eder.
+
+### CI deploy (GitHub Actions)
+
+`.github/workflows/main.yml` kardeş servislerle aynı şekli taşır: `Validate`
+(derleme kontrolü) ∥ `Build and test` (unittest süiti + imaj + `release`
+artefaktı) → `Deploy` (SSH: imajı yükle, deploy sahipli `stack.env`'in
+`HEZARFEN_TAG`'ini çevir, unit'i kur, `/health` ve `/ready` kapılarını geçir,
+geçmezse önceki tag'e dön). Unit'in kendisi sürümle birlikte iner:
+`deploy/hezarfen_rag_compose.service`.
+
+**Deploy yalnız elle koşar** (`workflow_dispatch`) ve kapıda **kapasite ön
+kontrolü** vardır: en az 12 GB boşta RAM ve 20 GB disk istemezse, nedeniyle
+birlikte reddeder. Gerekçe ölçülmüş: modeller ~4,5 GB, çalışma anında birkaç GB
+RSS ve GPU'suz bir makinede rerank 95,9 s (kapı O-05 p50 ≤ 6 s). Küçük bir
+sunucuda bunu otomatik başlatmak, canlı stack'i RAM için sıkıştırıp karşılığında
+ürün kapısını geçmeyen bir servis verir. Ölçtüğümüz 7 GB'lık geliştirme
+sunucusu bu kapıdan **geçmez** (6 466 MB RAM boşta).
+
+Kapıyı açmak için: repo secret'larına `SSH_PRIVATE_KEY`/`SSH_HOST`/`SSH_USER`
+ekle, sunucuya `~/hezarfen_rag/hezarfen_rag.env` (0600) ve
+`~/hezarfen_rag/data/` korpusunu koy, sonra `workflow_dispatch` ile koş.
+
 ### GPU için tek seferlik ana makine kurulumu
 
 Kap GPU'yu ancak **NVIDIA Container Toolkit** kuruluysa görür. Kurulu değilse

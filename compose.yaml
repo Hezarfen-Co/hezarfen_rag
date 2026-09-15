@@ -1,6 +1,12 @@
-# hezarfen_rag — proje-bazlı Podman compose (Docker DEĞİL).
-# Kardeş servisler (backend/frontend/chatbot) kendi compose'larıyla ayağa kalkar.
+# hezarfen_rag — RAG servisi (Podman; Docker DEĞİL).
+# Kardeş servisler (backend/frontend/chatbot) kendi compose'larıyla ayağa kalkar;
 # RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır.
+#
+# Dağıtım varsayılanlarının tek kaynağı Containerfile'ın ENV bloğudur (HF_HOME,
+# HOST, PORT). Buradaki `environment:` bloğu YALNIZ cihaza özel korpus
+# seçimini (BOOK_PATH/SINIF/DERS) taşır; sırlar ve operatöre ait her şey
+# hezarfen_rag.env dosyasından gelir (dağıtım yolu her zaman --env-file geçer).
+# Sunucuda ~/hezarfen_rag/hezarfen_rag.env (şablon: depodaki .env.example).
 #
 # Kullanım (backend ayaktayken):
 #   podman compose --profile product up -d --build          (CPU)
@@ -8,76 +14,71 @@
 #
 # #81: önceki hâlde `ports`, `healthcheck` ve `data` mount'u YOKTU; CMD de
 # servisi başlatmıyordu → `restart: unless-stopped` ile sonsuz restart döngüsü.
+# Ortak gövde: GPU servisi bunu YAML anchor'ı ile paylaşır. `extends:` BİLEREK
+# kullanılmıyor — podman-compose 1.6, taban servis bir profille dışlandığında
+# `resolve_extends` içinde `KeyError: '_deps'` ile ÇÖKÜYOR (ölçüldü:
+# `podman compose --profile gpu config`). Anchor aynı tekrarı yapmadan aynı
+# sonucu verir.
+x-rag-common: &rag-common
+  build:
+    context: .
+    dockerfile: Containerfile
+  env_file:
+    # Sunucuda elle yazılır (0600); laptopta yoktur (şablon: .env.example).
+    - path: hezarfen_rag.env
+      required: false
+  environment:
+    # Korpus seçimi: bu üçü CİHAZA özel (hangi kitap işleniyor). Dağıtım yolu
+    # her zaman `--env-file ~/hezarfen_rag/hezarfen_rag.env` geçer (unit ve
+    # deploy), yani operatörün değeri interpolasyonla buraya gelir; laptopta
+    # dosya yokken aşağıdaki varsayılan geçerlidir.
+    BOOK_PATH: ${BOOK_PATH:-/app/data/lise/10/biyoloji/kitap.pdf}
+    SINIF: ${SINIF:-10}
+    DERS: ${DERS:-biyoloji}
+  ports:
+    - "127.0.0.1:8000:8000"        # yalnız yerel; dışa açmak bilinçli olmalı
+  volumes:
+    - rag-models:/models           # model cache kalıcı (BGE-M3 + reranker ~2,3 GB × 2)
+    - ./data:/app/data:ro,z        # korpus; imgeye GİRMEZ (.containerignore)
+    - rag-cost:/cost               # maliyet defteri (restart'ta kaybolmasın)
+  healthcheck:
+    # `/health` liveness'tır: süreç ayakta mı. Hazır olup olmadığı `/ready`de
+    # (#50/#82) — boru hattı ~40 s kurulurken kap SAĞLIKSIZ sayılmamalı.
+    test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
+    interval: 15s
+    timeout: 3s
+    retries: 3
+    start_period: 20s
+  networks:
+    - backend_net
+  restart: unless-stopped
+
 services:
   rag:
-    build:
-      context: .
-      dockerfile: Containerfile
-    image: localhost/hezarfen-rag:local
-    container_name: hezarfen-rag
+    <<: *rag-common
+    # HEZARFEN_TAG deploy tarafından yazılan stack.env'den gelir (--env-file).
+    image: localhost/hezarfen_rag:${HEZARFEN_TAG:-latest}
+    container_name: hezarfen_rag
     profiles: ["product"]            # otomatik kalkmaz; backend hazır olunca çalıştır
-    env_file:
-      - .env                         # #81: .env servis yolunda YÜKLENMİYORDU
-    environment:
-      HF_HOME: /models
-      PYTHONUNBUFFERED: "1"
-      HOST: 0.0.0.0
-      PORT: "8000"
-      # Korpus konteyner içindeki mount yolundan okunur.
-      BOOK_PATH: /app/data/lise/10/biyoloji/kitap.pdf
-      SINIF: "10"
-      DERS: biyoloji
-      # Üretimde doldurulmalı (bkz. .env.example):
-      RAG_SERVICE_TOKEN: ${RAG_SERVICE_TOKEN:-}
-      RAG_ALLOWED_HOSTS: ${RAG_ALLOWED_HOSTS:-*}
-      RAG_USER_DAILY_USD: ${RAG_USER_DAILY_USD:-0}
-    ports:
-      - "127.0.0.1:8000:8000"        # yalnız yerel; dışa açmak bilinçli olmalı
-    volumes:
-      - rag-models:/models           # model cache kalıcı (BGE-M3 + reranker ~2,3 GB × 2)
-      - ./data:/app/data:ro,z        # korpus; imgeye GİRMEZ (.containerignore)
-      - rag-cost:/cost               # maliyet defteri (restart'ta kaybolmasın)
-    healthcheck:
-      # `/health` liveness'tır: süreç ayakta mı. Hazır olup olmadığı `/ready`de
-      # (#50/#82) — boru hattı ~40 s kurulurken kap SAĞLIKSIZ sayılmamalı.
-      test: ["CMD", "curl", "-fsS", "http://127.0.0.1:8000/health"]
-      interval: 15s
-      timeout: 3s
-      retries: 3
-      start_period: 20s
-    networks:
-      - backend_net
-    restart: unless-stopped
 
-  # #96 (EXP-018) — GPU SERVISI.
-  #
-  # ÖLÇÜLDÜ (RTX 4060 Laptop, 10/biyoloji, gerçek /rag/chat):
-  #   CPU: rerank 95,9 s · uçtan uca ~96 s   -> kapı O-05 (p50 <= 6 s) GEÇİLMEZ
-  #   GPU: rerank  1,9 s · uçtan uca p50 4,96 s, p90 6,04 s -> GEÇİLİR
+  # #96 (EXP-018) — GPU SERVISI. Ölçüm: CPU rerank 95,9 s / uçtan uca ~96 s
+  # (kapı O-05 p50 <= 6 s GEÇİLEMEZ); GPU rerank 1,9 s / p50 4,96 s (GEÇİLİR).
   #
   # ÖN KOŞUL (ana makinede, BİR KEZ): NVIDIA Container Toolkit + CDI tanımı.
-  # Bu makinede ölçüldü: `nvidia-ctk` YOK ve `/etc/cdi` YOK, yani bu adım
-  # yapılmadan kap GPU'yu GÖREMEZ ve sessizce CPU'ya düşer (96 s).
-  #
-  #   curl -s -L https://nvidia.github.io/libnvidia-container/stable/rpm/nvidia-container-toolkit.repo \
-  #     | sudo tee /etc/yum.repos.d/nvidia-container-toolkit.repo
-  #   sudo dnf install -y nvidia-container-toolkit
   #   sudo nvidia-ctk cdi generate --output=/etc/cdi/nvidia.yaml
   #   podman run --rm --device nvidia.com/gpu=all docker.io/library/python:3.11-slim nvidia-smi
   #
   # SESSİZ CPU'YA DÜŞMEYİ ENGELLE: `RAG_REQUIRE_CUDA=1` ile servis GPU yoksa
-  # AÇILIŞTA HATA VERİR. Bu bilinçli: 96 s'lik bir "çalışan" servis, çalışmayan
-  # bir servisten daha kötüdür -- demo sırasında fark edilir.
+  # AÇILIŞTA HATA VERİR — 96 s'lik "çalışan" servis, çalışmayandan kötüdür.
   rag-gpu:
-    extends:
-      service: rag
+    <<: *rag-common
     build:
       context: .
       dockerfile: Containerfile
       args:
         TORCH_INDEX: https://download.pytorch.org/whl/cu130
-    image: localhost/hezarfen-rag:gpu
-    container_name: hezarfen-rag-gpu
+    image: localhost/hezarfen_rag:gpu
+    container_name: hezarfen_rag_gpu
     profiles: ["gpu"]
     environment:
       RAG_REQUIRE_CUDA: "1"

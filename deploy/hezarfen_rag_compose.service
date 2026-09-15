@@ -1,0 +1,39 @@
+# systemd KULLANICI unit'i: RAG servisini podman compose ile çalıştırır.
+# %h/hezarfen_rag içinde beklenen dosyalar:
+#   compose.yaml                     bu repodan (ya da deploy artefaktından)
+#   hezarfen_rag.env                 0600, depodaki .env.example'dan ELLE yazılır
+#                                    — otomasyon oluşturmaz/ezmez
+#   stack.env                        deploy sahipli; HEZARFEN_TAG taşır
+#   data/                            korpus (imgeye girmez; salt-okunur bağlanır)
+#
+# Unit `--no-build` ile başlar, yani imaj sunucuda zaten olmalı:
+#   podman compose build             # burada derle
+#   podman load -i image.tar         # ya da hazır imajı yükle
+#
+# KAPASİTE ÖN KOŞULU (ölçüldü): torch + BGE-M3 + reranker modelleri ~4,5 GB
+# disk ve çalışma anında birkaç GB RAM ister. GPU'suz bir makinede rerank
+# 95,9 s sürer ve ürün kapısı O-05 (p50 <= 6 s) GEÇİLMEZ — yani bu servis
+# GPU'suz bir sunucuda "çalışır" ama ürün olarak kullanılamaz.
+#
+# Sadece ortam değişkeni değiştiğinde yeniden başlatma (ExecStart'ı yeniden
+# koşar, ortamı değişen konteynerı yeniden oluşturur):
+#   systemctl --user restart hezarfen_rag_compose
+
+[Unit]
+Description=Hezarfen RAG service (retrieval + generation over the school corpus)
+After=network-online.target
+Wants=network-online.target
+
+[Service]
+Type=oneshot
+RemainAfterExit=yes
+WorkingDirectory=%h/hezarfen_rag
+# Sonraki --env-file çakışan anahtarda kazanır: önce operatörün ayar dosyası,
+# sonra deploy sahipli stack.env (HEZARFEN_TAG).
+ExecStart=/usr/bin/podman compose --profile product --env-file %h/hezarfen_rag/hezarfen_rag.env --env-file %h/hezarfen_rag/stack.env up -d --no-build
+# -v yok: model cache ve maliyet defteri volume'ları stop'ta yaşamalı.
+ExecStop=/usr/bin/podman compose --profile product down
+TimeoutStartSec=300
+
+[Install]
+WantedBy=default.target
