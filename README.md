@@ -186,3 +186,38 @@ Bunlar sessizce yaşanmaz; kod açılışta uyarır ya da durdurur.
 item'ın 55'inde sorgu, birimin *kendi metnidir* (iğne testi), soru değil. Tek
 soru biçimli kategoride reranker öndeydi. Bu set "reranker gereksiz" sonucunu
 **veremez** (#91).
+
+
+## Çok dersli kurulum (#86)
+
+Varsayılan olarak servis **tek kitap** okur (`BOOK_PATH`). `RAG_CORPORA`
+verilirse birden çok derse cevap verir; sohbette ders `options.ders` ile
+seçilir (API-CONTRACT).
+
+```bash
+RAG_CORPORA=10/biyoloji,10/kimya,10/cografya   # ya da: all
+RAG_WARM_CORPORA=all                            # demo öncesi ısıtma (ops.)
+```
+
+**Ölçüldü** (RTX 4060, gerçek `/rag/chat`):
+
+| | süre | sonuç |
+|---|---|---|
+| soğuk dersin 1. sorusu | 0,00 s | `service_warming_up` — kurulum arkada başlar |
+| 10/biyoloji kurulumu | 55,0 s | 327 chunk |
+| 10/kimya kurulumu | 171,5 s | 438 chunk |
+| biyoloji sorusu | 9,83 s | 2 atıf (s. 99, 102) |
+| kimya sorusu | 4,27 s | 2 atıf (s. 20, 43) |
+
+Üç davranış bilinçlidir:
+
+- **Korpuslar tembel kurulur.** 15 kitabı açılışta kurmak ~12 dakikalık sağır
+  servis demekti ve indeks kalıcı olmadığı için (#75) bu bedel her yeniden
+  başlatmada ödenirdi. Demo öncesi `RAG_WARM_CORPORA=all` ile ısıtın.
+- **Kurulumlar seridir.** İki korpus paralel kurulunca süreç segfault ile
+  çöküyordu (paylaşılan BGE-M3 örneğini iki thread'den eş zamanlı kullanmak).
+  Sorgular bu kilitten etkilenmez.
+- **Çok dersli rol + ders seçilmemişse ürün tahmin etmez**, `corpus_ambiguous`
+  der. Tahmin etmek yanlış kitaptan cevap üretmek olurdu.
+
+`/ready` hangi derslerin hazır, kurulmakta ya da hatalı olduğunu raporlar.
