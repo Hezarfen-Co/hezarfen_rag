@@ -48,7 +48,7 @@ class _StubReranker:
         return [(cid, 0.9) for cid, _t in pairs]
 
 
-class _StubDeepSeek:
+class _StubLLMClient:
     """Kaynak 1'i atıflayan sabit cevap; kaç kez çağrıldığını sayar."""
 
     def __init__(self, text="Hucre zari secici gecirgendir [1]."):
@@ -58,13 +58,13 @@ class _StubDeepSeek:
 
     def chat(self, prompt, system=None, **kw):
         from src.pricing import Usage
-        from src.providers.deepseek import ChatResult
+        from src.providers.llm import ChatResult
         self.calls += 1
         return ChatResult(text=self.text, usage=Usage(input_cache_miss=10, output=5),
                           model="stub", latency_s=0.0, raw={})
 
 
-def _pipeline(deepseek=None):
+def _pipeline(llm=None):
     """c1 gold, c2/c3 çeldirici; c1 ve c2 AYNI parent'ta (oracle'da ikisi de gerekir)."""
     chunks = {
         "c1": _Chunk("c1", "child", "gold metin bir", ["d#10.0"], 10, 10, parent_id="p1"),
@@ -75,7 +75,7 @@ def _pipeline(deepseek=None):
     span_meta = {"d#10.0": {"page": 10, "bbox": (0, 0, 1, 1)},
                  "d#11.0": {"page": 11, "bbox": (0, 0, 1, 1)},
                  "d#90.0": {"page": 90, "bbox": (0, 0, 1, 1)}}
-    ds = deepseek or _StubDeepSeek()
+    ds = llm or _StubLLMClient()
     from src.generate import Generator
     gen = Generator(_StubRetriever(["c3", "c3", "c1", "c2"]), _StubReranker(),
                     chunks, span_meta, ds, ders="biyoloji", abstain_score=0.30,
@@ -172,7 +172,7 @@ class RerankMeasuredAlwaysTests(unittest.TestCase):
             order.append(cid)
         span_meta = {u: {"page": 1, "bbox": (0, 0, 1, 1)}
                      for ch in chunks.values() for u in ch.span_ids}
-        ds = _StubDeepSeek()
+        ds = _StubLLMClient()
         from src.generate import Generator
         gen = Generator(_StubRetriever(order), _StubReranker(), chunks, span_meta, ds,
                         ders="biyoloji", abstain_score=0.30, module="test",
@@ -224,7 +224,7 @@ class OracleContextTests(unittest.TestCase):
         self.assertEqual(gen.abstain_score, base.abstain_score)
         self.assertEqual(gen.ders, base.ders)
         self.assertEqual(gen.context_packing, base.context_packing)
-        self.assertIs(gen.deepseek, base.deepseek)
+        self.assertIs(gen.llm, base.llm)
 
     def test_item_without_gold_is_skipped_not_scored(self):
         """Kapsam-dışı/zararlı item oracle'da ANLAMSIZ → atlanır, 0.0 sayılmaz."""
@@ -274,7 +274,10 @@ class RunSignatureTests(unittest.TestCase):
         """CI'da anahtar olmadan koşabilmeli — bu modun varlık sebebi."""
         import os
         from unittest import mock
-        clean = {k: "" for k in ("LLM_API_KEY", "DEEPSEEK_API_KEY", "NVIDIA_API_KEY")}
+        from src.providers.llm import LLM_API_KEY_ENV, RETIRED_ENV_NAMES
+        # Kaldirilan adlar da BOSALTILIR: ortamda dururlarsa `reject_retired_env`
+        # haklı olarak reddeder ve test yanlis nedenle gecerdi.
+        clean = {k: "" for k in (LLM_API_KEY_ENV,) + RETIRED_ENV_NAMES}
         with mock.patch.dict(os.environ, clean):
             # anahtar yok: end_to_end RuntimeError, retrieval_only kitap yokluğunda
             # FileNotFoundError'a kadar ilerler (yani anahtar kapısını GEÇER)

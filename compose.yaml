@@ -5,7 +5,10 @@
 # Dağıtım varsayılanlarının tek kaynağı Containerfile'ın ENV bloğudur (HF_HOME,
 # HOST, PORT). Buradaki `environment:` bloğu YALNIZ cihaza özel korpus
 # seçimini (BOOK_PATH/SINIF/DERS) taşır; sırlar ve operatöre ait her şey
-# hezarfen_rag.env dosyasından gelir (dağıtım yolu her zaman --env-file geçer).
+# hezarfen_rag.env dosyasından gelir — konteynere `env_file:` ile, kompoze
+# interpolasyonuna ortam değişkeni olarak (unit: `EnvironmentFile=`, deploy:
+# operatör dosyasını satır satır ortama alma; compose'a giden TEK `--env-file`
+# deploy sahipli stack.env'dir — bkz. deploy/hezarfen_rag_compose.service).
 # Sunucuda ~/hezarfen_rag/hezarfen_rag.env (şablon: depodaki .env.example).
 #
 # Kullanım (backend ayaktayken):
@@ -29,9 +32,12 @@ x-rag-common: &rag-common
       required: false
   environment:
     # Korpus seçimi: bu üçü CİHAZA özel (hangi kitap işleniyor). Dağıtım yolu
-    # her zaman `--env-file ~/hezarfen_rag/hezarfen_rag.env` geçer (unit ve
-    # deploy), yani operatörün değeri interpolasyonla buraya gelir; laptopta
-    # dosya yokken aşağıdaki varsayılan geçerlidir.
+    # operatör değerlerini İKİ KANALDAN verir: unit'te `EnvironmentFile=`
+    # (systemd), deploy'da operatör dosyasını satır satır ortama alma — çünkü
+    # `podman compose --env-file` bu sağlayıcıda YALNIZ SON dosyayı okur
+    # (podman_compose.py:2941-2946, :2559) ve iki dosyalı çağrı operatör
+    # dosyasını sessizce düşürürdü (bkz. deploy/hezarfen_rag_compose.service).
+    # Laptopta dosya yokken aşağıdaki varsayılan geçerlidir.
     BOOK_PATH: ${BOOK_PATH:-/app/data/lise/10/biyoloji/kitap.pdf}
     SINIF: ${SINIF:-10}
     DERS: ${DERS:-biyoloji}

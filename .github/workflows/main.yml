@@ -228,6 +228,30 @@ jobs:
           fi
           chmod 0600 -- "$env_file"
 
+          # OPERATOR ORTAMI SURECE ALINIR. podman-compose interpolasyonu ORTAM
+          # DEGISKENLERINE bakar ve `--env-file` YALNIZ SON dosyayi cozer
+          # (podman_compose.py:2941-2946, :2559): iki dosyali cagri operator
+          # dosyasini tamamen dusuruyordu. RAG'da bu "required variable ...
+          # is missing" DEGIL, SESSIZ bir yanlis-korpus olarak gorunurdu:
+          # compose.yaml'daki BOOK_PATH/SINIF/DERS interpolasyonu cihaz
+          # varsayilanina (10/biyoloji) duser ve `environment:` env_file'i
+          # ezdigi icin konteyner operatorun kitabini HIC gormez. Bu yuzden
+          # dosya satir satir okunur -- kabuk genisletmesi YOK (deger icindeki
+          # `$` oldugu gibi kalir), systemd `EnvironmentFile=` ile AYNI
+          # davranis (satir-ici `#` korunur; bkz. unit notu).
+          while IFS= read -r satir || [ -n "$satir" ]; do
+            case "$satir" in ''|'#'*) continue ;; esac
+            anahtar=${satir%%=*}
+            deger=${satir#*=}
+            case "$anahtar" in
+              ''|*[!A-Za-z0-9_]*)
+                echo "operator env: gecersiz anahtar adi -- harf/rakam/alt cizgi beklenirdi" >&2
+                exit 1
+                ;;
+            esac
+            export "$anahtar=$deger"
+          done < "$env_file"
+
           # KAPASİTE ÖN KONTROLÜ — ölçülmüş gereksinim: modeller ~4,5 GB disk,
           # çalışma anında birkaç GB RAM. Yetmezse OOM ile canlı stack'i
           # düşürmek yerine burada, nedeniyle birlikte reddet.
@@ -255,13 +279,20 @@ jobs:
             cp -- "$deploy_path/current_tag" "$deploy_path/previous_tag"
           fi
           printf '%s\n' "$tag" > "$deploy_path/current_tag"
+
+          # stack.env deploy sahipli (operatorun ayar dosyasindan farkli):
+          # yalniz imaj tag'ini tasir ve compose'a giden TEK `--env-file` odur
+          # -- operator degerleri yukarida surece alindi (EnvironmentFile= ile
+          # ayni iki-kanal deseni). Iki dosyali cagri bu saglayicida operator
+          # dosyasini dusurur (podman_compose.py:2941-2946, :2559); ortam
+          # degiskeni --env-file degerlerini ezer (:2562).
           printf 'HEZARFEN_TAG=%s\n' "$tag" > "$deploy_path/stack.env"
 
           chmod 0644 -- "$deploy_path/compose.yaml" "$deploy_path/hezarfen_rag_compose.service"
           rm -f -- "$deploy_path/hezarfen_rag.tar.gz"
 
           compose_up() {
-            podman compose --profile product --env-file "$env_file" --env-file "$deploy_path/stack.env" up -d --no-build
+            podman compose --profile product --env-file "$deploy_path/stack.env" up -d --no-build
           }
           rollback() {
             if [ -f "$deploy_path/previous_tag" ]; then
@@ -273,7 +304,7 @@ jobs:
             else
               # İlk deploy: geri dönülecek imaj yok. `-v` YOK — model cache ve
               # maliyet defteri volume'ları korunur.
-              podman compose --profile product --env-file "$env_file" --env-file "$deploy_path/stack.env" down
+              podman compose --profile product --env-file "$deploy_path/stack.env" down
               echo 'first deploy failed; stack stopped, volumes kept' >&2
             fi
           }
@@ -318,6 +349,39 @@ jobs:
             rollback
             exit 1
           fi
+
+          # Kapı 3 — OPERATOR DEGISKENLERI KONTEYNERDE MI. Bu iddia olmadan
+          # iki dosyali `--env-file` sinifi sessizce geri gelebilir: `up` ya
+          # reddeder ya da (varsayilani olan anahtarlarda) konteyneri SESSIZCE
+          # compose varsayilaniyla ayaga kaldirirdi -- RAG'da ikincisi
+          # "calisiyor gibi gorunen, yanlis kitabi okuyan servis" demektir.
+          # Iki kanal, iki iddia:
+          #   LLM_API_KEY dolu          -> operator dosyasi konteynere ulasti (env_file)
+          #   BOOK_PATH == operatorunki -> operator degeri INTERPOLASYONA girdi
+          # Deger YAZDIRILMAZ; yalniz "var ve esit" olculur. Desen `^AD=.`:
+          # satir basi + en az bir karakter -- bos deger eslesmez.
+          container_env=$(podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' hezarfen_rag)
+          eksik=0
+          for ad in LLM_API_KEY BOOK_PATH; do
+            if ! printf '%s\n' "$container_env" | grep -qE "^${ad}=."; then
+              echo "container env: $ad yok ya da BOS -- operator dosyasi compose'a ulasmamis" >&2
+              eksik=1
+            fi
+          done
+          op_book=$(sed -n 's/^BOOK_PATH=//p' "$env_file" | tail -1)
+          if [ -n "$op_book" ]; then
+            got_book=$(printf '%s\n' "$container_env" | sed -n 's/^BOOK_PATH=//p' | tail -1)
+            if [ "$got_book" != "$op_book" ]; then
+              echo "container BOOK_PATH operatorunkiyle AYNI DEGIL -- operator degeri interpolasyona girmemis. (Operator dosyasinda satir-ici '#' yorumu varsa systemd de onu degerin parcasi yapar; bkz. unit notu.)" >&2
+              eksik=1
+            fi
+          fi
+          if [ "$eksik" -ne 0 ]; then
+            echo 'the operator env did not reach the container; rolling back' >&2
+            rollback
+            exit 1
+          fi
+          echo 'ok: operator degiskenleri konteynerde (LLM_API_KEY dolu, BOOK_PATH operatorunkiyle ayni)'
           echo 'hezarfen_rag_compose is up and ready'
           REMOTE
 

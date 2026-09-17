@@ -4,7 +4,7 @@ Golden set'e (tests/golden/golden_12bio_v0.json — TASLAK, bkz. README.md
 "benchmark kilidi") karsi TAM pipeline'i (canonical -> chunk -> embed -> index
 -> hibrit retrieval -> rerank -> Generator -> guard -> span_meta) BIR KEZ
 kurar, her item icin deterministik metrikleri (src.eval.metrics) + secili
-item'larda LLM-hakem metriklerini (src.eval.judge, DeepEval+DeepSeek) hesaplar,
+item'larda LLM-hakem metriklerini (src.eval.judge, DeepEval+LLMClient) hesaplar,
 kategori bazinda + genel aggregate + en zayif item'lari raporlar.
 
 PASS-BIAS YASAK (docs/OPTIMIZATION.md sub A): bu betik "gecirmeye" calismaz,
@@ -14,7 +14,7 @@ bekliyor) -- buradaki sayilar nihai kabul olcusu DEGILDIR.
 CALISTIRMA:
     PYTHONPATH="." .venv/Scripts/python.exe -m src.eval.runner
 
-.env: DEEPSEEK_API_KEY .env dosyasindan os.environ'a yuklenir (zaten set
+.env: LLM_API_KEY .env dosyasindan os.environ'a yuklenir (zaten set
 degilse); DEGER ASLA loglanmaz/yazdirilmaz.
 """
 from __future__ import annotations
@@ -32,7 +32,7 @@ from ..generate import Generator, build_span_meta
 from ..generate.generator import source_units
 from ..index import DenseIndex, BM25Index
 from ..ingest.canonical import build_canonical
-from ..providers.deepseek import DeepSeek
+from ..providers.llm import LLMClient
 from ..rerank import BGEReranker, rerank_select
 from ..retrieve import SparseIndex, HybridRetriever
 from . import metrics as M
@@ -217,16 +217,16 @@ def build_pipeline(book_path: str = BOOK_PATH) -> dict:
     reranker = BGEReranker()
     _retry(lambda: reranker.rerank("isinma", [("x", "deneme metni")]), label="reranker_warmup")
 
-    deepseek = DeepSeek()
+    llm = LLMClient()
     # LLM güvenlik sınıflandırıcı (2. katman) — regex'in kaçırdığı parafraz/dolaylı
     # zararlıyı yakalar (baseline: zararlı 1/3). Eval ürünün TAM guardlı hâlini ölçer.
     from ..guard import LLMSafetyClassifier
     from ..memory import HistoryAwareRewriter
-    generator = Generator(retriever, reranker, chunks_by_id, span_meta, deepseek,
+    generator = Generator(retriever, reranker, chunks_by_id, span_meta, llm,
                           ders=ders, module="eval",   # esik: #60, env ile ortak
-                          safety_classifier=LLMSafetyClassifier(deepseek, module="eval"),
+                          safety_classifier=LLMSafetyClassifier(llm, module="eval"),
                           context_packing=True,   # token bütçesi + lost-in-the-middle
-                          rewriter=HistoryAwareRewriter(deepseek, module="eval"))  # çok-turlu
+                          rewriter=HistoryAwareRewriter(llm, module="eval"))  # çok-turlu
     print(f"[eval] pipeline tamamen hazir ({time.time() - t0:.1f}s toplam)")
     return dict(doc=doc, chunks_by_id=chunks_by_id, span_meta=span_meta,
                retriever=retriever, reranker=reranker, generator=generator,
@@ -432,7 +432,7 @@ def _oracle_generator(pipeline: dict, gold_spans: set):
         ch = pipeline["chunks_by_id"][cid]
         stub_chunks[cid] = dataclasses.replace(ch, parent_id=None)
     gen = Generator(_OracleRetriever(ids), _OracleReranker(), stub_chunks,
-                    pipeline["span_meta"], base.deepseek,
+                    pipeline["span_meta"], base.llm,
                     ders=base.ders, abstain_score=base.abstain_score,
                     module="eval-oracle", safety_classifier=base.safety_classifier,
                     context_packing=base.context_packing,
@@ -841,15 +841,16 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
     if mode not in EVAL_MODES:
         raise ValueError(f"bilinmeyen mod {mode!r}; secenekler: {EVAL_MODES}")
     _load_dotenv()
-    # Anahtar kontrolu saglayici-bagimsiz olmali (EXP-009): uretici artik
-    # LLM_BASE_URL/LLM_MODEL ile baska bir OpenAI-uyumlu uca alinabiliyor, o
-    # durumda DEEPSEEK_API_KEY hic ayarli olmayabilir. Kaynak: providers.deepseek.
-    from ..providers.deepseek import _KEY_ENV_NAMES, _env
-    if mode != "retrieval_only" and not any(_env(n) for n in _KEY_ENV_NAMES):
+    # Anahtar kontrolu saglayici-bagimsiz: uretici LLM_BASE_URL/LLM_MODEL ile
+    # OpenAI-uyumlu her uca alinabiliyor, tek anahtar adi LLM_API_KEY'tir.
+    # Eski saglayici adlari KALDIRILDI; dolu bulunurlarsa burada reddedilir.
+    # Kaynak: providers.llm.
+    from ..providers.llm import LLM_API_KEY_ENV, _env, reject_retired_env
+    reject_retired_env()
+    if mode != "retrieval_only" and not _env(LLM_API_KEY_ENV):
         raise RuntimeError(
-            "API anahtari yok (.env kontrol et): "
-            + " / ".join(_KEY_ENV_NAMES)
-            + " -- gercek eval kosusu icin gerekli.")
+            f"API anahtari yok (.env kontrol et): {LLM_API_KEY_ENV}"
+            " -- gercek eval kosusu icin gerekli.")
     if not os.path.exists(book_path):
         raise FileNotFoundError(f"golden set kaynak PDF'i yok: {book_path}")
 
@@ -919,8 +920,8 @@ def run(golden_path: str = GOLDEN_PATH, book_path: str = BOOK_PATH,
             "context_packing": getattr(pipeline["generator"], "context_packing", None),
             "guard_llm": pipeline["generator"].safety_classifier is not None,
             "rewriter": pipeline["generator"].rewriter is not None,
-            "llm_model": getattr(pipeline["generator"].deepseek, "model", None),
-            "llm_base_url": getattr(pipeline["generator"].deepseek, "base_url", None),
+            "llm_model": getattr(pipeline["generator"].llm, "model", None),
+            "llm_base_url": getattr(pipeline["generator"].llm, "base_url", None),
             "judge_model": (getattr(judge, "model_name", None) if judge else None),
             # M0-5 (#37): "0.988" sayisinin hangi item sinifindan geldigi gorunsun
             "judge_composition": _judge_composition(items, judge_ids),

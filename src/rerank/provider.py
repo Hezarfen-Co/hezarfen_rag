@@ -6,7 +6,7 @@ başına ölçülen dağılım (EXP-018):
     sorgu embed        0,122 s   önemsiz
     hibrit arama       ms        önemsiz
     rerank (40 aday)  95,9 s     ** bütün sorun burada **
-    LLM (DeepSeek)    ~2-3 s     zaten uzak servis
+    LLM (LLMClient)    ~2-3 s     zaten uzak servis
 
 Yani rerank uzak bir servise taşınırsa ya da kapatılırsa CPU sorgu tarafında
 yeterli olur. Seçim `RAG_RERANK_PROVIDER` ile: `local` (varsayılan) | `api` |

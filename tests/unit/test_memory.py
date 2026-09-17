@@ -113,7 +113,7 @@ class GeneratorRewriteIntegrationTests(unittest.TestCase):
             def __init__(self): self.calls = 0
             def chat(self, prompt, system=None, *, temperature=0.2, max_tokens=None, extra=None):
                 self.calls += 1
-                from src.providers.deepseek import ChatResult
+                from src.providers.llm import ChatResult
                 return ChatResult(text="cevap [1].", usage=Usage(0, 10, 5, 0),
                                   model="deepseek-chat", latency_s=0.0)
         from dataclasses import make_dataclass
@@ -137,7 +137,7 @@ class GeneratorRewriteIntegrationTests(unittest.TestCase):
         class _DS:
             model = "deepseek-chat"
             def chat(self, prompt, system=None, *, temperature=0.2, max_tokens=None, extra=None):
-                from src.providers.deepseek import ChatResult
+                from src.providers.llm import ChatResult
                 return ChatResult(text="cevap [1].", usage=Usage(0, 10, 5, 0),
                                   model="deepseek-chat", latency_s=0.0)
         from dataclasses import make_dataclass

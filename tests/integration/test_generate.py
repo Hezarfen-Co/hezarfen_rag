@@ -11,7 +11,7 @@ Documents/Hezarfen/rag/runs.jsonl`) YAZMAZ — Generator'a `costlog.record`'un
 `cost_recorder` enjekte edilir. Testte hem temp ledger'ın gerçekten kullanıldığı
 HEM DE gerçek ledger'ın değişmediği doğrulanır (bkz. test_zz_* aşağıda).
 
-.env: `DEEPSEEK_API_KEY` .env dosyasından `os.environ`'a yüklenir (zaten set
+.env: `LLM_API_KEY` .env dosyasından `os.environ`'a yüklenir (zaten set
 değilse); DEĞER ASLA LOGLANMAZ/YAZDIRILMAZ.
 """
 from __future__ import annotations
@@ -70,7 +70,7 @@ _TMP_LEDGER = os.path.join(_TMP_DIR, "runs.jsonl")
 _TMP_MALIYET = os.path.join(_TMP_DIR, "Maliyet.md")
 
 
-class _CountingDeepSeek:
+class _CountingLLMClient:
     """Gerçek DeepSeek'i sarar; FAIL-CLOSED yolunda LLM'in HİÇ çağrılmadığını
     doğrulamak için çağrı sayacı tutar (davranışı gerçek API ile değiştirmez)."""
     def __init__(self, real):
@@ -89,7 +89,7 @@ _SKIP_EXCEPTIONS = (ImportError, ModuleNotFoundError, FileNotFoundError, OSError
 
 
 def _prepare():
-    if not os.environ.get("DEEPSEEK_API_KEY"):
+    if not os.environ.get("LLM_API_KEY"):
         return None
     try:
         from src.ingest.canonical import build_canonical
@@ -98,7 +98,7 @@ def _prepare():
         from src.index import DenseIndex, BM25Index
         from src.retrieve import SparseIndex, HybridRetriever
         from src.rerank import BGEReranker
-        from src.providers.deepseek import DeepSeek
+        from src.providers.llm import LLMClient
         from src.generate import Generator, build_span_meta
 
         doc = build_canonical(BOOK, sinif=corpus.find_book()[1], ders=corpus.find_book()[2])
@@ -119,7 +119,7 @@ def _prepare():
         rr = corpus.shared_reranker()
         rr.rerank("ısınma", [("x", "deneme metni")])         # modeli yükle
 
-        counting_ds = _CountingDeepSeek(DeepSeek())
+        counting_ds = _CountingLLMClient(LLMClient())
         # GERÇEK Obsidian ledger'ına DOKUNMA: costlog.record'u geçici dosyalara
         # yönlendiren bir cost_recorder enjekte et (bulgu #3).
         cost_recorder = functools.partial(costlog.record, ledger=_TMP_LEDGER,
@@ -140,11 +140,11 @@ _PREP = _prepare() if os.path.exists(BOOK) else None
 
 
 @unittest.skipUnless(_PREP is not None,
-                     "korpus / DEEPSEEK_API_KEY / BGE modelleri yok")
+                     "korpus / LLM_API_KEY / BGE modelleri yok")
 class GenerateIntegrationTests(unittest.TestCase):
     @classmethod
     def setUpClass(cls):
-        cls.gen, cls.deepseek = _PREP
+        cls.gen, cls.llm = _PREP
         # SORGU KORPUSTAN TÜRETİLİR (aynı gerekçe: test_rerank).
         en_uzun = max(cls.gen.chunks_by_id.values(), key=lambda c: len(c.text))
         cls.QUERY = " ".join(en_uzun.text.split()[:20])
@@ -170,7 +170,7 @@ class GenerateIntegrationTests(unittest.TestCase):
               f"  maliyet: ${result.cost_usd:.6f} · gecikme: {result.latency_s:.2f}s")
 
     def test_out_of_scope_question_abstains_without_llm_call(self):
-        calls_before = self.deepseek.calls
+        calls_before = self.llm.calls
         result = self.gen.answer("Bugün hava nasıl?")
 
         self.assertTrue(result.abstained,
@@ -178,7 +178,7 @@ class GenerateIntegrationTests(unittest.TestCase):
         self.assertEqual(result.reason, "insufficient_data")
         self.assertEqual(result.text, "Kaynaklarda bu bilgi bulunamadı.")
         self.assertEqual(result.cost_usd, 0.0)
-        self.assertEqual(self.deepseek.calls, calls_before, "LLM çağrılmamalıydı")
+        self.assertEqual(self.llm.calls, calls_before, "LLM çağrılmamalıydı")
 
         print(f"\n[test_generate] kapsam-disi soru - abstained={result.abstained}, "
               f"reason={result.reason}, llm_calls_delta=0")

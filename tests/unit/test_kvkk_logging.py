@@ -34,7 +34,7 @@ class CostLedgerHasNoUserTextTests(unittest.TestCase):
 
             def chat(self, prompt, system=None, **kw):
                 from src.pricing import Usage
-                from src.providers.deepseek import ChatResult
+                from src.providers.llm import ChatResult
                 return ChatResult(text="Bağımsız soru", usage=Usage(), model="stub")
 
         r = HistoryAwareRewriter(_P(), cost_recorder=lambda **kw: notes.append(kw))
@@ -59,7 +59,7 @@ class CostLedgerHasNoUserTextTests(unittest.TestCase):
 
             def chat(self, *a, **kw):
                 from src.pricing import Usage
-                from src.providers.deepseek import ChatResult
+                from src.providers.llm import ChatResult
                 return ChatResult(text='{"safe": false, "category": "self_harm"}',
                                   usage=Usage(), model="stub")
 

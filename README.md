@@ -16,7 +16,8 @@ py -3.11 -m venv .venv
 Copy-Item .env.example .env
 ```
 
-`.env` içindeki `DEEPSEEK_API_KEY` değerini doldurun. Gerçek `.env` GitHub'da
+`.env` içindeki `LLM_API_KEY` değerini doldurun (tek LLM anahtar adı;
+eski `DEEPSEEK_API_KEY`/`NVIDIA_API_KEY` adları kaldırıldı — varsa servis reddeder). Gerçek `.env` GitHub'da
 bulunmaz: bilgisayarı sıfırlamadan önce anahtarı parola yöneticisine veya güvenli
 harici yedeğe kaydedin. Diğer servislerin sırları ve veritabanları bu RAG deposunun
 yedeğine dahil değildir.

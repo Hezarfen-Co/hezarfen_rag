@@ -1,7 +1,7 @@
 """LLM çağrılarında dayanıklılık: yeniden deneme + devre kesici (#78).
 
 ÖLÇÜLEN DURUM (EXP-010/OPS-06):
-* `providers/deepseek.py` tek `urlopen` ile çağırıyordu — **retry/backoff YOK**,
+* `providers/llm.py` tek `urlopen` ile çağırıyordu — **retry/backoff YOK**,
   `timeout=120.0`.
 * `RagService.chat` LLM hatasını yakalamıyordu; stub 429 ile ölçüldü → yanıt
   **HTTP 500**, gövde `"Internal Server Error"` (reason yok, request_id yok).

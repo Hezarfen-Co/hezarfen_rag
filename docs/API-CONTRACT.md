@@ -30,15 +30,16 @@ kapsam "10-biyoloji **VEYA** okul-satranç" olabilir ve düzleştirme yanlış b
 çalışmaya devam eder, ancak `scope` çift listesi VERİLİRSE o tercih edilir
 (`bridge/contract.py`: `RagScopePair`; `guard/roles.can_access`).
 
-### 0.2 Bilinen açıklar (2026-09-17, kapatılmadı)
+### 0.2 Bilinen açıklar (2026-09-17; (a) kapandı, (b) açık)
 
-**(a) `asker_role` → `role` eşlemesi henüz yok.** Backend `rag.chat`'te soranın
-rolünü AYRI bir `asker_role` alanında gönderir (`RagChatRequestPayload`); bu
-deponun handler'ı rol adını `role` sözlüğünden okur (`{\"role\": \"student\"}`).
-HTTP gövdesinde `role` modeli dolduğu için sorun yoktur, ama QUIC köprüsü
-`RagChatRequestPayload`'ı HAM geçirirse `asker_role` rol adına çevrilmezse
-erişim fail-closed reddedilir. Köprü istemcisi yazılınca `asker_role` →
-`role.role` eşlemesi ORADA yapılmalıdır (transport henüz yazılmadı).
+**(a) `asker_role` → `role` eşlemesi — ÇÖZÜLDÜ (2026-09-17), taşıma kaldı.**
+Backend `rag.chat`'te soranın rolünü AYRI bir `asker_role` alanında gönderir
+(`RagChatRequestPayload`). Eşleme artık transport-bağımsız dağıtıcıda YAPILIR:
+`bridge/dispatch.py::Dispatcher._govde` her iki yetenek için de
+`{"role": {"role": asker_role}}` üretir (`role` yoksa servis zaten
+`role_required` ile fail-closed reddeder). Geriye kalan TEK eksik, çerçeveyi
+taşıyan QUIC istemcisidir (BL-010): `bridge/client.py` çerçeve kurma/çözme
+kısmını taşımasız hazır tutar.
 
 **(b) Sınıfsız korpus yönlendirilemiyor.** `scope` çiftindeki `sinif` boş/None
 olabilir (okul kulübü/etüt) ve yetki katmanı bunu destekler
@@ -48,6 +49,41 @@ olabilir (okul kulübü/etüt) ve yetki katmanı bunu destekler
 Kapatmak için korpus anahtarının sınıfsız bir sentinel (`\"\"` ya da ayrı bir
 anahtar alanı) kabul etmesi ve `book_path`/keşif mantığının sınıfsız dizini
 bulması gerekir — bu wave'de YAPILMADI.
+
+### 0.3 Okul kapsamı (kiracılık) — OKUL İSTEKLE gelir, hiçbir env onu seçmez
+
+**Tek kural: okulla kapsanmış ya da hiç.** Filo tek servistir ve BÜTÜN okullara
+hizmet eder; bir okula sabitlenmiş bir servis "her müşteri için bir kez
+çalıştırılmak" zorunda kalırdı (backend `src/ai/protocol.rs` → *School scoping*:
+*"there is no default and no fallback"*). Bu depodaki tek ifadesi
+`src/guard/tenant.py`.
+
+| katman | kural | yer |
+|---|---|---|
+| Tel çerçevesi | `Request.school` ZORUNLU; yoksa `malformed` (akış düşer, cevap yazılmaz); geçersiz slug → tipli `invalid_school`; **her** `Response` okulu AYNEN eko eder | `bridge/contract.py` (`BridgeRequest.from_wire`, `BridgeResponse`), `bridge/dispatch.py` |
+| İçerik | Damgasız (okulsuz) satır ERİŞİLEMEZ — "paylaşılan/public" bir boyut YOKTUR; eski satırlar taşınmaz, kaynaktan yeniden indekslenir (VPS verisi tek kullanımlık) | `guard/tenant.py`: `content_visible`, `visible_owners`, `require_owner` |
+| Korpus anahtarı | `(okul, sınıf, ders)` — iki okulun aynı dersi birbirini EZEMEZ; okulsuz istek `school_required`, geçersiz okul `unknown_school` | `service/registry.py::CorpusKey` + `resolve` |
+| Korpus keşfi | `RAG_CORPORA` OKUL ADI TAŞIMAZ (yalnız ders süzgeci); korpuslar diskten `data/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf` ile keşfedilir | `service/multi.py` (`school_from_book_path`, `discover_tenants_`) |
+| Yazma | Yeni yazmada `require_owner` ZORUNLU; sahipsiz yazma bir HATA, "paylaşılan satır" değil | `guard/tenant.py`, `build_service(school=...)` (varsayılanı yok) |
+| Store okuma | Dense payload + BM25/sparse satır damgası zorunlu; aramalar okur okuluna **tam eşitlikle süzülür** (kırpma değil süzgeç) | `index/dense.py`, `index/lexical.py`, `retrieve/sparse.py`, `retrieve/hybrid.py` |
+| Cevap cache | Cache anahtarına `school` girer — iki okul aynı soruda hit PAYLAŞAMAZ | `cache/response_cache.py` |
+| HTTP yüzeyi | Gövdelerde `school` alanı vardır; üretimde onu BACKEND doldurur (servis backend'in arkasındadır). Okulsuz HTTP isteği de `school_required` ile reddedilir | `service/http_app.py` (`ChatRequest.school`) |
+
+**Tel biçiminde tipli okul redleri:** `malformed` (okul alanı yok — çerçeve
+düzeyi), `invalid_school` (slug biçimi geçersiz), `school_required` (istek
+okulsuz), `unknown_school` (okul çözülemedi/ayrılmış). Dördü de fail-closed'dır;
+hiçbiri "varsayılan okul"a düşmez, hiçbiri başka okulun satırını döndürmez.
+
+**Neden "paylaşılan müfredat" yok:** bir kez var olan bir `public` boyutu,
+damgasız eski satırların taşınması demek olurdu; o da "sahibi belirsiz içerik"
+sınıfını geri getirirdi. Yerine: her korpusun bir okulu vardır (`require_owner`),
+okulsuz okur hiçbir şey görmez.
+
+**Köprüde durum:** dağıtıcı (`bridge/dispatch.py`) transport-BAĞIMSIZ hazır ve
+testlidir (okul eko'su, yetenek eşlemesi, `asker_role` → `role`). QUIC
+taşıması (`bridge/client.py::BridgeReader`'ın ağ kısmı) henüz YAZILMADI:
+`rag.chat` uçtan uca HİÇ servis edilmedi (BL-010). HTTP yüzeyi yerel
+koşum/ölçüm için durur; backend onu ÇAĞIRMAZ.
 
 ## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
 
@@ -83,6 +119,7 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
 ```json
 {
   "query": "DNA'nın yapısı nedir?",
+  "school": "ataturk-anadolu-lisesi",            // KİRACI: zorunlu (bkz. §0.3). Okulsuz istek school_required ile REDDEDİLİR.
   "history": [                                  // opsiyonel — çok-turlu (history-aware rewrite)
     {"role": "user", "content": "DNA nasıl eşlenir?"},
     {"role": "assistant", "content": "..."}
@@ -177,6 +214,7 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
     "ders": "biyoloji", "sinif": "12",
     "scope_label": "DNA'nın yapısı ve keşfi"
   },
+  "school": "ataturk-anadolu-lisesi",           // KİRACI (bkz. §0.3)
   "role": { ... }                               // SUNUCU-TARAFI
 }
 ```
@@ -196,9 +234,13 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
 
 ## 3. Backend'in sorumlulukları (bu repo YAPMAZ)
 - **Auth + rol türetme:** oturumdan `role`/`sinif`/`ders_list` çıkar; istemciye güvenme.
+- **OKULU TAŞIMA (kiracılık):** her isteğe `school` (okul slug'ı) koy — hem HTTP
+  gövdesine hem hab/2 çerçevesine. Servis okul uydurmaz, env'den okul seçmez;
+  okulsuz istek `school_required` ile reddedilir (bkz. §0.3).
 - **Kaynak yükleme/indeksleme tetikleme:** öğretmen kaynak yükleyince (course-notes) ingest
   + embed + index pipeline'ını çağır (bu repo'nun `src/ingest`+`src/embed`+`src/index`);
-  chunk meta'ya `{sinif, ders}` yaz (kasa izolasyonu için ZORUNLU).
+  chunk meta'ya `{school, sinif, ders}` yaz (kasa izolasyonu + kiracılık için ZORUNLU;
+  okulsuz satır hiçbir okura görünmez — §0.3).
 - **Kalıcılık:** kalıcı Qdrant + incremental reindex (şu an in-memory; üretimde kalıcı).
 - **Rate limit / DoS / maliyet tavanı** (RES-003 §7).
 - **Citation → PDF görüntüleyici** (frontend): `pages`/`span_ids` → sayfa+highlight.
@@ -207,8 +249,11 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
 - **Atıf tıklanınca ACL tekrar kontrol** (RES-003 §3): citation'a tıklayan kullanıcının
   o kaynağa erişimi hâlâ var mı (role değişmiş olabilir).
 - **Maliyet:** her çağrı `cost_usd` döner; backend `costlog`/telemetriye yazabilir.
-- **Servis girişi** (QUIC api-read) ve kalıcı store bu repodaki `compose.yaml`/`Containerfile`
-  ile Faz 1 sonrası eklenecek — şu an Generator/Summarizer kütüphane olarak hazır.
+- **Servis girişi:** HTTP servisi bu repoda VAR (`src/service/http_app.py` +
+  `compose.yaml` + `Containerfile` + systemd unit + CI deploy); backend onu
+  ÇAĞIRMAZ — gerçek entegrasyon QUIC/`hab/2` köprüsüdür ve taşıması henüz
+  yazılmadı (§0.3 sonu, BL-010). Yani `rag.chat` bugüne dek uçtan uca
+  servis edilmedi; HTTP yüzeyi yerel koşum/ölçüm içindir.
 - Kesin Python arayüzü: `src/generate/Generator.answer(query, history=, top_n=, ...)` →
   `GroundedAnswer`; `src/summarize/Summarizer.summarize(units, scope_label=)` →
   `GroundedSummary`; `src/guard/RoleContext` + `can_access`; `src/retrieve/HybridRetriever(meta=)`.

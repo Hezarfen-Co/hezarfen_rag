@@ -9,7 +9,7 @@ import os
 import unittest
 from unittest import mock
 
-from src.providers.deepseek import DeepSeek, DEFAULT_BASE, DEFAULT_MODEL
+from src.providers.llm import LLMClient, LLMConfigError, DEFAULT_BASE, DEFAULT_MODEL
 from src.pricing import Usage, cost_usd, resolve
 
 
@@ -24,7 +24,7 @@ def _clean_env(**over):
 class DefaultsTests(unittest.TestCase):
     def test_defaults_are_deepseek(self):
         with _clean_env():
-            c = DeepSeek()
+            c = LLMClient()
         self.assertEqual(c.base_url, DEFAULT_BASE)
         self.assertEqual(c.model, DEFAULT_MODEL)
         self.assertIsNone(c._api_key)
@@ -33,16 +33,17 @@ class DefaultsTests(unittest.TestCase):
     def test_empty_env_counts_as_unset(self):
         """`.env` boş satır bırakıyor (LLM_MODEL=) — bu 'ayarlanmadı' demektir."""
         with _clean_env(LLM_MODEL="   ", LLM_BASE_URL=""):
-            c = DeepSeek()
+            c = LLMClient()
         self.assertEqual(c.model, DEFAULT_MODEL)
         self.assertEqual(c.base_url, DEFAULT_BASE)
 
 
 class EnvOverrideTests(unittest.TestCase):
-    def test_env_switches_provider(self):
+    def test_env_base_url_model_and_key_reach_client(self):
+        """Temiz kesimden sonra sağlayıcı SEÇİMİ yalnız LLM_* adlarıyla yapılır."""
         with _clean_env(LLM_BASE_URL="https://integrate.api.nvidia.com/v1/",
                         LLM_MODEL="moonshotai/kimi-k3", LLM_API_KEY="nv-key"):
-            c = DeepSeek()
+            c = LLMClient()
         self.assertEqual(c.base_url, "https://integrate.api.nvidia.com/v1")  # sondaki / atılır
         self.assertEqual(c.model, "moonshotai/kimi-k3")
         self.assertEqual(c._api_key, "nv-key")
@@ -50,21 +51,31 @@ class EnvOverrideTests(unittest.TestCase):
     def test_explicit_args_beat_env(self):
         with _clean_env(LLM_BASE_URL="https://env/v1", LLM_MODEL="env-model",
                         LLM_API_KEY="env-key"):
-            c = DeepSeek(model="arg-model", base_url="https://arg/v1", api_key="arg-key")
+            c = LLMClient(model="arg-model", base_url="https://arg/v1", api_key="arg-key")
         self.assertEqual((c.model, c.base_url, c._api_key),
                          ("arg-model", "https://arg/v1", "arg-key"))
 
-    def test_key_lookup_order(self):
-        with _clean_env(DEEPSEEK_API_KEY="ds", NVIDIA_API_KEY="nv"):
-            self.assertEqual(DeepSeek()._api_key, "ds")       # DEEPSEEK önce
-        with _clean_env(NVIDIA_API_KEY="nv"):
-            self.assertEqual(DeepSeek()._api_key, "nv")       # yalnız NVIDIA varsa o
-        with _clean_env(LLM_API_KEY="llm", DEEPSEEK_API_KEY="ds"):
-            self.assertEqual(DeepSeek()._api_key, "llm")      # LLM_API_KEY en üstte
+    def test_retired_key_names_refuse(self):
+        """Kaldırılan sağlayıcı adları YOK SAYILMAZ — yapılandırma reddedilir.
+
+        Sessiz bir geri düşüş, adı değişmemiş bir operatörü kendi ayar
+        dosyasının artık okunmadığını fark ettirmez (filo ad sözleşmesi)."""
+        for eski in ("DEEPSEEK_API_KEY", "NVIDIA_API_KEY"):
+            with _clean_env(**{eski: "k"}):
+                with self.assertRaises(LLMConfigError) as cm:
+                    LLMClient()
+                mesaj = str(cm.exception)
+                self.assertIn(eski, mesaj)              # suçlu ADI söylenir
+                self.assertIn("LLM_API_KEY", mesaj)     # yerine geçen ad söylenir
+        # Yeni ad DOLU olsa bile eski ad ortamda duruyorsa reddedilir: yarım
+        # kalmış bir kurulum sessizce çalışmaya devam etmemeli.
+        with _clean_env(LLM_API_KEY="yeni", DEEPSEEK_API_KEY="eski"):
+            with self.assertRaises(LLMConfigError):
+                LLMClient()
 
     def test_missing_key_raises_only_on_chat(self):
         with _clean_env():
-            c = DeepSeek()                                    # import/ctor patlamaz
+            c = LLMClient()                                    # import/ctor patlamaz
             with self.assertRaises(RuntimeError):
                 c.chat("merhaba")                             # ağa ÇIKMADAN patlar
 
@@ -74,30 +85,30 @@ class ExtraBodyTests(unittest.TestCase):
 
     def test_env_extra_parsed(self):
         with _clean_env(LLM_EXTRA_JSON='{"reasoning_effort": "none"}'):
-            c = DeepSeek()
+            c = LLMClient()
         self.assertEqual(c.extra, {"reasoning_effort": "none"})
 
     def test_nested_extra_parsed(self):
         payload = '{"chat_template_kwargs": {"thinking": false}}'
         with _clean_env(LLM_EXTRA_JSON=payload):
-            c = DeepSeek()
+            c = LLMClient()
         self.assertEqual(c.extra, {"chat_template_kwargs": {"thinking": False}})
 
     def test_broken_json_warns_and_is_ignored(self):
         with _clean_env(LLM_EXTRA_JSON="{bozuk"):
             with self.assertWarns(UserWarning):
-                c = DeepSeek()
+                c = LLMClient()
         self.assertEqual(c.extra, {})
 
     def test_non_object_json_warns_and_is_ignored(self):
         with _clean_env(LLM_EXTRA_JSON='["liste"]'):
             with self.assertWarns(UserWarning):
-                c = DeepSeek()
+                c = LLMClient()
         self.assertEqual(c.extra, {})
 
     def test_ctor_extra_beats_env(self):
         with _clean_env(LLM_EXTRA_JSON='{"a": 1}'):
-            c = DeepSeek(extra={"b": 2})
+            c = LLMClient(extra={"b": 2})
         self.assertEqual(c.extra, {"b": 2})
 
     def test_per_call_extra_wins_over_provider_extra(self):
@@ -121,8 +132,8 @@ class ExtraBodyTests(unittest.TestCase):
             return _Resp()
 
         with _clean_env(LLM_EXTRA_JSON='{"reasoning_effort": "none", "temperature": 9}',
-                        DEEPSEEK_API_KEY="k"):
-            c = DeepSeek()
+                        LLM_API_KEY="k"):
+            c = LLMClient()
             with mock.patch("urllib.request.urlopen", _fake_urlopen):
                 r = c.chat("soru", extra={"temperature": 0.0})
         self.assertEqual(r.text, "ok")

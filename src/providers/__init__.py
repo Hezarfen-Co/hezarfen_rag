@@ -1,4 +1,4 @@
-"""LLM sağlayıcıları. Şu an: DeepSeek. Arayüz: .chat(prompt) -> ChatResult(text, usage)."""
-from .deepseek import DeepSeek, ChatResult
+"""LLM sağlayıcıları. Şu an: LLMClient. Arayüz: .chat(prompt) -> ChatResult(text, usage)."""
+from .llm import LLMClient, ChatResult
 
-__all__ = ["DeepSeek", "ChatResult"]
+__all__ = ["LLMClient", "ChatResult"]

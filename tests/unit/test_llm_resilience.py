@@ -1,6 +1,6 @@
 """#78 (EXP-010/OPS-06) — LLM hata yolları: retry + backoff + devre kesici.
 
-ÖLÇÜLEN DURUM: `providers/deepseek.py` tek `urlopen` ile çağırıyordu,
+ÖLÇÜLEN DURUM: `providers/llm.py` tek `urlopen` ile çağırıyordu,
 retry/backoff YOK, `timeout=120.0`. `RagService.chat` istisnayı yakalamıyordu;
 stub 429 ile ölçüldü → **HTTP 500, gövde "Internal Server Error"** (reason yok,
 request_id yok). Backend ise `abstained/reason` sözleşmesine göre yazılmış ve
@@ -12,7 +12,7 @@ Gerçek hayat kanıtı (EXP-009): DeepSeek/NVIDIA uçlarında **%92 HTTP 429** v
 import unittest
 import urllib.error
 
-from src.providers.deepseek import DEFAULT_TIMEOUT, _is_retryable
+from src.providers.llm import DEFAULT_TIMEOUT, _is_retryable
 from src.providers.resilience import (BREAKER_THRESHOLD, CircuitBreaker,
                                       LlmUnavailable, backoff_delay,
                                       call_with_retry)

@@ -29,8 +29,14 @@
   `build_canonical` (194 sayfa) 31,0 s, VRAM tepe 2.627 MB.
 - **`tesseract` yok** → OCR yolu (Faz 0.8) bu makinede sınanamaz.
 - **`.env` DÜZELTİLDİ:** anahtar adları `DEEP_SEEK_API_KEY ` (fazla `_` + sonda boşluk) ve
-  `NVİDİA_APİ_KEY` (Türkçe `İ`) idi → kod **hiçbirini okuyamıyordu**. Artık
-  `DEEPSEEK_API_KEY` + `NVIDIA_API_KEY` + `LLM_BASE_URL/LLM_MODEL/LLM_API_KEY/LLM_EXTRA_JSON`.
+  `NVİDİA_APİ_KEY` (Türkçe `İ`) idi → kod **hiçbirini okuyamıyordu**. O gün
+  `DEEPSEEK_API_KEY` + `NVIDIA_API_KEY` adları eklendi.
+  **2026-09-17 GÜNCELLEMESİ — TEMİZ KESİM:** sağlayıcı adı taşıyan bu iki ad
+  KALDIRILDI. Tek ad `LLM_API_KEY`; eski adlardan biri ORTAMDA bulunursa
+  LLM istemcisi ve servis açılışı AÇIKÇA REDDEDER (`providers/llm.py::
+  reject_retired_env`) — sessiz geri düşüş yok. Modül de sağlayıcı-nötr adla
+  yeniden adlandırıldı: `src/providers/deepseek.py` → `src/providers/llm.py`
+  (`DeepSeek` sınıfı → `LLMClient`).
   Yedek: oturum scratchpad'inde `.env.bak-20260910`.
 
 **EXP-009 — üretici LLM aday karşılaştırması** (rapor: `docs/reports/EXP-009-uretici-llm-karsilastirma.md`,
@@ -68,7 +74,8 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
   `tests/evaluation/results/` re-baseline'lar; ölçümler Obsidian `deney-sonuclari.md`+`Maliyet.md`.
 - **Agentic + optimizasyon:** `.claude/agents/` (Opus+Sonnet) + `docs/ORCHESTRATION.md`+`OPTIMIZATION.md`
   + `reports/RES-001/002/003` (kuzey-yıldızı ürün mimarisi). Sürekli-optimizasyon loop'u aktif.
-- **DEEPSEEK_API_KEY** `.env`'de (doğrulandı). **Bekleyen (Kadir):** golden v1.1 onayı + kriz-hattı no'su.
+- **`LLM_API_KEY`** `.env`'de (doğrulandı; eski `DEEPSEEK_API_KEY`/`NVIDIA_API_KEY`
+  adları 2026-09-17'de kaldırıldı — varsa servis REDDEDER). **Bekleyen (Kadir):** golden v1.1 onayı + kriz-hattı no'su.
 - **Çok-dersli kasa izolasyonu DOĞRULANDI** (EXP-002, 2026-09-06): 4 kitap birleşik indeks, ders+sınıf boyutu **0/800 sızıntı** (129 yabancı chunk filtresiz gelirdi), erişim-denemesi 4/4 fail-closed.
 - **Faz 0.8 OCR + özet-PDF TAMAM** (EXP-003, 2026-09-06, commit 5d03c07): OCR fallback (Tesseract-tur, opsiyonel, zarif degradasyon), Türkçe doğruluk kanıtlı; özet-PDF uçtan uca (build_canonical→resolve_scope→summarize, detaylı+atıflı).
 - **Faz 5 Multimodal VLM captioning çekirdek TAMAM** (EXP-004, #23, commit d6fb062+a4ea060): sağlayıcı-bağımsız captioner + `build_canonical(vlm=True)`. **DeepSeek API'nin vision modeli var (`deepseek-v4-flash-vision-exp`) → mevcut key yeter.** Canlı kanıt (görsel-sanatlar portre/etkinlik). Backlog: tam-korpus batch, figür-başı granülerlik.
@@ -84,25 +91,43 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
 - **Değiştirilemez kısıt:** tek branch (`main`), commit'lerde AI izi yok (yazar=Kadir); rol SUNUCU-tarafı türetilir (istemciye güvenilmez); pass-bias/over-correction yasak; benchmark/mimari/bulgular kilidi (Kadir onayı). org `Hezarfen-Co`.
 
 ## 3. Çalıştırma ve Doğrulama
-- **Ortam:** `.venv` (proje-yerel), GPU torch cu124 (RTX 4060, cuda doğrulandı). Modeller: BGE-M3 (embed) + BGE-reranker-v2-m3 (rerank), GPU. `DEEPSEEK_API_KEY` `.env`'de.
-- **Testler:** `python -m pytest -q` → **419 unit + integration + e2e yeşil**. Değerlendirme: `python -m src.eval.runner` (golden set'e karşı; `GOLDEN_PATH` ile override).
-- **Servis girişi:** henüz kütüphane (Generator/Summarizer import edilir); QUIC/HTTP endpoint + kalıcı Qdrant Faz-1-sonrası (bkz. `docs/API-CONTRACT.md`). Kök `../compose.yaml`'da `rag` servisi henüz YOK.
+- **Ortam:** `.venv` (proje-yerel), GPU torch cu124 (RTX 4060, cuda doğrulandı). Modeller: BGE-M3 (embed) + BGE-reranker-v2-m3 (rerank), GPU. `LLM_API_KEY` `.env`'de.
+- **Testler (2026-09-17):** `python -m pytest tests/unit -q` → **1278 passed, 34 skipped**
+  (CI kapısı bu süittir; integration/e2e korpus + model ister ve kendi kendine atlar).
+  Değerlendirme: `python -m src.eval.runner` (golden set'e karşı; `GOLDEN_PATH` ile override).
+- **Servis girişi (2026-09-17 durumu):** HTTP servisi VAR — `src/service/http_app.py`
+  (FastAPI; `/rag/chat`, `/rag/summarize`, `/rag/questions`, `/health`, `/ready`),
+  `compose.yaml` + `Containerfile` + `deploy/hezarfen_rag_compose.service` +
+  `.github/workflows/main.yml` (elle tetiklenen VPS deploy). Backend bu HTTP'yi
+  ÇAĞIRMAZ; gerçek entegrasyon QUIC `hab/2` köprüsüdür ve **taşıması henüz
+  yazılmadı** (BL-010) → `rag.chat` uçtan uca HİÇ servis edilmedi.
+  Kalıcı Qdrant hâlâ yok (in-memory indeks; #75/RISK-01).
 
 ## 4. Mimari Özet
 - **Mevcut (uygulandı, `src/`):** ingest/canonical/chunk → embed (BGE-M3 GPU) → index (Qdrant embedded + BM25) → hibrit RRF retrieval + **kasa izolasyonu** → rerank (BGE-reranker) → generate (kaynak-sınırlı + `[N]` atıf + fail-closed) → guard (zararlı + injection + rol + LLM-sınıflandırıcı). Ayrıca: summarize (kanıtlı özet, RAPTOR-benzeri), memory (history-rewrite), context (lost-in-middle + budget), cache (Response/Embedding), eval (DeepEval + DeepSeek-hakem), pricing/costlog.
 - **Doğrulanmış kaynak (RAG için hazır girdi):** `course-notes` — öğretmen (kursu yönetebilen) yükler, **kursa kayıtlı öğrenci okur**, dosya ekli (PDF dahil, `FILES_PATH` volume). Backend: `hezarfen_backend/src/web/course_notes.rs`, `src/domain/course_note{,_file}.rs`. Frontend: `hezarfen_frontend/src/api/course-notes/*`.
-- **Entegrasyon deseni (PLANLANAN / DOĞRULANMADI):** Çelebi chatbot'u gibi backend'in QUIC "hab/1" köprüsüne dial-in edip bir capability (ör. `rag.reply`) register etmesi olası (bkz. `hezarfen_backend/src/ai/registry`). Bu bir varsayımdır; repoda kanıt YOK. Endpoint girdi/çıktı sözleşmesi: `docs/API-CONTRACT.md`.
+- **Entegrasyon (2026-09-17 durumu — artık varsayım değil):** backend QUIC
+  **`hab/2`** sunucusudur, AI servisleri dial eder. Bu depodaki tel biçimi
+  `src/bridge/contract.py` (anahtar adları testle sabitli), transport-BAĞIMSIZ
+  dağıtıcı `src/bridge/dispatch.py` (okul zorunlu + cevapta eko; `asker_role` →
+  `role`; `rag.chat`/`chat.reply`), çerçeve kur/çöz `src/bridge/client.py`.
+  **Eksik olan tek parça QUIC taşımasıdır** — yani `rag.chat` uçtan uca bugüne
+  dek HİÇ servis edilmedi (BL-010). Girdi/çıktı sözleşmesi + kiracılık:
+  `docs/API-CONTRACT.md` §0.3, `docs/BACKEND-INTEGRATION.md` §4/§4.1.
 
 ```mermaid
 flowchart LR
   T[Öğretmen] -->|course-note yükle| BE[(backend course-notes + FILES_PATH)]
   BE -. korpus .-> RAG[hezarfen_rag - PLANLANAN]
   RAG -. index/embed/retrieve .-> RAG
-  S[Öğrenci] -->|soru| FE[frontend] --> BR[backend QUIC hab/1] --> RAG --> BR --> FE --> S
+  S[Öğrenci] -->|soru| FE[frontend] --> BR[backend QUIC hab/2] --> RAG --> BR --> FE --> S
   classDef todo stroke-dasharray: 5 5;
   class RAG todo;
 ```
-> Diyagram NİYETİ gösterir; `RAG` kutusu ve kesikli oklar henüz **uygulanmadı**.
+> Diyagram NİYETİ gösterir. 2026-09-17 durumu: `RAG` kutusu VAR (HTTP servisi +
+  boru hattı + transport-bağımsız `hab/2` dağıtıcısı); kesikli oklar hâlâ
+  çizilmemiştir çünkü **köprünün QUIC taşıması yazılmadı** — `rag.chat` uçtan uca
+  servis edilmedi.
 
 ## 5. Teknik Kararlar
 - **D1** — RAG kaynağı sıfırdan yükleme alanı GEREKMEZ: `course-notes` (öğretmen→kayıtlı-öğrenci, dosya ekli) doğal korpustur. **kabul edildi** (backend/frontend main'de doğrulandı 2026-08-16). ⚠️ **Çelişki düzeltmesi:** bu oturumun erken RAG cevabı "böyle bir alan yok" idi; o cevap course-notes eklenmeden önceki duruma aitti ve **artık geçersiz** — doğrulanmış gerçek: alan VAR.
@@ -120,7 +145,9 @@ flowchart LR
 ## 7. Görev Kuyruğu (Kadir yönüne bağlı)
 - **TASK-GOLDEN-APPROVE** — P1 — golden v1.1 (200 item) Kadir onayı → üretim ölçümü kilidi açılır. dep: Kadir. **BLOCKED**.
 - **TASK-CRISIS-LINE** — P1 — self-harm guardrail mesajına kriz-hattı no'su. dep: Kadir. **BLOCKED**.
-- **TASK-RAG-SERVICE** — P2 — QUIC/HTTP endpoint + kalıcı Qdrant (sözleşme: `docs/API-CONTRACT.md`). dep: D3 kararı. **TODO**.
+- **TASK-RAG-SERVICE** — P2 — HTTP servisi + `hab/2` dağıtıcısı TAMAM (2026-09-17);
+  kalan: **QUIC taşıması** (`bridge/client.py` ağı) + kalıcı Qdrant
+  (sözleşme: `docs/API-CONTRACT.md` §0.3). **TODO (kısmi)**.
 - **TASK-RAG-SCALE** — P3 — Faz 2 RAPTOR ölçek + çok-dersli korpus + özet-PDF/OCR (Faz 0.8). dep: Kadir yönü. **TODO**.
 - **TASK-REARCH** — P4 — derin yeniden-mimari (EB-KOS/layout/kalibrasyon) — "optimizasyon fazı", Kadir'e ayrıldı. **DEFERRED**.
 
@@ -152,3 +179,72 @@ flowchart LR
 - **Bekleyen (Kadir):** golden v1.1 onayı + kriz-hattı no'su.
 - **Kadir'in yön menüsü:** (a) iki bekleyeni çöz → üretim ölçümü; (b) servis endpoint'i + kalıcı store (D3 kararı); (c) çok-dersli/RAPTOR ölçek; (d) özet-PDF/OCR (Faz 0.8); (e) derin yeniden-mimari fazı; (f) loop'u sürdür.
 - **Yeni sohbetin ilk kesin adımı:** bu dosyayı oku; non-blocked optimizasyon bitti — Kadir §10 menüsünden yön verene dek yeni büyük iş başlatma (churn yasak). Küçük doğrulama/ölçüm serbest.
+
+## 11. Kiracılık + kapasite + veri sahipliği (2026-09-17)
+
+### 11.1 Kiracılık (okul) — istek taşır, env seçmez
+
+`b2ba173` ile landi: korpus anahtarı `(okul, sınıf, ders)`, zorunlu yazma sahibi,
+tam-eşitlik okuma süzgeci, cevap-cache anahtarına okul, istek-taşınan okul ve
+transport-bağımsız `hab/2` dağıtıcısı (okul çerçevede zorunlu, cevapta eko).
+Sözleşme tablosu: `docs/API-CONTRACT.md` §0.3 + `docs/BACKEND-INTEGRATION.md`
+§4.1. Süit: **1278 yeşil / 34 skip**.
+
+### 11.2 Kapasite — bellek sürücüleri + VERDICT (uygulanmadı; karar kullanıcının)
+
+Bellek sürücüleri (yerel/GPU yolunun bugünkü hâli):
+
+| sürücü | yer | ölçü |
+|---|---|---|
+| BGE-M3 gömme (yerel) | `src/embed/embedder.py:117-122` | indirme ~2,2 GB; GPU VRAM tepe 2.627 MB (ölçüldü) |
+| BGE-reranker-v2-m3 (yerel) | `src/rerank/reranker.py:62-116` | indirme ~1,0 GB; 40 aday GPU 1,90 s / CPU **95,9 s** |
+| torch çalışma zamanı | `Containerfile:47-52`; import `src/service/http_app.py:442` (`cuda_status`) | CPU tekerleği import RSS **395 MB** (bu makinede ölçüldü) |
+| korpus başına indeks | `src/index/dense.py`, `src/index/lexical.py`, `src/retrieve/sparse.py` | **+529 MB / 10k chunk** (EXP-010 OPS-09, `docs/reports/EXP-010-urun-hazirlik-denetimi.md:114`) |
+| korpus sayısı çarpanı | `src/service/multi.py:49-51` (`RAG_MAX_CORPORA` valfi) | RSS korpus sayısıyla lineer (#75) |
+| disk | `compose.yaml:41` + unit notu | ~4,5 GB model indirmesi + ~2 GB imaj |
+
+**Reranker'ın API modu VAR** (gömmelerdeki gibi): `src/rerank/provider.py:75-96`
+(`ApiReranker`, Cohere/Jina uyumlu `results[].index`+`relevance_score`), seçim
+`RAG_RERANK_PROVIDER=api`. `calibrated_scores=False` olduğu için açılışta
+`check_abstain_compatibility` REDDEDER → `RAG_ALLOW_UNCALIBRATED_ABSTAIN=1`
+(ya da `RAG_ABSTAIN_SCORE=0`) gereklidir.
+
+**VERDICT: EVET** — API gömme + API rerank ile rag 7,6 GiB'e **sığar**. Yerel
+modeller hiç import edilmez (ikisi de `_load()` içinde tembel); ama `cuda_status`
+yüzünden torch yine import edilir (~0,4 GB). Ölçülen taban: ~0,1 GB web
+bağımlılıkları + 0,53 GB/10k chunk → tek 10-biyoloji korpusu ≈ **1,1 GB**,
+3× 10k-chunk korpus ≈ **2,6 GB**. Anahtar kapasite kaldıraçları:
+`RAG_MAX_CORPORA` (yüklenen korpus tavanı) ve `RAG_CACHE_PATH` (boş = kapalı).
+
+Bu yolu açan env anahtarları (hepsi `.env.example`'da belgeli):
+
+```
+RAG_EMBED_PROVIDER=api            RAG_EMBED_API_BASE=<OpenAI-uyumlu /v1>
+                                  RAG_EMBED_MODEL=<model id>
+                                  RAG_EMBED_API_KEY=<anahtar>   # ya da RAG_EMBED_API_KEY_ENV=<ad>
+RAG_RERANK_PROVIDER=api           RAG_RERANK_API_URL=<ör. https://api.cohere.com/v2/rerank>
+                                  RAG_RERANK_MODEL=<model id>
+                                  RAG_RERANK_API_KEY=<anahtar>  # ya da RAG_RERANK_API_KEY_ENV=<ad>
+RAG_ALLOW_UNCALIBRATED_ABSTAIN=1  # (ya da RAG_ABSTAIN_SCORE=0)
+RAG_MAX_CORPORA=2                 # bellek valfi (#75)
+```
+
+Önerilen (UYGULANMADI) tavan: compose servisine `mem_limit: 2g` (podman-compose
+1.6 bu anahtarı kabul ediyor — yerel `config` rendıyla doğrulandı) + CI'daki
+kapasite eşiğinin 12.000 MB'tan ~2.048 MB'a çekilmesi. **Dürüst uyarılar:** (1)
+API gömme BGE-M3'ün SPARSE ayağını keser → ölçülmüş kalite sayıları geçersiz
+(`src/embed/provider.py:10-27`); (2) rerank API skorları çekimserlik eşiği için
+kalibre değildir; (3) sunucu bu servise ek olarak backend+postgres+frontend+chatbot
+koşar — 7,6 GiB'in hepsi rag'e ait değildir.
+
+### 11.3 Veri sahipliği — türev store'lar (standing rule)
+
+- Qdrant (embedded, in-memory: `src/index/dense.py:39`) + SQLite cevap cache
+  (`src/cache/base.py:110`, `RAG_CACHE_PATH` boşken KAPALI) **türevdir**: backend
+  içeriğinden kurulur, silinmesi yalnız yeniden indeksleme maliyeti getirir.
+  Kalıcı/tek-kopya veri YOKTUR.
+- Uygulama veritabanına erişim YOKTUR. 2026-09-17'de arandı, üç desenin üçü de
+  **SIFIR sonuç**: (1) bir Postgres DBAPI/SQLAlchemy Python sürücüsü adı,
+  (2) `postgres` DSN şeması (`postgres` + `://`), (3) DSN taşıyan bir ortam
+  değişkeni adı. Yani bu depo hiçbir koşulda uygulama DB'sine bağlanmaz;
+  Qdrant/SQLite yalnız yerel türev store'lardır.

@@ -112,6 +112,28 @@ için `{"files": [{"id", "doc_id"}, ...]}` döner (`id` = isteğin `RagFile.id`'
 backend `course_note_file.rag_doc_id`'yi bu eşleşmeden doldurur. Bu depodaki
 DTO karşılıkları: `bridge/contract.py` `RagScopePair`/`RagIndexReply`.
 
+## 4.1 Okul kapsamı (kiracılık) — telde ZORUNLU, cevapta EKO
+
+Backend'in kendi kuralı (`src/ai/protocol.rs` → *School scoping*): filodaki her
+AI servisi BÜTÜN okullara paylaşılan TEK servistir, bu yüzden okul el sıkışmada
+(env/config) sabitlenemez — *"a service pinned to one school would have to be
+run once per customer"*; *"there is no default and no fallback"*.
+
+Bu depodaki uygulama (ayrıntılı tablo: `API-CONTRACT.md` §0.3):
+
+| tel öğesi | kural | kod |
+|---|---|---|
+| `Request.school` | ZORUNLU. Yoksa çerçeve `malformed` — akış DÜŞER, cevap yazılmaz (geri yazılacak bir okul yok) | `bridge/contract.py::BridgeRequest.from_wire` |
+| geçersiz slug | tipli `invalid_school` reddi (okulun VARLIĞI backend'in kararıdır; servis okul listesi icat etmez) | `bridge/dispatch.py::Dispatcher.dispatch` |
+| `Response.school` | HER cevapta (ok/err) isteğin okulu AYNEN eko edilir | `bridge/contract.py::BridgeResponse` |
+| istek gövdesi | okul servis çağrısına konur; korpus anahtarı `(okul, sınıf, ders)`tir; okulsuz istek `school_required` | `service/registry.py::resolve`, `service/multi.py` |
+| okuma/yazma | okul-scoped ya da hiç: damgasız satır erişilemez, sahipsiz yazma hata, aramalar tam eşitlikle süzülür | `guard/tenant.py`, `index/*`, `retrieve/*` |
+| cevap cache | anahtara `school` girer (iki okul hit paylaşamaz) | `cache/response_cache.py` |
+
+**Durum:** dağıtıcı transport-bağımsız hazır ve testli; QUIC taşıması
+(`bridge/client.py`'ın ağ kısmı) henüz yazılmadı → `rag.chat` uçtan uca HİÇ
+servis edilmedi (BL-010).
+
 ## 5. Bu tarafta yapılanlar (bu depoda)
 
 | paket / dosya | ne |

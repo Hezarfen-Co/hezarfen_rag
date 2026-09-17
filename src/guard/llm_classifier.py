@@ -105,9 +105,9 @@ def _degraded_scan(query: str) -> GuardVerdict:
 class LLMSafetyClassifier:
     """DeepSeek ile semantik güvenlik sınıflandırması. classify(query) -> GuardVerdict."""
 
-    def __init__(self, deepseek=None, *, module: str = "guard", cost_recorder=None):
-        from ..providers.deepseek import DeepSeek
-        self.deepseek = deepseek if deepseek is not None else DeepSeek()
+    def __init__(self, llm=None, *, module: str = "guard", cost_recorder=None):
+        from ..providers.llm import LLMClient
+        self.llm = llm if llm is not None else LLMClient()
         self.module = module
         from .. import costlog
         self._record = cost_recorder if cost_recorder is not None else costlog.record
@@ -115,7 +115,7 @@ class LLMSafetyClassifier:
         # (chat() RuntimeError → except → allow). Sessiz kalmasın — bir kez UYAR:
         # 2. güvenlik katmanı (semantik zararlı/injection) devre dışı demektir.
         global _warned_no_key
-        if not getattr(self.deepseek, "_api_key", None) and not _warned_no_key:
+        if not getattr(self.llm, "_api_key", None) and not _warned_no_key:
             import warnings
             warnings.warn("LLMSafetyClassifier: LLM API anahtarı yok → 2. güvenlik "
                           "katmanı (semantik zararlı/prompt-injection) DEVRE DIŞI "
@@ -126,7 +126,7 @@ class LLMSafetyClassifier:
         if not query or not query.strip():
             return GuardVerdict(action="allow", category="", message="", score=0.0)
         try:
-            r = self.deepseek.chat(
+            r = self.llm.chat(
                 f"SORU: {query}", system=_SYSTEM, temperature=0.0, max_tokens=120,
                 extra={"response_format": {"type": "json_object"}})
             data = json.loads(r.text)

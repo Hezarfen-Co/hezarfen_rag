@@ -1,22 +1,32 @@
-"""OpenAI-uyumlu /chat/completions LLM sağlayıcı (varsayılan: DeepSeek).
+"""OpenAI-uyumlu /chat/completions LLM sağlayıcı — SAĞLAYICI-BAĞIMSIZ.
 
 Amaç: metin üret + TOKEN KULLANIMINI döndür ki maliyet hesaplanabilsin.
-API anahtarı env `DEEPSEEK_API_KEY`'den okunur; anahtar OLMADAN da import edilir
+API anahtarı env `LLM_API_KEY`'den okunur; anahtar OLMADAN da import edilir
 (offline test için). Gerçek çağrı yalnız `.chat()` çağrılınca yapılır.
 
 Dönen: ChatResult(text, usage: pricing.Usage, model, raw). Maliyet için:
     from src.pricing import cost_usd
-    r = DeepSeek().chat("Özetle: ...")
+    r = LLMClient().chat("Özetle: ...")
     usd = cost_usd(r.model, r.usage)
 
 ## Sağlayıcı değiştirme (KOD DEĞİŞMEZ) — EXP-009
-`mimari.md §0.1`: DeepSeek-V4-Flash "kanıtlanmış varsayılan" DEĞİL, **ADAY**.
+`mimari.md §0.1`: üretici LLM "kanıtlanmış varsayılan" DEĞİL, **ADAY**.
 Aday karşılaştırması yapabilmek için uç nokta/model/anahtar **env'den** gelir:
 
     LLM_BASE_URL   OpenAI-uyumlu taban (ör. https://integrate.api.nvidia.com/v1)
     LLM_MODEL      model id (ör. moonshotai/kimi-k3)
-    LLM_API_KEY    o sağlayıcının anahtarı (yoksa DEEPSEEK_API_KEY/NVIDIA_API_KEY)
+    LLM_API_KEY    o sağlayıcının anahtarı
     LLM_EXTRA_JSON her istek gövdesine eklenecek JSON (sağlayıcıya özgü parametre)
+
+## TEMİZ KESİM — eski sağlayıcı adları YOK (2026-09-17)
+
+Filo ad sözleşmesi (kullanıcı, 2026-09-17): bir kavramın TEK adı olur. LLM
+anahtarı `LLM_API_KEY`'dir; `DEEPSEEK_API_KEY` / `NVIDIA_API_KEY` gibi
+sağlayıcıya bağlı adlar KALDIRILDI. "Eski ad da çalışsın" diye bir geri düşüş
+bırakmak "hangi ad kazandı" sorusunu kodun içine taşırdı — onun yerine eski bir
+ad ORTAMDA GÖRÜLÜRSE yapılandırma AÇIKÇA REDDEDİLİR (`reject_retired_env`):
+sessizce yeni ada düşen bir kurulum, adı değişmemiş bir operatörü fark
+ettirmez (aynı desen: hezarfen_zeka `ESKI_LLM_ADLARI`).
 
 `LLM_EXTRA_JSON` NEDEN var (ampirik, 2026-09-10): reasoning modelleri
 `max_tokens` bütçesinin tamamını düşünmeye harcayıp **boş içerik** döndürüyor
@@ -40,16 +50,36 @@ from .resilience import (CircuitBreaker, RETRYABLE_STATUS,
 DEFAULT_BASE = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"   # API model id — pricing.MODEL_ALIASES ile fiyata eşlenir
 
-# Anahtar arama sırası. `.env`'de anahtar adı Türkçe `İ` / fazla `_` / sonda
-# boşlukla yazılmış olabiliyor (bu makinede öyleydi) — o durumda `.env` DÜZELTİLİR;
-# burada yalnız meşru ad varyantları denenir, unicode tahmini YAPILMAZ.
-_KEY_ENV_NAMES = ("LLM_API_KEY", "DEEPSEEK_API_KEY", "NVIDIA_API_KEY")
+#: Anahtarın TEK adı — sağlayıcı adı taşıyan bir yedek YOKTUR.
+LLM_API_KEY_ENV = "LLM_API_KEY"
+
+#: KALDIRILAN adlar. Dolu bulunurlarsa yapılandırma reddedilir: yarım kalan bir
+#: adı sessizce yok saymak, operatörün kendi ayar dosyasının artık okunmadığını
+#: fark etmemesi demek olurdu.
+RETIRED_ENV_NAMES: tuple[str, ...] = ("DEEPSEEK_API_KEY", "NVIDIA_API_KEY")
+
+
+class LLMConfigError(RuntimeError):
+    """Yapılandırma hatası (kaldırılmış ad / eksik zorunlu değer)."""
 
 
 def _env(name: str) -> str | None:
     """Env değeri; BOŞ string = ayarlanmamış (`.env` boş satır bırakabiliyor)."""
     val = os.environ.get(name)
     return val.strip() if val and val.strip() else None
+
+
+def reject_retired_env() -> None:
+    """Kaldırılmış LLM adları ORTAMDA varsa reddet (değer yazdırmadan).
+
+    Çağrı noktaları: `LLMClient.__init__` (her kurulum yolu) + servis açılışı.
+    """
+    eski = [ad for ad in RETIRED_ENV_NAMES if _env(ad)]
+    if eski:
+        raise LLMConfigError(
+            "şu adlar artık DESTEKLENMİYOR: " + ", ".join(eski)
+            + ". Yeni adlar: LLM_API_KEY, LLM_BASE_URL, LLM_MODEL. "
+            "Eski adı `.env`den/ortamdan silin — yok sayılmaz, açıkça reddedilir.")
 
 
 def _env_extra() -> dict:
@@ -98,7 +128,7 @@ def _is_retryable(exc) -> tuple[bool, int | None]:
     return False, None
 
 
-class DeepSeek:
+class LLMClient:
     """OpenAI-uyumlu sohbet istemcisi.
 
     Öncelik: açık argüman > env (`LLM_*`) > DeepSeek varsayılanı. Böylece mevcut
@@ -110,6 +140,7 @@ class DeepSeek:
                  api_key: str | None = None, timeout: float | None = None,
                  extra: dict | None = None, breaker=None,
                  max_attempts: int | None = None):
+        reject_retired_env()          # kaldırılmış ad: burada DURUR, sessizce yok saymaz
         self.model = model or _env("LLM_MODEL") or DEFAULT_MODEL
         base = base_url or _env("LLM_BASE_URL") or DEFAULT_BASE
         self.base_url = base.rstrip("/")
@@ -124,16 +155,15 @@ class DeepSeek:
         # Her isteğe eklenecek sağlayıcıya-özgü gövde parametreleri.
         self.extra = dict(extra) if extra is not None else _env_extra()
         # Anahtar burada ZORUNLU değil — yalnız chat() sırasında gerekir.
-        self._api_key = api_key or next((v for v in map(_env, _KEY_ENV_NAMES) if v), None)
+        self._api_key = api_key or _env(LLM_API_KEY_ENV)
 
     def chat(self, prompt: str, system: str | None = None, *,
              temperature: float = 0.2, max_tokens: int | None = None,
              extra: dict | None = None) -> ChatResult:
         if not self._api_key:
-            raise RuntimeError(
-                "API anahtarı yok. `.env`'e DEEPSEEK_API_KEY (ya da başka bir "
-                "sağlayıcı için LLM_API_KEY/NVIDIA_API_KEY) yaz ya da "
-                "DeepSeek(api_key=...) ile ver.")
+            raise LLMConfigError(
+                f"API anahtarı yok. `.env`'e {LLM_API_KEY_ENV} yaz ya da "
+                "LLMClient(api_key=...) ile ver.")
         messages = []
         if system:
             messages.append({"role": "system", "content": system})

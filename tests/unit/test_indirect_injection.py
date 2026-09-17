@@ -118,7 +118,7 @@ class _Provider:
 
     def chat(self, prompt, system=None, **kw):
         from src.pricing import Usage
-        from src.providers.deepseek import ChatResult
+        from src.providers.llm import ChatResult
         self.last_prompt = prompt
         return ChatResult(text=self.payload, usage=Usage(input_cache_miss=10, output=5),
                           model="stub")
@@ -170,8 +170,8 @@ class QuestionOutputGuardTests(unittest.TestCase):
     def test_source_is_fenced_in_the_actual_call(self):
         g = self._gen('{"sorular":[]}')
         g.generate([_Unit(text=f"metin {_INJECTION}")], n=1)
-        self.assertIn("<<<KAYNAK METNİ>>>", g.deepseek.last_prompt)
-        self.assertIn("yalnızca veri", g.deepseek.last_prompt)
+        self.assertIn("<<<KAYNAK METNİ>>>", g.llm.last_prompt)
+        self.assertIn("yalnızca veri", g.llm.last_prompt)
 
 
 class SummaryOutputGuardTests(unittest.TestCase):

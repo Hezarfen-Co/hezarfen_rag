@@ -1,9 +1,9 @@
-"""eval/judge testleri (AUDIT EXP-007 #29 — judge 0-test'ti). Ağ yok: sahte DeepSeek.
+"""eval/judge testleri (AUDIT EXP-007 #29 — judge 0-test'ti). Ağ yok: sahte LLMClient.
 DeepEval import'u gerektiğinden yoksa atla."""
 import unittest
 
 try:
-    from src.eval.judge import DeepSeekJudgeModel
+    from src.eval.judge import LLMJudgeModel
     _HAS_DEEPEVAL = True
 except Exception:
     _HAS_DEEPEVAL = False
@@ -30,7 +30,7 @@ class _Schema:
 @unittest.skipUnless(_HAS_DEEPEVAL, "deepeval yok")
 class JudgeModelTests(unittest.TestCase):
     def _model(self):
-        m = DeepSeekJudgeModel()
+        m = LLMJudgeModel()
         m._ds = _FakeDS()
         return m
 

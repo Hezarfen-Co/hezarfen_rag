@@ -7,13 +7,13 @@ kurulan çekirdek. **Sıfır harici bağımlılık** (yalnız Python stdlib).
 | Dosya | İş |
 |---|---|
 | `pricing.py` | DeepSeek fiyat tablosu (tek yer) + `cost_usd(model, usage, tier)` |
-| `providers/deepseek.py` | DeepSeek LLM çağrısı (OpenAI-uyumlu); metin + **token usage** döndürür |
+| `providers/llm.py` | LLM çağrısı — sağlayıcı-nötr, OpenAI-uyumlu; metin + **token usage** döndürür (`LLMClient`) |
 | `costlog.py` | run kaydı (`runs.jsonl`) + **Maliyet.md** otomatik render |
 | `_cost_template.py` | Maliyet.md profesyonel iskeleti (AUTO marker'lı) |
 
 ## Akış
 ```
-DeepSeek().chat(prompt) --> ChatResult(text, usage)
+LLMClient().chat(prompt) --> ChatResult(text, usage)
                                    │
         cost_usd(model, usage) ────┤
                                    ▼
@@ -24,11 +24,11 @@ DeepSeek().chat(prompt) --> ChatResult(text, usage)
 
 ## Kullanım
 ```python
-import os; os.environ["DEEPSEEK_API_KEY"] = "..."   # ya da setx ile kalıcı
-from src.providers import DeepSeek
+import os; os.environ["LLM_API_KEY"] = "..."   # tek ad (eski adlar kaldırıldı)
+from src.providers import LLMClient
 from src.costlog import record
 
-r = DeepSeek(model="deepseek-chat").chat("Şu metni 3 cümlede özetle:\n...")
+r = LLMClient(model="deepseek-chat").chat("Şu metni 3 cümlede özetle:\n...")
 record(module="ozet", model="deepseek-chat", usage=r.usage, items=1,
        quality={"faithfulness": 0.92},
        note="prompt v2: madde-madde iste → çıkış token %10 arttı")

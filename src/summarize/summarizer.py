@@ -26,7 +26,7 @@ from dataclasses import dataclass, field
 from .. import costlog
 from ..ingest.canonical import CanonicalUnit
 from ..pricing import Usage, cost_usd as pricing_cost_usd
-from ..providers.deepseek import DeepSeek
+from ..providers.llm import LLMClient
 from ..generate.citations import CITATION_RE, parse_citation_ns
 from .prompt import NO_CONTENT_SENTENCE, build_summary_prompt
 
@@ -92,9 +92,9 @@ class Summarizer:
     bunu aşarsa hiyerarşik (RAPTOR-benzeri) moda geçilir (bkz. `_summarize_hierarchical`).
     """
 
-    def __init__(self, deepseek=None, *, module: str = "ozet", cost_recorder=None,
+    def __init__(self, llm=None, *, module: str = "ozet", cost_recorder=None,
                  max_units_per_group: int = 12):
-        self.deepseek = deepseek if deepseek is not None else DeepSeek()
+        self.llm = llm if llm is not None else LLMClient()
         self.module = module
         # costlog.record varsayılan olarak GERÇEK deftere (Obsidian) yazar; testlerde
         # gerçek dosyayı kirletmemek için enjekte edilebilir (üretimde varsayılan kullanılır).
@@ -161,8 +161,8 @@ class Summarizer:
             source_lookup[i] = {"span_ids": [u.span_id], "pages": [u.page]}
 
         system, user = build_summary_prompt(blocks, scope_label)
-        result = self.deepseek.chat(user, system=system, temperature=temperature,
-                                    max_tokens=max_tokens)
+        result = self.llm.chat(user, system=system, temperature=temperature,
+                               max_tokens=max_tokens)
 
         # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır -> gerçek birime eşle
         # (kaynak yer bulma). Kaynak sayısını aşan [N] -> sessizce elenir (hayalet
@@ -208,8 +208,8 @@ class Summarizer:
             pages = sorted({p for c in gs.citations for p in c["pages"]})
             merge_lookup[i] = {"span_ids": span_ids, "pages": pages}
         system, user = build_summary_prompt(merge_blocks, scope_label)
-        result = self.deepseek.chat(user, system=system, temperature=temperature,
-                                    max_tokens=max_tokens)
+        result = self.llm.chat(user, system=system, temperature=temperature,
+                               max_tokens=max_tokens)
         # M2-3 (#55, EXP-010/ACC-01) -- KOSULARAK KANITLANMIS HATA:
         # burada `_parse_citation_ns(result.text)` CAGRILMIYORDU; `citations`
         # dogrudan `merge_lookup.items()`'tan, yani KANITI OLAN TUM ara-ozetlerden

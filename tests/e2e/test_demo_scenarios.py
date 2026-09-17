@@ -336,8 +336,8 @@ class GercekLlmTests(unittest.TestCase):
 
     @classmethod
     def setUpClass(cls):
-        from src.providers.deepseek import DeepSeek
-        cls.svc, cls.sinif, cls.ders = _servis(DeepSeek())
+        from src.providers.llm import LLMClient
+        cls.svc, cls.sinif, cls.ders = _servis(LLMClient())
         cls.rol = {"role": "student", "sinif": cls.sinif, "ders_list": [cls.ders]}
 
     def test_in_corpus_question_is_answered_with_citations(self):

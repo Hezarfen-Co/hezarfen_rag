@@ -29,7 +29,7 @@ from .. import costlog
 from ..guard import check_input, check_output
 from ..guard.tenant import TenantError, normalize_school
 from ..pricing import Usage, cost_usd as pricing_cost_usd
-from ..providers.deepseek import DeepSeek
+from ..providers.llm import LLMClient
 from ..rerank.pipeline import rerank_select
 from .citations import (CITATION_RE, parse_citation_ns, parse_citations,
                         strip_phantom)
@@ -300,7 +300,7 @@ def _role_cache_key(role_ctx) -> str:
 class Generator:
     """Kaynak-sınırlı üretim: retrieve → rerank → FAIL-CLOSED eşiği → grounded LLM → atıf eşleme."""
 
-    def __init__(self, retriever, reranker, chunks_by_id, span_meta, deepseek=None, *,
+    def __init__(self, retriever, reranker, chunks_by_id, span_meta, llm=None, *,
                  ders: str = "", abstain_score: float | None = None,
                  module: str = "chat",
                  cost_recorder=None, role_ctx=None, response_cache=None,
@@ -311,7 +311,7 @@ class Generator:
         self.reranker = reranker
         self.chunks_by_id = chunks_by_id
         self.span_meta = span_meta
-        self.deepseek = deepseek if deepseek is not None else DeepSeek()
+        self.llm = llm if llm is not None else LLMClient()
         self.ders = ders
         # PROVİZYONEL eşik — golden set (Faz 1.8) sonrası kalibre edilecek.
         self.abstain_score = (ABSTAIN_SCORE_DEFAULT if abstain_score is None
@@ -476,7 +476,7 @@ class Generator:
                 RuntimeWarning, stacklevel=2)
         if self.response_cache is not None and self.corpus_version:
             cache_kwargs = dict(query=q, role=_role_cache_key(eff_role),
-                                model=getattr(self.deepseek, "model", ""),
+                                model=getattr(self.llm, "model", ""),
                                 top_n=top_n, candidate_n=candidate_n, ders=self.ders,
                                 corpus_version=self.corpus_version,
                                 school=school or "",
@@ -547,8 +547,8 @@ class Generator:
                                     "doc_id": getattr(ctx, "doc_id", "")}
 
         system, user = build_grounded_prompt(q, numbered_sources)
-        result = self.deepseek.chat(user, system=system, temperature=temperature,
-                                    max_tokens=max_tokens)
+        result = self.llm.chat(user, system=system, temperature=temperature,
+                               max_tokens=max_tokens)
 
         # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
         # #57: kaynak sayısı VERİLİR → `[0,1]` gibi veri gösterimleri atıf sanılıp

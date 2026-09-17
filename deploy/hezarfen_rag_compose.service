@@ -13,7 +13,32 @@
 # KAPASİTE ÖN KOŞULU (ölçüldü): torch + BGE-M3 + reranker modelleri ~4,5 GB
 # disk ve çalışma anında birkaç GB RAM ister. GPU'suz bir makinede rerank
 # 95,9 s sürer ve ürün kapısı O-05 (p50 <= 6 s) GEÇİLMEZ — yani bu servis
-# GPU'suz bir sunucuda "çalışır" ama ürün olarak kullanılamaz.
+# GPU'suz bir sunucuda "çalışır" ama ürün olarak kullanılamaz. (Bellek
+# tavanı ölçümü ve API-embeddings/rerank seçeneği: PROJECT_STATE.md §11.)
+#
+# ORTAM İKİ KANALDAN GELİR — bu bir tercih değil, sağlayıcının sınırıdır:
+#   * operatörün ayar dosyası -> `EnvironmentFile=` (systemd dosyayı unit'in
+#     ORTAMINA koyar; compose interpolasyonu ORTAM DEĞİŞKENLERİNE bakar)
+#   * deploy sahipli stack.env (HEZARFEN_TAG) -> tek `--env-file`
+#
+# NEDEN: `podman compose --env-file A --env-file B` bu sağlayıcıda A'yı HİÇ
+# OKUMAZ. `--env-file` tek değerli bir argümandır (podman_compose.py:2941-2946)
+# ve yalnız SON dosya çözülür (:2559,
+# `dotenv_path = os.path.realpath(args.env_file)`). İki dosyalı eski çağrı
+# operatör dosyasını tamamen düşürüyordu. RAG'da bu bir "required variable ...
+# is missing" reddi DEĞİL, SESSİZ bir yanlış-korpus olarak görünürdü:
+# compose.yaml'daki `BOOK_PATH/SINIF/DERS` interpolasyonu cihaz varsayılanına
+# (10/biyoloji) düşer ve `environment:` aynı anahtarlarda `env_file:`ı ezdiği
+# için konteyner operatörün seçtiği kitabı HİÇ görmez. Docker Compose v2'nin
+# "sonraki dosya çakışan anahtarda kazanır" davranışı bu sağlayıcı için GEÇERLİ
+# DEĞİL. Ortam değişkeni --env-file değerlerini EZER (:2562), yani iki kanal
+# çakışmaz: operatörün değerleri ortamdan, HEZARFEN_TAG dosyadan gelir.
+#
+# SATIR BİÇİMİ: operatör dosyası düz `KEY=value` olmalı — systemd satır-içi
+# `#` yorumunu KORUR (değerin parçası olur; dotenv'un aksine). İnterpolasyona
+# giren anahtarlar (BOOK_PATH/SINIF/DERS/HEZARFEN_NET) bu yüzden yorumsuz
+# yazılır (.env.example'da öyleler). Konteynerin içindeki uygulama değerlerini
+# compose `env_file:` üzerinden alır (dotenv; yorumları soyar).
 #
 # Sadece ortam değişkeni değiştiğinde yeniden başlatma (ExecStart'ı yeniden
 # koşar, ortamı değişen konteynerı yeniden oluşturur):
@@ -28,11 +53,16 @@ Wants=network-online.target
 Type=oneshot
 RemainAfterExit=yes
 WorkingDirectory=%h/hezarfen_rag
-# Sonraki --env-file çakışan anahtarda kazanır: önce operatörün ayar dosyası,
-# sonra deploy sahipli stack.env (HEZARFEN_TAG).
-ExecStart=/usr/bin/podman compose --profile product --env-file %h/hezarfen_rag/hezarfen_rag.env --env-file %h/hezarfen_rag/stack.env up -d --no-build
-# -v yok: model cache ve maliyet defteri volume'ları stop'ta yaşamalı.
-ExecStop=/usr/bin/podman compose --profile product down
+# Operatörün ayar dosyası unit'in ORTAMINA girer (0600). Dosya yoksa unit
+# BAŞLAMAZ — sessiz bir varsayılana düşmez. Anahtarlar (LLM_API_KEY,
+# RAG_SERVICE_TOKEN, ...) yalnız bu dosyada yaşar; deploy onu yazmaz.
+EnvironmentFile=%h/hezarfen_rag/hezarfen_rag.env
+# Tek --env-file: yalnız deploy sahipli stack.env (HEZARFEN_TAG).
+ExecStart=/usr/bin/podman compose --profile product --env-file %h/hezarfen_rag/stack.env up -d --no-build
+# ExecStop de tek dosya: compose.yaml'daki interpolasyonların hepsinin
+# varsayılanı var (`:-`), stack.env yoksa da `down` çalışır.
+# `-v` yok: model cache ve maliyet defteri volume'ları stop'ta yaşamalı.
+ExecStop=/usr/bin/podman compose --profile product --env-file %h/hezarfen_rag/stack.env down
 TimeoutStartSec=300
 
 [Install]

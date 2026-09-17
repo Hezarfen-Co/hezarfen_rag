@@ -39,7 +39,7 @@ class TemperatureTests(unittest.TestCase):
             context_max_tokens = 8000
             safety_classifier = None
             rewriter = None
-            deepseek = None
+            llm = None
 
             def answer(self, query, **kw):
                 seen.update(kw)

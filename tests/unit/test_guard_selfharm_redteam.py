@@ -142,7 +142,7 @@ class _BadJsonProvider:
 
     def chat(self, *a, **kw):
         from src.pricing import Usage
-        from src.providers.deepseek import ChatResult
+        from src.providers.llm import ChatResult
         # nemotron-3.5-lightning'in intihar sorusunda gerçekten döndürdüğü biçim
         return ChatResult(text='{" entity "', usage=Usage(), model="stub")
 

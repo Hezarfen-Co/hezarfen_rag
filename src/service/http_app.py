@@ -82,8 +82,9 @@ class ChatRequest(BaseModel):
     options: ChatOptions = Field(default_factory=ChatOptions)
     # KİRACI (tenancy): isteğin okulu. Üretimde bu alanı backend doldurur
     # (hab/2 çerçevesinin `school`'u — bkz. bridge/), HTTP yüzeyi ise backend'in
-    # ARKASINDA çalışır. Verilmezse yalnız paylaşılan müfredat görünür: hiçbir
-    # okulun içeriği okulsuz bir isteğe açılmaz (fail-closed, bkz. guard/tenant.py).
+    # ARKASINDA çalışır. OKULSUZ İSTEK REDDEDİLİR (`school_required`) ve okulsuz
+    # okur HİÇBİR satır görmez: paylaşılan/"public" bir boyut YOKTUR
+    # (fail-closed, bkz. guard/tenant.py + service/registry.resolve).
     school: str | None = Field(default=None, max_length=64)
 
 
@@ -731,6 +732,13 @@ def create_app_with_warmup():
     ısıtma thread'i başlatır ve model indirmeye kalkar.
     """
     import threading
+    # TEMIZ KESIM (filo ad sozlesmesi): kaldirilmis saglayici anahtar adlari
+    # (DEEPSEEK_API_KEY / NVIDIA_API_KEY) ortamda duruyorsa servis AYAGA
+    # KALKMAZ. Sessizce yeni ada dusmek, adi degismemis bir operatoru kendi
+    # ayar dosyasinin artik okunmadigini fark ettirmez. (LLM istemcisi de ayni
+    # kapidan gecer; buradaki cagri onu konteyner acilisinda GORUNUR kilar.)
+    from ..providers.llm import reject_retired_env
+    reject_retired_env()
     book = os.environ.get("BOOK_PATH", "data/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")

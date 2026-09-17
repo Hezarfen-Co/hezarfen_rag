@@ -101,24 +101,25 @@ class VLMCaptioner:
         return self.caption_with_usage(image_png, **kw).text
 
 
-# DeepSeek API'nin görsel modeli (canlı /models ile doğrulandı 2026-09-06); mevcut
-# DEEPSEEK_API_KEY ile çalışır — ayrı vision key gerekmez.
-DEEPSEEK_VISION_MODEL = "deepseek-v4-flash-vision-exp"
-DEEPSEEK_BASE = "https://api.deepseek.com"
+# VLM_* verilmediğinde kullanılan görsel model (DeepSeek API, canlı /models ile
+# doğrulandı 2026-09-06); LLM_API_KEY ile çalışır — ayrı vision anahtarı yoktur.
+FALLBACK_VISION_MODEL = "deepseek-v4-flash-vision-exp"
+FALLBACK_VISION_BASE = "https://api.deepseek.com"
 
 
 def default_captioner(timeout: float = 120.0) -> VLMCaptioner:
     """Sağlayıcı seçimi: VLM_* env verilmişse ONU kullanır (herhangi OpenAI-uyumlu
-    VLM); yoksa mevcut `DEEPSEEK_API_KEY` ile DeepSeek-VL'e düşer (yeni key yok).
-    İkisi de yoksa kullanılamaz captioner (zarif degradasyon)."""
+    VLM); yoksa mevcut `LLM_API_KEY` ile varsayılan görsel modele düşer (ayrı
+    vision anahtarı yoktur). İkisi de yoksa kullanılamaz captioner (zarif
+    degradasyon)."""
     if os.environ.get("VLM_API_KEY") and os.environ.get("VLM_BASE_URL") and os.environ.get("VLM_MODEL"):
         return VLMCaptioner(timeout=timeout)
-    dk = os.environ.get("DEEPSEEK_API_KEY")
+    dk = os.environ.get("LLM_API_KEY")
     if dk:
         # reasoning_effort=none: exp-VL yoğun diyagramda tüm bütçeyi reasoning'e
         # harcayıp boş içerik döndürüyordu (EXP-006); reasoning'i kapatınca içerik
         # doğrudan gelir + boşa token yok (ampirik doğrulandı, vl_fix_probe).
-        return VLMCaptioner(model=DEEPSEEK_VISION_MODEL, base_url=DEEPSEEK_BASE,
+        return VLMCaptioner(model=FALLBACK_VISION_MODEL, base_url=FALLBACK_VISION_BASE,
                             api_key=dk, timeout=timeout,
                             extra_params={"reasoning_effort": "none"})
     return VLMCaptioner()

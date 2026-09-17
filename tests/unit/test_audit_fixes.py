@@ -51,7 +51,7 @@ class NewlineBypassTests(unittest.TestCase):
 class ClassifierRobustParseTests(unittest.TestCase):
     """#S6: {"safe":"false"} / {"safe":0} gibi string/int biçimler de refuse olmalı."""
     def _clf(self, payload):
-        return LLMSafetyClassifier(deepseek=_StubDS(payload), cost_recorder=lambda **k: None)
+        return LLMSafetyClassifier(llm=_StubDS(payload), cost_recorder=lambda **k: None)
     def test_string_false_refused(self):
         v = self._clf('{"safe":"false","category":"violence_weapons"}').classify("x")
         self.assertEqual(v.action, "refuse")
@@ -135,7 +135,7 @@ class SummarizerRecursionTests(unittest.TestCase):
                               retrieval_disi=False) for i in range(1, n + 1)]
     def test_recursive_merge_multi_level(self):
         ds = self._DS()
-        s = Summarizer(deepseek=ds, cost_recorder=lambda **k: None, max_units_per_group=2)
+        s = Summarizer(llm=ds, cost_recorder=lambda **k: None, max_units_per_group=2)
         res = s.summarize(self._units(5), scope_label="x")     # 5 birim, grup=2 → 3 leaf → çok seviye
         self.assertTrue(res.hierarchical)
         self.assertEqual(res.n_source_units, 5)
@@ -163,7 +163,7 @@ class SummarizerLlmNoContentTests(unittest.TestCase):
                           kaynak_turu="ders_kitabi", page=1, bbox=(0, 0, 1, 1), block_no=0,
                           kind="paragraph", text="Bir metin.", page_visual="mixed",
                           retrieval_disi=False)
-        s = Summarizer(deepseek=_StubDS(NO_CONTENT_SENTENCE), cost_recorder=lambda **k: None)
+        s = Summarizer(llm=_StubDS(NO_CONTENT_SENTENCE), cost_recorder=lambda **k: None)
         res = s.summarize([u], scope_label="x")
         self.assertTrue(res.abstained)
         self.assertEqual(res.reason, "llm_no_content")
@@ -271,7 +271,7 @@ class GuardHardeningTests(unittest.TestCase):
         C._warned_no_key = False
         with warnings.catch_warnings(record=True) as w:
             warnings.simplefilter("always")
-            C.LLMSafetyClassifier(deepseek=_NoKeyDS(), cost_recorder=lambda **k: None)
+            C.LLMSafetyClassifier(llm=_NoKeyDS(), cost_recorder=lambda **k: None)
         self.assertTrue(any("DEVRE DIŞI" in str(x.message) for x in w))
 
     def test_prompt_fences_source_text(self):

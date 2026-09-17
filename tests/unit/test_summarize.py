@@ -12,7 +12,7 @@ from __future__ import annotations
 import unittest
 from dataclasses import dataclass, field
 
-from src.providers.deepseek import ChatResult
+from src.providers.llm import ChatResult
 from src.pricing import Usage
 from src.summarize import GroundedSummary, Summarizer, build_summary_prompt, resolve_scope
 from src.summarize.prompt import NO_CONTENT_SENTENCE
@@ -40,7 +40,7 @@ class _Doc:
     units: list = field(default_factory=list)
 
 
-class _StubDeepSeek:
+class _StubLLMClient:
     """chat() sabit metin (veya çağrı-sırasına göre metin listesi) + sabit Usage
     döndürür; çağrı sayacı + gönderilen promptları tutar."""
 
@@ -167,7 +167,7 @@ class BuildSummaryPromptTests(unittest.TestCase):
 
 class FailClosedTests(unittest.TestCase):
     def test_empty_units_abstains_without_calling_llm(self):
-        ds = _StubDeepSeek()
+        ds = _StubLLMClient()
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder)
 
         result = summarizer.summarize([])
@@ -189,7 +189,7 @@ class FailClosedTests(unittest.TestCase):
             calls.append(kwargs)
             return {"cost_usd": 0.0}
 
-        ds = _StubDeepSeek()
+        ds = _StubLLMClient()
         summarizer = Summarizer(ds, cost_recorder=spy)
         summarizer.summarize([])
 
@@ -204,7 +204,7 @@ class SinglePassTests(unittest.TestCase):
             _Unit("s1", 10, "DNA çift sarmal yapıya sahiptir."),
             _Unit("s2", 25, "Fotosentez ışığa bağlı bir tepkimedir."),
         ]
-        ds = _StubDeepSeek(text="DNA hakkında özet [1]. Fotosentez hakkında özet [2].")
+        ds = _StubLLMClient(text="DNA hakkında özet [1]. Fotosentez hakkında özet [2].")
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=12)
 
         result = summarizer.summarize(units, scope_label="s.10-25")
@@ -229,7 +229,7 @@ class SinglePassTests(unittest.TestCase):
 
     def test_phantom_citation_silently_dropped_without_crashing(self):
         units = [_Unit("s1", 1, "metin1")]
-        ds = _StubDeepSeek(text="Bir özet [1] ve hayali [9].")
+        ds = _StubLLMClient(text="Bir özet [1] ve hayali [9].")
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder)
 
         result = summarizer.summarize(units)
@@ -241,7 +241,7 @@ class SinglePassTests(unittest.TestCase):
     def test_comma_and_adjacent_bracket_citation_forms_parsed(self):
         units = [_Unit("s1", 1, "m1"), _Unit("s2", 2, "m2"),
                  _Unit("s3", 3, "m3"), _Unit("s4", 4, "m4")]
-        ds = _StubDeepSeek(text="X [1, 2]. Y [3][4].")
+        ds = _StubLLMClient(text="X [1, 2]. Y [3][4].")
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder)
 
         result = summarizer.summarize(units)
@@ -260,7 +260,7 @@ class HierarchicalTests(unittest.TestCase):
             "Grup3 özeti [1].",        # group 3: unit s5
             "Nihai özet [1][2][3].",   # birleştirme: 3 ara-özete atıf
         ]
-        ds = _StubDeepSeek(texts=texts)
+        ds = _StubLLMClient(texts=texts)
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=2)
 
         result = summarizer.summarize(units)
@@ -304,7 +304,7 @@ class HierarchicalTests(unittest.TestCase):
             "Grup2 özeti [1].",      # grup2 (s3): atıflı -> KALIR
             "Nihai özet [2].",       # birleştirme
         ]
-        ds = _StubDeepSeek(texts=texts)
+        ds = _StubLLMClient(texts=texts)
         summarizer = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=2)
 
         result = summarizer.summarize(units)
@@ -330,7 +330,7 @@ class HierarchicalCitationFabricationTests(unittest.TestCase):
     """
 
     def _kos(self, texts, units, mupg=3):
-        ds = _StubDeepSeek(texts=texts)
+        ds = _StubLLMClient(texts=texts)
         s = Summarizer(ds, cost_recorder=_noop_recorder, max_units_per_group=mupg)
         return s.summarize(units), ds
 
@@ -419,7 +419,7 @@ class CostRecorderSpyTests(unittest.TestCase):
             return {"cost_usd": 0.0}
 
         units = [_Unit("s1", 1, "m1")]
-        ds = _StubDeepSeek(text="Özet [1].")
+        ds = _StubLLMClient(text="Özet [1].")
         summarizer = Summarizer(ds, module="ozet", cost_recorder=spy)
 
         result = summarizer.summarize(units)
@@ -441,7 +441,7 @@ class CostRecorderSpyTests(unittest.TestCase):
 
         units = _five_units()
         texts = ["Grup1 [1][2].", "Grup2 [1].", "Grup3 [1].", "Nihai [1][2][3]."]
-        ds = _StubDeepSeek(texts=texts)
+        ds = _StubLLMClient(texts=texts)
         summarizer = Summarizer(ds, module="ozet", cost_recorder=spy, max_units_per_group=2)
 
         summarizer.summarize(units)

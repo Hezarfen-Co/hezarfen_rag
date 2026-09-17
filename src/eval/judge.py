@@ -6,7 +6,7 @@ skorlar döndü) — bu yüzden CUSTOM fallback YOK, DeepEval doğrudan kullanı
 (bkz. src/eval/runner.py raporunda "DeepEval kullanıldı" notu).
 
 DeepEval'in DeepSeek'i hakem model olarak kullanabilmesi için `DeepEvalBaseLLM`
-arayüzü sarmalanır (`DeepSeekJudgeModel`) — her gerçek `.chat()` çağrısının
+arayüzü sarmalanır (`LLMJudgeModel`) — her gerçek `.chat()` çağrısının
 token kullanımı (`Usage`) yan-kanal olarak biriktirilir (`self.usages`) çünkü
 DeepEval'in `generate()` sözleşmesi yalnız `str` döner, usage taşımaz; bu
 yan-kanal olmadan gerçek maliyet costlog'a yazılamaz.
@@ -39,7 +39,7 @@ from deepeval.metrics import FaithfulnessMetric, AnswerRelevancyMetric, GEval  #
 from deepeval.test_case import LLMTestCase, LLMTestCaseParams    # noqa: E402
 
 from ..pricing import Usage, cost_usd as pricing_cost_usd       # noqa: E402
-from ..providers.deepseek import DeepSeek                       # noqa: E402
+from ..providers.llm import LLMClient                          # noqa: E402
 
 DEEPEVAL_AVAILABLE = True   # bu modül import edilebildiyse kurulum başarılı demektir
 JUDGE_METHOD = "deepeval"
@@ -67,7 +67,7 @@ def _parse_schema(text: str, schema):
     return schema(**veri)
 
 
-class DeepSeekJudgeModel(DeepEvalBaseLLM):
+class LLMJudgeModel(DeepEvalBaseLLM):
     """DeepEval `DeepEvalBaseLLM` sarmalayıcısı — hakem = gerçek DeepSeek API.
 
     `generate()` DeepEval sözleşmesi gereği `schema` verilmediğinde `str`,
@@ -79,10 +79,10 @@ class DeepSeekJudgeModel(DeepEvalBaseLLM):
     def __init__(self, model_name: str = "deepseek-chat", temperature: float = 0.0):
         self.temperature = temperature
         self.usages: list[Usage] = []
-        self._ds = DeepSeek(model=model_name)
+        self._ds = LLMClient(model=model_name)
         super().__init__(model_name)
 
-    def load_model(self) -> "DeepSeek":
+    def load_model(self) -> "LLMClient":
         return self._ds
 
     def generate(self, prompt: str, schema=None) -> str:
@@ -183,7 +183,7 @@ class LlmJudge:
     ürettirmemek maliyet tasarrufu sağlar)."""
 
     def __init__(self, model_name: str = "deepseek-chat", threshold: float = 0.5):
-        self.judge_model = DeepSeekJudgeModel(model_name)
+        self.judge_model = LLMJudgeModel(model_name)
         self.faithfulness_metric = FaithfulnessMetric(
             threshold=threshold, model=self.judge_model, include_reason=True,
             async_mode=False,

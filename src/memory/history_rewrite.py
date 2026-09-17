@@ -33,10 +33,10 @@ def _fmt_history(history, max_turns: int) -> str:
 class HistoryAwareRewriter:
     """rewrite(history, query) -> bağımsız sorgu. Geçmiş yoksa sorgu aynen döner."""
 
-    def __init__(self, deepseek=None, *, module: str = "rewrite", cost_recorder=None,
+    def __init__(self, llm=None, *, module: str = "rewrite", cost_recorder=None,
                  max_turns: int = 6, max_tokens: int = 120):
-        from ..providers.deepseek import DeepSeek
-        self.deepseek = deepseek if deepseek is not None else DeepSeek()
+        from ..providers.llm import LLMClient
+        self.llm = llm if llm is not None else LLMClient()
         self.module = module
         self.max_turns = max_turns
         self.max_tokens = max_tokens
@@ -48,8 +48,8 @@ class HistoryAwareRewriter:
             return query               # geçmiş yok → LLM çağrılmaz, sorgu aynen
         try:
             user = f"KONUŞMA GEÇMİŞİ:\n{_fmt_history(history, self.max_turns)}\n\nTAKİP SORUSU: {query}"
-            r = self.deepseek.chat(user, system=_SYSTEM, temperature=0.0,
-                                   max_tokens=self.max_tokens)
+            r = self.llm.chat(user, system=_SYSTEM, temperature=0.0,
+                              max_tokens=self.max_tokens)
             rewritten = (r.text or "").strip().strip('"').strip("'")
             if not rewritten:
                 return query           # boş çıktı → orijinali koru

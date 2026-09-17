@@ -37,7 +37,7 @@ record(module="ozet", model="deepseek-chat", usage=result.usage, items=10,
 ```
 Elle yeniden üretmek için: `python -m src.costlog render`.
 
-## 🏷️ Güncel fiyatlar (DeepSeek)
+## 🏷️ Güncel fiyatlar (LLMClient)
 <!-- AUTO:PRICING:START -->
 <!-- AUTO:PRICING:END -->
 

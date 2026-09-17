@@ -1,7 +1,7 @@
 """E2E (AUDIT EXP-007 #17) — tam zincir tek testte:
 ingest(sentetik kanonik) → chunk → embed(GERÇEK BGE-M3) → index(dense+BM25+sparse)
 → retrieve(hibrit+kasa izolasyonu) → rerank(GERÇEK BGE-reranker) → generate(STUB
-DeepSeek, API maliyeti/anahtarı YOK) → atıflı cevap; + kasa izolasyon; + özet.
+LLMClient, API maliyeti/anahtarı YOK) → atıflı cevap; + kasa izolasyon; + özet.
 
 Gerçek retrieval/rerank modelleri yüklenir (yavaş) ama LLM stub'lanır → deterministik,
 ücretsiz. Model yüklenemezse test atlanır (CI/ortam güvenliği)."""
@@ -33,7 +33,7 @@ def _units():
 class _StubChat:
     def __init__(self, text): self.text = text; self.model = "deepseek-chat"; \
         self.usage = Usage(input_cache_miss=50, output=20); self.latency_s = 0.0
-class _StubDeepSeek:
+class _StubLLMClient:
     """Kaynak [1]'e atıf yapan sabit cevap (üretim LLM'i yerine)."""
     def __init__(self, text): self._t = text; self.model = "deepseek-chat"
     def chat(self, prompt, system=None, **k): return _StubChat(self._t)
@@ -85,7 +85,7 @@ class PipelineE2ETests(unittest.TestCase):
         if role_ctx is None:
             role_ctx = RoleContext(role=Role.STUDENT, sinif="12", ders_list=["biyoloji"])
         return Generator(self.retr, self.reranker, self.by_id, self.span_meta,
-                         deepseek=_StubDeepSeek(stub_text), ders="biyoloji",
+                         llm=_StubLLMClient(stub_text), ders="biyoloji",
                          role_ctx=role_ctx, cost_recorder=lambda **k: None)
 
     def test_grounded_answer_end_to_end(self):
@@ -109,7 +109,7 @@ class PipelineE2ETests(unittest.TestCase):
         from src.summarize.summarizer import Summarizer
         units = resolve_scope(self.doc, pages=[10, 20])
         self.assertEqual(len(units), 2)
-        s = Summarizer(deepseek=_StubDeepSeek("Mitokondri enerji üretir [1]. Ribozom protein [2]."),
+        s = Summarizer(llm=_StubLLMClient("Mitokondri enerji üretir [1]. Ribozom protein [2]."),
                        cost_recorder=lambda **k: None)
         res = s.summarize(units, scope_label="Organeller")
         self.assertFalse(res.abstained)

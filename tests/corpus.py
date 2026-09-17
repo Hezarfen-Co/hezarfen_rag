@@ -68,9 +68,8 @@ def requires_objectives(fn=None):
 
 
 def requires_llm(fn=None):
-    """Gerçek LLM anahtarı gerekiyorsa."""
-    var = bool(os.environ.get("DEEPSEEK_API_KEY") or os.environ.get("LLM_API_KEY")
-               or os.environ.get("NVIDIA_API_KEY"))
+    """Gerçek LLM anahtarı gerekiyorsa (tek ad: LLM_API_KEY)."""
+    var = bool(os.environ.get("LLM_API_KEY"))
     dec = unittest.skipUnless(var, "LLM anahtarı yok")
     return dec if fn is None else dec(fn)
 

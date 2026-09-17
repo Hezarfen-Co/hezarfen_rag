@@ -1,4 +1,4 @@
-"""#5 Benzer/pratik soru üretimi testleri (hermetik: stub DeepSeek)."""
+"""#5 Benzer/pratik soru üretimi testleri (hermetik: stub LLMClient)."""
 import json
 import unittest
 
@@ -29,7 +29,7 @@ _OK = json.dumps({"sorular": [
 
 
 class QuestionGenTests(unittest.TestCase):
-    def _gen(self, text): return QuestionGenerator(deepseek=_StubDS(text),
+    def _gen(self, text): return QuestionGenerator(llm=_StubDS(text),
                                                    cost_recorder=lambda **k: None)
 
     def test_generates_grounded_questions(self):
@@ -43,7 +43,7 @@ class QuestionGenTests(unittest.TestCase):
 
     def test_empty_scope_abstains_no_llm(self):
         ds = _StubDS(_OK)
-        res = QuestionGenerator(deepseek=ds, cost_recorder=lambda **k: None).generate([], n=5)
+        res = QuestionGenerator(llm=ds, cost_recorder=lambda **k: None).generate([], n=5)
         self.assertTrue(res.abstained)
         self.assertEqual(res.reason, "empty_scope")
         self.assertEqual(res.cost_usd, 0.0)                 # LLM çağrılmadı
@@ -67,7 +67,7 @@ class QuestionGenTests(unittest.TestCase):
 
     def test_seed_makes_similar_prompt(self):
         ds = _StubDS(_OK)
-        QuestionGenerator(deepseek=ds, cost_recorder=lambda **k: None).generate(
+        QuestionGenerator(llm=ds, cost_recorder=lambda **k: None).generate(
             _units(2), seed_question="DNA'nın yapısı nedir?")
         self.assertIn("BENZER", ds.last_system)             # seed prompt'a girdi
 
