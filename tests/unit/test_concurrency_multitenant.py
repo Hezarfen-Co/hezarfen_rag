@@ -100,7 +100,7 @@ class ConcurrentServiceTests(unittest.TestCase):
 
         def ask(i):
             out = svc.chat({"query": f"soru {i}", "user": f"ogr{i}",
-                            "tenant": "okul-A",
+                            "school": "okul-a",
                             "role": {"role": "student", "sinif": "10",
                                      "ders_list": ["biyoloji"]}})
             assert out["text"], "bos cevap"

@@ -14,7 +14,6 @@ import sys
 import time
 
 from ..guard.roles import Role, RoleContext, can_access
-from ..guard.tenant import PUBLIC_SCHOOL
 from ..bridge.client import FakeReader
 from ..bridge.student import build_context
 from .scenario import build_scenario, write
@@ -22,13 +21,20 @@ from .scenario import build_scenario, write
 SENARYO = "outputs/ogrenci-senaryosu/lise-10-ogrenci1.json"
 CIKTI = "outputs/ogrenci-senaryosu/kosum-lise-10.json"
 
+#: Demo korpusunun OKULU. Paylaşılan/"public" bir korpus boyutu YOKTUR
+#: (bkz. guard/tenant.py): her korpusun bir okulu vardır, düzen de
+#: `data/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`tir. Demo kendi okulunu kurar
+#: (`demo/school.py::build_school(okul="demo")`).
+DEMO_OKUL = "demo"
+
 
 def _pipeline(sinif: str, ders: str):
     from ..service.http_app import build_service
-    kitap = os.path.join("data", "lise", sinif, ders, "kitap.pdf")
+    from ..service.multi import book_path
+    kitap = book_path(sinif, ders, school=DEMO_OKUL)
     if not os.path.isfile(kitap):
-        raise SystemExit(f"kitap yok: {kitap}")
-    return build_service(kitap, school=PUBLIC_SCHOOL, sinif=sinif, ders=ders)
+        raise SystemExit(f"kitap yok: {kitap} (düzen: data/<okul>/<kasa>/<sinif>/<ders>)")
+    return build_service(kitap, school=DEMO_OKUL, sinif=sinif, ders=ders)
 
 
 def main() -> None:
@@ -80,6 +86,8 @@ def main() -> None:
         if izin:
             t1 = time.time()
             cevap = servis.chat({"query": soru,
+                                 # KİRACI: istek okulu — okulsuz okur hiçbir satır görmez.
+                                 "school": DEMO_OKUL,
                                  "role": {"role": ctx.role.value, "sinif": ctx.sinif,
                                           "ders_list": ctx.ders_list},
                                  "options": {"top_n": 6, "candidate_n": 40}})

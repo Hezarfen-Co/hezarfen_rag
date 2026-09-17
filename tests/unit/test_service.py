@@ -134,6 +134,71 @@ class QuestionsTests(unittest.TestCase):
         self.assertEqual(out["items"], [])
 
 
+class BudgetWiringTests(unittest.TestCase):
+    """#B (#79) — maliyet tavanının KABLOLAMASI: anahtar OKULDUR.
+
+    Ölçülen hata: kapı `check(tenant=school)` ile okula bakıyor, kayıt ise
+    `record(tenant=req["tenant"])` ile ESKİ alana yazıyordu. İstemci `tenant`
+    göndermediği için okul sayacı hiç dolmuyor → kurum tavanı HİÇ
+    tetiklenmiyordu: "koruma" gibi okunan ölü kod, korumadan kötüdür. Özet ve
+    soru uçları da harcamayı hiç kaydetmiyordu. Bu testler tavanı GERÇEKTEN
+    doldurup reddi gözler."""
+
+    @staticmethod
+    def _ans(cost: float) -> GroundedAnswer:
+        return GroundedAnswer(text="Cevap [1].", citations=[], used_source_ids=[],
+                              abstained=False, reason="", cost_usd=cost)
+
+    @staticmethod
+    def _gate(**kw):
+        from src.budget import BudgetGate
+        return BudgetGate(**kw)
+
+    def test_school_cap_fires_and_is_per_school(self):
+        svc = RagService(_GenStub(self._ans(0.30)),
+                         budget=self._gate(user_daily_usd=0.0, tenant_monthly_usd=0.50))
+        req = {"query": "soru", "school": "okul-a"}
+        self.assertEqual(svc.chat(req)["reason"], "")                       # 1) 0,30
+        self.assertAlmostEqual(svc.budget.spent(tenant="okul-a"), 0.30)     # KAYIT okula yazıldı
+        self.assertEqual(svc.chat(req)["reason"], "")                       # 2) 0,60
+        red = svc.chat(req)                                                 # 3) tavan aşıldı
+        self.assertEqual(red["reason"], "budget_exceeded")
+        self.assertTrue(red["abstained"])
+        self.assertEqual(red["cost_usd"], 0.0)
+        self.assertEqual(red["citations"], [])
+        # Okul başına AYRI kova: B okulu A'nın harcamasından etkilenmez.
+        self.assertEqual(svc.chat({"query": "soru", "school": "okul-b"})["reason"], "")
+        self.assertAlmostEqual(svc.budget.spent(tenant="okul-b"), 0.30)
+
+    def test_legacy_tenant_field_cannot_bypass_the_school_cap(self):
+        """Eski `tenant` alanı tavanı AÇMAZ — anahtar okuldur."""
+        svc = RagService(_GenStub(self._ans(0.30)),
+                         budget=self._gate(user_daily_usd=0.0, tenant_monthly_usd=0.50))
+        svc.budget.record(0.60, tenant="okul-a")            # A okulu dolu
+        out = svc.chat({"query": "soru", "school": "okul-a", "tenant": "baska-okul"})
+        self.assertEqual(out["reason"], "budget_exceeded")
+
+    def test_summarize_and_questions_record_against_the_school(self):
+        """Özet/soru uçları da harcamayı OKUL kovasına yazar (yoksa tavan ölü)."""
+        res = GroundedSummary(text="Özet [1].", citations=[], scope_pages=[10], cost_usd=0.30)
+        qres = GeneratedQuestionSet(items=[GeneratedQuestion("s1", "c1", "kolay")],
+                                    span_ids=["d#10.0"], pages=[10], cost_usd=0.30)
+        svc = RagService(_GenStub(_ANS), doc=_doc(), summarizer=_SumStub(res),
+                         question_gen=_QGStub(qres), ders="biyoloji",
+                         budget=self._gate(user_daily_usd=0.0, tenant_monthly_usd=0.50))
+        req = {"school": "okul-a", "scope": {"pages": [10], "scope_label": "x"},
+               "role": {"role": "student", "sinif": "12", "ders_list": ["biyoloji"]}}
+        ozet = svc.summarize(req)
+        self.assertEqual(ozet["reason"], "")
+        self.assertAlmostEqual(svc.budget.spent(tenant="okul-a"), 0.30)     # ÖZET kaydedildi
+        soru = svc.generate_questions({**req, "n": 1})
+        self.assertEqual(soru["reason"], "")
+        self.assertAlmostEqual(svc.budget.spent(tenant="okul-a"), 0.60)     # SORULAR da
+        red = svc.summarize(req)                                            # tavan aşıldı
+        self.assertEqual(red["reason"], "budget_exceeded")
+        self.assertTrue(red["abstained"])
+
+
 class ScopePairTests(unittest.TestCase):
     """rag.chat çift kapsamı: eski `sinif`+`ders_list` yerine (sınıf, ders) ÇİFT
     listesi. Tek çift durumunda AYNI korpus kümesine çözülmeli; çok-çiftte

@@ -255,8 +255,8 @@ class MultiCorpusService:
         """Korpusu (gerekirse) kurar ve servisi döndürür.
 
         `school` ZORUNLUDUR (varsayılan okul yok): yanlış sahiple kurulan bir
-        korpus, bir okulun kitabını herkese açabilirdi. Paylaşılan müfredat
-        için açıkça `PUBLIC_SCHOOL` geçilir.
+        korpus, bir okulun kitabını herkese açabilirdi. Paylaşılan/"public"
+        boyut YOKTUR; her korpusun bir okulu vardır.
 
         `block=False`: kurulum ARKA PLANDA başlatılır ve hemen None döner.
 
@@ -341,8 +341,8 @@ class MultiCorpusService:
         """(service, reason). Yüklü değilse kurmayı DENER.
 
         Okul İSTEKTEN gelir (`req["school"]`); geçersizse `unknown_school`.
-        Okul yoksa yalnız paylaşılan müfredat yolları aday olur — hiçbir
-        okulun korpusu okulsuz bir isteğe açılmaz."""
+        Okul yoksa istek `school_required` ile REDDEDİLİR — hiçbir okulun
+        korpusu okulsuz bir isteğe açılmaz (paylaşılan/"public" boyut yoktur)."""
         try:
             okur = normalize_school(req.get("school"))
         except TenantError:

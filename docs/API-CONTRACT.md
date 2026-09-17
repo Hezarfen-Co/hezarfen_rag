@@ -193,6 +193,9 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
   sözleşmeye göre parse edemiyordu (OPS-06).
 - **`budget_exceeded`** (2026-09-12, #79) → kullanıcı/gün ya da kurum/ay USD
   tavanı doldu. Aynı gün/ay içinde tekrar denemek işe yaramaz.
+  **Kurum = OKUL'dur** (`RAG_TENANT_MONTHLY_USD`): sayaç okul anahtarına yazılır
+  ve okul başına ayrıdır (bir okulun harcaması başka okulun tavanını yemez).
+  Okulsuz istekte yalnız kullanıcı tavanı işler (bkz. §0.3).
 - **`scope_too_large`** (2026-09-12, #79) → istenen kapsam tek bir istekte
   yapılabilecek iş miktarını aşıyor (özet için birim ve tahmini LLM çağrısı
   tavanı). Ölçülen sömürü: `scope.pages=[1..187]` → **19 LLM çağrısı**.

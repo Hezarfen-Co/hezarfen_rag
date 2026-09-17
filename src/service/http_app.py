@@ -550,9 +550,9 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     """Gerçek pipeline'ı kurup RagService döndürür (ağır: PDF parse + BGE modelleri +
     indeks). main()/üretim için. corpus_version cache anahtarına girer (#30).
 
-    `school` ZORUNLUDUR ve varsayılanı yoktur: korpusun SAHİBİdir (paylaşılan
-    müfredat için `PUBLIC_SCHOOL`). Sahipsiz kurulan bir korpus, bir okulun
-    kitabını herkese açabilirdi (bkz. guard/tenant.py).
+    `school` ZORUNLUDUR ve varsayılanı yoktur: korpusun SAHİBİdir (okul slug'ı;
+    paylaşılan/"public" bir boyut YOKTUR). Sahipsiz kurulan bir korpus, bir
+    okulun kitabını herkese açabilirdi (bkz. guard/tenant.py).
 
     `include_parents`: parent chunk'lar `chunks_by_id`'ye girsin mi (yani
     `rerank_select` parent genisletmesi ETKIN olsun mu). None -> env varsayilani."""

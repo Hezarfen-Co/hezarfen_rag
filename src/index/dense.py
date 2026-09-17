@@ -49,8 +49,8 @@ class DenseIndex:
         ve `upsert()` bunlar olmadan çalışamaz (bkz. `delete` docstring'i).
 
         `school` ZORUNLUDUR ve varsayılanı YOKTUR (bkz. `guard/tenant.py`):
-        sahipsiz yazma bir hata, "public bir satır" değil. Paylaşılan müfredat
-        bile `PUBLIC_SCHOOL` ile açıkça sahiplenilir.
+        sahipsiz yazma bir hata, "paylaşılan/public bir satır" değil. Her
+        korpusun bir okulu vardır; okulsuz satır yazılamaz ve okunamaz.
         """
         from qdrant_client.models import Distance, VectorParams
         c = self._c()

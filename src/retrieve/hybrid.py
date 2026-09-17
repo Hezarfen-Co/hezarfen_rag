@@ -44,8 +44,9 @@ class HybridRetriever:
                  role_ctx=None, school=None):
         """Sorgu → RRF-birleştirilmiş (chunk_id, rrf_skoru) top_k. `role_ctx` verilirse
         KASA İZOLASYONU: yetkisiz sınıf/ders chunk'ları elenir (trim'den ÖNCE).
-        `school` = OKURUN okulu (istekten gelir): paylaşılan müfredat + o okulun
-        içeriği görünür, başka bir okulunki ASLA (bkz. guard/tenant.py).
+        `school` = OKURUN okulu (istekten gelir): yalnız o okulun içeriği
+        görünür, başka bir okulunki ve damgasız satırlar ASLA — paylaşılan/
+        "public" bir boyut yoktur (bkz. guard/tenant.py).
 
         FAIL-CLOSED: `role_ctx` verildi AMA `meta` yoksa → boş liste döner (sızıntıdansa
         hiç sonuç vermek yeğ; rol-filtresi istendiği hâlde uygulanamıyorsa açık bırakma).

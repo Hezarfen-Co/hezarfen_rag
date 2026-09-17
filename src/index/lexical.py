@@ -90,8 +90,8 @@ class BM25Index:
         `school` = okurun okulu; kapsam dışı satırlar ATILIR.
         DÜRÜST SINIR: skorlar tüm koleksiyonun IDF'iyle hesaplanır — yabancı
         okul satırları atıldıktan sonra IDF yeniden uydurulmaz. Tek korpus
-        örneği zaten tek okul taşır; bu süzgeç paylaşılan/kalıcı bir
-        koleksiyonun sınırıdır."""
+        örneği zaten tek okul taşır; bu süzgeç, birden çok okulun satırını
+        taşıyan (paylaşılan/kalıcı) bir koleksiyonun sınırıdır."""
         if not self._built:
             raise RuntimeError("önce build() çağır")
         if self._bm25 is None:                 # boş korpus build edildi → sonuç yok

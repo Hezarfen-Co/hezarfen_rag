@@ -492,7 +492,8 @@ class Generator:
 
         # KASA İZOLASYONU + KİRACILIK: role_ctx varsa retriever'a geçir
         # (yetkisiz sınıf/ders elenir, bkz. src/retrieve/hybrid.py); `school`
-        # her zaman geçir (paylaşılan müfredat + okurun kendi korpusu).
+        # her zaman geçir — okur okulunun satırları görünür, başka okulunki ASLA
+        # (paylaşılan/"public" bir boyut YOKTUR; bkz. guard/tenant.py).
         if eff_role is not None:
             hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=eff_role,
                                            school=school)

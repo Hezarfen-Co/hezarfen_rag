@@ -128,6 +128,21 @@ TENANT_TEXT = ("Bu istek bir okula bağlanamadı; kaynaklar açılamıyor. Lütf
                "tekrar dene ya da öğretmenine haber ver.")
 
 
+def _unknown_school(kind: str = "chat") -> dict:
+    """Geçersiz okul slug'ı — chat/özet/soru için AYNI tipli ret.
+
+    Kiracılık: okul ZORUNLU bir alandır; biçimi geçersizse istek işlenmez
+    (fail-closed). `unknown_school` API-CONTRACT'ta belgeli rettir."""
+    ortak = {"abstained": True, "reason": "unknown_school", "text": TENANT_TEXT,
+             "cost_usd": 0.0}
+    if kind == "chat":
+        return {**ortak, "citations": [], "used_source_ids": [],
+                "invalid_citations": [], "cache_hit": False}
+    if kind == "ozet":
+        return {**ortak, "citations": [], "scope_pages": [], "hierarchical": False}
+    return {**ortak, "items": [], "span_ids": [], "pages": []}
+
+
 def _budget_denied(karar, kind: str = "chat") -> dict:
     """Bütçe/kapsam reddi — API-CONTRACT uyumlu, TÜRKÇE mesajlı."""
     metin = SCOPE_TEXT if karar.reason == "scope_too_large" else BUDGET_TEXT
@@ -187,10 +202,11 @@ class RagService:
         self.summarizer = summarizer
         self.question_gen = question_gen
         self.ders = ders
-        # Bu servis örneğinin korpus SAHİBİ (kiracılık boyutu): paylaşılan
-        # müfredat için PUBLIC_SCHOOL, bir okulunki için o okulun slug'ı.
+        # Bu servis örneğinin korpus SAHİBİ (kiracılık boyutu): o okulun
+        # slug'ı; ZORUNLUDUR ve varsayılanı yoktur — paylaşılan/"public" bir
+        # boyut YOKTUR (bkz. guard/tenant.py).
         # Kayıt defteri anahtarına girer; istek başına okur okulu ise
-        # `chat()` içinde istekten okunur (bkz. guard/tenant.py).
+        # `chat()` içinde istekten okunur.
         self.school = school
 
     # ------------------------------------------------------------------ /rag/chat
@@ -205,16 +221,14 @@ class RagService:
         try:
             school = normalize_school(req.get("school"))
         except TenantError:
-            return {"text": TENANT_TEXT, "abstained": True,
-                    "reason": "unknown_school", "citations": [],
-                    "used_source_ids": [], "invalid_citations": [],
-                    "cost_usd": 0.0, "cache_hit": False}
+            return _unknown_school("chat")
         role_ctx = _role_ctx(req.get("role"), req.get("scope"))
-        # Maliyet tavanı KİRACI bazlıdır: `tenant` burada okuldur (okul yoksa
-        # eski `tenant` alanı). Bir okulun harcaması başka bir okulun tavanını
-        # yemesin diye sayaç anahtarı okula bağlanır.
-        karar = self.budget.check(user=req.get("user"),
-                                  tenant=school or req.get("tenant"))
+        # Maliyet tavanı KİRACI (okul) bazlıdır ve `check` ile `record` AYNI
+        # anahtarı kullanmak ZORUNDADIR. Ölçülen hata: kapı okula bakıyor,
+        # kayıt eski `tenant` alanına yazıyordu; istemci `tenant` GÖNDERMEDİĞİ
+        # için okul sayacı hiç dolmuyor ve tavan sessizce ölü kalıyordu
+        # ("koruma" gibi okunan bir kod, hiç tetiklenmiyordu).
+        karar = self.budget.check(user=req.get("user"), tenant=school)
         if not karar.allowed:
             return _budget_denied(karar, "chat")
         opts = req.get("options") or {}
@@ -242,7 +256,7 @@ class RagService:
         # Harcama GERÇEKLEŞTİ → sayaca yaz. Kapı bir sonraki istekte bakar;
         # harcamadan sonra bakmak tavanı anlamsız kılardı.
         self.budget.record(getattr(a, "cost_usd", 0.0) or 0.0,
-                           user=req.get("user"), tenant=req.get("tenant"))
+                           user=req.get("user"), tenant=school)
         trace.event("response", abstained=bool(a.abstained), reason=a.reason or "",
                     n_citations=len(a.citations),
                     n_sentences=getattr(a, "n_sentences", 0),
@@ -266,6 +280,11 @@ class RagService:
         if not pages and not span_ids:
             return {"text": "", "abstained": True, "reason": "empty_scope",
                     "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
+        # KİRACI: okul istekten gelir ve burada doğrulanır (chat ile aynı kural).
+        try:
+            school = normalize_school(req.get("school"))
+        except TenantError:
+            return _unknown_school("ozet")
         # ERİŞİM YENİDEN DOĞRULAMA (API-CONTRACT §4) — #42/#43: karar YALNIZ
         # sunucu gerçeğinden; rol yoksa fail-closed.
         denied = _scope_denied(self, scope, req.get("role"))
@@ -283,7 +302,10 @@ class RagService:
             max_units_per_group=getattr(self.summarizer, "max_units_per_group", 12))
         if not boyut.allowed:
             return _budget_denied(boyut, "ozet")
-        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        # #79: tavan KİRACI (okul) bazlıdır — `check` ve `record` AYNI anahtarı
+        # kullanır (okul anahtarı olmadan özet harcaması hiçbir sayaca yazılmıyor,
+        # yani kurum tavanı sessizce ölü kalıyordu).
+        karar = self.budget.check(user=req.get("user"), tenant=school)
         if not karar.allowed:
             return _budget_denied(karar, "ozet")
         try:
@@ -291,6 +313,8 @@ class RagService:
                                             scope_label=scope.get("scope_label", ""))
         except LlmUnavailable:
             return _llm_unavailable("ozet")
+        self.budget.record(getattr(res, "cost_usd", 0.0) or 0.0,
+                           user=req.get("user"), tenant=school)
         return {
             "text": res.text, "abstained": bool(res.abstained), "reason": res.reason or "",
             "citations": [{"n": c.get("n"), "span_ids": c.get("span_ids", []),
@@ -306,13 +330,18 @@ class RagService:
                     "span_ids": [], "pages": [], "cost_usd": 0.0}
         scope = req.get("scope") or {}
         pages, span_ids = scope.get("pages"), scope.get("span_ids")
+        # KİRACI: okul istekten gelir (chat/özet ile aynı kural).
+        try:
+            school = normalize_school(req.get("school"))
+        except TenantError:
+            return _unknown_school("soru")
         denied = _scope_denied(self, scope, req.get("role"))
         if denied:
             return {"items": [], "abstained": True, "reason": denied,
                     "span_ids": [], "pages": [], "cost_usd": 0.0}
         from ..summarize.scope import resolve_scope
         units = resolve_scope(self.doc, pages=pages, span_ids=span_ids)
-        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        karar = self.budget.check(user=req.get("user"), tenant=school)
         if not karar.allowed:
             return _budget_denied(karar, "soru")
         try:
@@ -323,6 +352,8 @@ class RagService:
         except LlmUnavailable:
             bos = _llm_unavailable("soru")
             return {**bos, "span_ids": [], "pages": []}
+        self.budget.record(getattr(res, "cost_usd", 0.0) or 0.0,
+                           user=req.get("user"), tenant=school)
         return {
             "items": [{"soru": q.soru, "cevap": q.cevap, "zorluk": q.zorluk} for q in res.items],
             "abstained": bool(res.abstained), "reason": res.reason or "",
