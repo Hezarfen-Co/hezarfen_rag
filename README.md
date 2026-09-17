@@ -73,8 +73,9 @@ Dağıtım varsayılanlarının **tek kaynağı** `Containerfile`'ın `ENV` blo�
 ### CI deploy (GitHub Actions)
 
 `.github/workflows/main.yml` kardeş servislerle aynı şekli taşır: `Validate`
-(derleme kontrolü) ∥ `Build and test` (unittest süiti + imaj + `release`
-artefaktı) → `Deploy` (SSH: imajı yükle, deploy sahipli `stack.env`'in
+(derleme kontrolü) ∥ `Build and test` (`python -m pytest tests/unit -q` süiti +
+imaj + `release` artefaktı) → `Deploy` (SSH: imajı yükle, deploy sahipli
+`stack.env`'in
 `HEZARFEN_TAG`'ini çevir, unit'i kur, `/health` ve `/ready` kapılarını geçir,
 geçmezse önceki tag'e dön). Unit'in kendisi sürümle birlikte iner:
 `deploy/hezarfen_rag_compose.service`.

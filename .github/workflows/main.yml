@@ -1,8 +1,8 @@
 # VPS deploy, compose-style, kardeş servislerle aynı şekil (hata toparlama ucuz):
 #
-#   Validate        —  tüm modüllerin derleme kontrolü + katalog/uygulama
-#                      doğrulaması, kendi runner'ında.
-#   Build and test  —  bağımlılıklar + unittest süiti, sonra repo
+#   Validate        —  tüm modüllerin derleme kontrolü, kendi runner'ında.
+#   Build and test  —  bağımlılıklar + `python -m pytest tests/unit -q`
+#                      süiti (katalog/uygulama doğrulaması dahil), sonra repo
 #                      Containerfile'ından imaj (ENV bloğu dağıtım
 #                      varsayılanlarının TEK kaynağıdır) ve imaj tarball'ı +
 #                      compose dosyaları koşunun artefaktı olarak yüklenir.
