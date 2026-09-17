@@ -50,7 +50,8 @@ def _doc():
 
 
 _ANS = GroundedAnswer(text="Cevap [1].", citations=[{"n": 1, "chunk_id": "c1",
-                      "span_ids": ["d#10.0"], "pages": [10], "ders": "biyoloji"}],
+                      "span_ids": ["d#10.0"], "pages": [10], "ders": "biyoloji",
+                      "doc_id": "d"}],
                       used_source_ids=["c1"], abstained=False, reason="", cost_usd=0.001)
 
 
@@ -63,6 +64,9 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(out["text"], "Cevap [1].")
         self.assertFalse(out["abstained"])
         self.assertEqual(out["citations"][0]["pages"], [10])
+        # doc_id backend'e GEÇMELİ: `course_note_file.rag_doc_id` bu anahtardan
+        # doldurulur (atıf → korpus eşleşmesi).
+        self.assertEqual(out["citations"][0]["doc_id"], "d")
         self.assertEqual(g.last_role.role, Role.STUDENT)          # rol türetildi + geçti
         self.assertEqual(g.last_role.ders_list, ["biyoloji"])
 
@@ -128,6 +132,68 @@ class QuestionsTests(unittest.TestCase):
         self.assertTrue(out["abstained"])
         self.assertEqual(out["reason"], "role_required")
         self.assertEqual(out["items"], [])
+
+
+class ScopePairTests(unittest.TestCase):
+    """rag.chat çift kapsamı: eski `sinif`+`ders_list` yerine (sınıf, ders) ÇİFT
+    listesi. Tek çift durumunda AYNI korpus kümesine çözülmeli; çok-çiftte
+    KARTEZYEN çarpıma düşmemeli (çapraz-çarpım güvenliği)."""
+
+    def test_single_pair_matches_the_old_shape(self):
+        from src.service.handler import _role_ctx
+        from src.guard.roles import can_access
+        eski = _role_ctx({"role": "student", "sinif": "10", "ders_list": ["biyoloji"]})
+        yeni = _role_ctx({"role": "student"}, [{"sinif": "10", "ders": "biyoloji"}])
+        self.assertEqual((yeni.sinif, yeni.ders_list), (eski.sinif, eski.ders_list))
+        korpuslar = [("10", "biyoloji"), ("10", "satranc"), ("11", "biyoloji")]
+        self.assertEqual([can_access(yeni, sinif=s, ders=d) for s, d in korpuslar],
+                         [can_access(eski, sinif=s, ders=d) for s, d in korpuslar])
+        self.assertEqual([can_access(yeni, sinif=s, ders=d) for s, d in korpuslar],
+                         [True, False, False])
+
+    def test_pairs_do_not_open_the_cross_product(self):
+        """(10,biyoloji) + (None,satranç) → 10-SATRANÇ açılmamalı; sınıfsız
+        kulüp çifti yalnız SINIFSIZ ("" / None) satranç korpusunu açmalı."""
+        from src.service.handler import _role_ctx
+        from src.guard.roles import can_access
+        ctx = _role_ctx({"role": "student"},
+                        [{"sinif": "10", "ders": "biyoloji"},
+                         {"sinif": None, "ders": "satranc"}])
+        self.assertTrue(can_access(ctx, sinif="10", ders="biyoloji"))
+        self.assertTrue(can_access(ctx, sinif="", ders="satranc"))
+        self.assertFalse(can_access(ctx, sinif="11", ders="satranc"))
+        self.assertFalse(can_access(ctx, sinif="10", ders="satranc"))
+        self.assertFalse(can_access(ctx, sinif="10", ders="kimya"))
+
+    def test_chat_uses_pairs_when_present(self):
+        g = _GenStub(_ANS)
+        out = RagService(g).chat({"query": "x", "role": {"role": "student"},
+                                  "scope": [{"sinif": "10", "ders": "biyoloji"}]})
+        self.assertFalse(out["abstained"])
+        self.assertEqual(g.last_role.ders_list, ["biyoloji"])
+        self.assertEqual(g.last_role.sinif, "10")
+
+    def test_legacy_dict_scope_is_not_a_grant(self):
+        """Özet/soru yolunun sözlük `scope`'u istemci-beyanlı EŞLEŞME girdisidir,
+        yetki GRANT'i değildir (SEC-01): ondan grant türetilmemeli."""
+        from src.service.handler import _role_ctx
+        ctx = _role_ctx({"role": "student", "sinif": "10", "ders_list": ["biyoloji"]},
+                        {"sinif": "10", "ders": "satranc"})
+        self.assertIsNone(ctx.scope_pairs)
+        self.assertEqual(ctx.ders_list, ["biyoloji"])
+
+    def test_registry_routes_the_pair_shape(self):
+        """Çift listesi yönlendirmede de çalışmalı (liste `scope` sözlük sanılıp
+        500'e düşmemeli)."""
+        from src.service.registry import CorpusRegistry
+        r = CorpusRegistry()
+        r.register(object(), sinif="10", ders="biyoloji")
+        svc, sebep = r.resolve({"scope": [{"sinif": "10", "ders": "biyoloji"}]})
+        self.assertIsNotNone(svc)
+        self.assertEqual(sebep, "")
+        svc2, sebep2 = r.resolve({"scope": [{"sinif": "10", "ders": "kimya"}]})
+        self.assertIsNone(svc2)
+        self.assertEqual(sebep2, "no_corpus")
 
 
 if __name__ == "__main__":

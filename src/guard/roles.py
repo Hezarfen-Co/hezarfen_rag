@@ -47,10 +47,26 @@ class RoleContext:
     - `ders_list`: rolün erişebileceği ders adları. BOŞ liste == henüz hiçbir
       derse atanmamış -> no-leak deny (aşağıda `can_access`).
 
-    ASLA `request.headers`'tan doğrudan kurulmaz (bkz. dosya başı NOT)."""
+    ASLA `request.headers`'tan doğrudan kurulmaz (bkz. dosya başı NOT).
+
+    `scope_pairs`: rag.chat'in YENİ biçimi — (sınıf, ders) ÇİFTLERİ. Doluysa
+    `can_access` KARARI bunlardan verilir (aşağıda); `sinif`/`ders_list` alanları
+    yalnız eski okuyucular (iz, yönlendirme) için türetilmiş ÖZET'tir. Çift
+    biçimi kullanılırken `sinif`+`ders_list`'in KARTEZYEN çarpımına düşülmez —
+    bkz. `bridge/contract.RagScopePair` (çapraz-çarpım güvenliği)."""
     role: Role
     sinif: str | None = None
     ders_list: list[str] = field(default_factory=list)
+    scope_pairs: list | None = None
+
+
+def _same_grade(a, b) -> bool:
+    """Sınıf eşitliği — `None` ve `""` ikisi de "sınıfsız" demektir (okul
+    kulübü/etüt korpusu). ÇİFT eşleşmesi TAM olmalıdır: sınıfsız bir çift,
+    sınıflı bir korpusu AÇMAZ (çapraz-çarpım güvenliği)."""
+    na = None if a in (None, "") else str(a)
+    nb = None if b in (None, "") else str(b)
+    return na == nb
 
 
 def can_access(role_ctx: RoleContext | None, *, sinif: str, ders: str) -> bool:
@@ -58,7 +74,12 @@ def can_access(role_ctx: RoleContext | None, *, sinif: str, ders: str) -> bool:
     parent -> yalnız KENDİ `sinif`'i VE `ders_list`'i kapsıyorsa True; aksi
     halde (yanlış sınıf, ders_list dışı, ders_list boş, role_ctx eksik,
     tanınmayan rol) False — "no-leak deny": belirsizlikte erişim REDDEDİLİR,
-    asla varsayılan olarak açılmaz."""
+    asla varsayılan olarak açılmaz.
+
+    `scope_pairs` doluysa (rag.chat çift biçimi): erişim ancak (sinif, ders)
+    ÇİFTLERDEN birine TAM uyarsa açılır. `sinif=None`/`""` çifti SADECE
+    sınıfsız (okul kulübü/etüt) korpusla eşleşir; sınıflı bir korpusu AÇMAZ.
+    Kartezyen BİRLEŞİM yoktur."""
     if role_ctx is None:
         return False
     if role_ctx.role == Role.ADMIN:
@@ -67,6 +88,9 @@ def can_access(role_ctx: RoleContext | None, *, sinif: str, ders: str) -> bool:
         # Mudur: kurum genelinde yetkili (backend'in urettigi rol zaten kurum
         # kapsamli). ADMIN gibi kapsam-bagimsiz ALLOW; #43 ile eklendi.
         return True
+    if role_ctx.scope_pairs is not None:
+        return any(_same_grade(p[0], sinif) and str(p[1]) == str(ders)
+                   for p in role_ctx.scope_pairs)
     if role_ctx.role in (Role.STUDENT, Role.TEACHER, Role.PARENT):
         if not role_ctx.ders_list:          # derse hiç atanmamış -> no-leak deny
             return False

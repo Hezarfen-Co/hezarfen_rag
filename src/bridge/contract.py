@@ -26,6 +26,7 @@ from dataclasses import dataclass, field, asdict
 # --- yetenek adları (constant.rs) ---
 AI_CHAT_CAPABILITY = "chat.reply"
 AI_RAG_INDEX_CAPABILITY = "rag.index"
+AI_RAG_CHAT_CAPABILITY = "rag.chat"      # RAG'e özel kutu (chatbot'tan AYRI)
 AI_PROTOCOL = "hab/2"
 
 # Backend'in kabul ettiği okul rolleri (domain/role.rs — `ai` ATANAMAZ).
@@ -124,6 +125,71 @@ class RagIndexPayload:
                 "author": self.author, "title": self.title,
                 "content": self.content,
                 "files": [f.to_wire() for f in self.files]}
+
+
+@dataclass
+class RagIndexReplyFile:
+    """İndekslenen TEK ekin backend'e geri bildirimi — `id` → `doc_id` eşleşmesi.
+
+    `id`: isteğin `RagFile.id`'si — **AYNI değer**. `doc_id`: o ekin indekste
+    kazandığı korpus kimliği (`<dosya sha256 ilk 12>`; bkz. ingest/canonical.py).
+    Backend bu eşleşmeyle `course_note_file.rag_doc_id`'yi doldurur; sonra bir
+    eki yeniden indekslerken/silerken hangi korpusu hedefleyeceğini bilir.
+    """
+    id: str
+    doc_id: str
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagIndexReplyFile":
+        return cls(id=d["id"], doc_id=d["doc_id"])
+
+    def to_wire(self) -> dict:
+        return {"id": self.id, "doc_id": self.doc_id}
+
+
+@dataclass
+class RagIndexReply:
+    """Servisin `rag.index`'e döndürdüğü gövde — her ek için `id`→`doc_id`.
+
+    Backend bunu OKUR (isteği bir yanıt bekler): hangi gönderdiği `course_note_file`
+    id'sinin hangi korpus `doc_id`'sine karşılık geldiğini yalnız bu yanıttan öğrenir.
+    """
+    files: list[RagIndexReplyFile] = field(default_factory=list)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagIndexReply":
+        return cls(files=[RagIndexReplyFile.from_wire(f)
+                          for f in d.get("files", [])])
+
+    def to_wire(self) -> dict:
+        return {"files": [f.to_wire() for f in self.files]}
+
+
+# ----------------------------------------------------- scope (sınıf/ders ÇİFTİ)
+
+@dataclass
+class RagScopePair:
+    """`rag.chat` kapsamı: bir (sınıf, ders) ÇİFTİ.
+
+    NEDEN ÇİFT (çapraz-çarpım güvenliği): eski biçim `role.sinif` + `role.ders_list`
+    idi ve bu iki alan bir KARTEZYEN ÇARPIMI ifade eder — `sinif="10"` +
+    `ders_list=["biyoloji","satranc"]` "10-biyoloji **VE** 10-satranç" demektir.
+    Oysa gerçek kapsam "10-biyoloji **VEYA** okul-satranç" olabilir; düzleştirme
+    (flatten) yanlış bir (sınıf,ders) grant'i AÇAR. Çift listesi her grant'i tek
+    tek taşır, böylece hiçbir çift yanlışlıkla açılmaz.
+
+    `sinif=None` = sınıfa bağlı OLMAYAN korpus (okul kulübü / etüt).
+    """
+    sinif: str | None
+    ders: str
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagScopePair":
+        s = d.get("sinif")
+        return cls(sinif=(str(s) if s not in (None, "") else None), ders=d["ders"])
+
+    def to_wire(self) -> dict:
+        return {"sinif": self.sinif, "ders": self.ders}
 
 
 # ------------------------------------------------- servis -> backend okuma

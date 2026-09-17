@@ -32,6 +32,11 @@ alanı sayesinde dosya baytları **o kullanıcı adına** okunabilir (`ai`
 görevlisinin kendi başına erişimi yoktur). Bu yol öğrenci/öğretmen notlarını
 indekslemek için yeterlidir.
 
+**Yanıt (2026-09-17):** servis `{"files": [{"id", "doc_id"}, ...]}` döner —
+`id` isteğin `RagFile.id`'siyle **aynı**, `doc_id` o ekin indeksteki korpus
+kimliği. Backend `course_note_file.rag_doc_id`'yi bu eşleşmeden doldurur
+(`bridge/contract.py`: `RagIndexReply`). Ayrıntı: `API-CONTRACT.md` §0.1.
+
 ## 3. İKİ BOŞLUK — kişiselleştirme ve atıf bugün köprüden geçemiyor
 
 ### 3.1 `chat.reply` isteği kimin sorduğunu taşımıyor

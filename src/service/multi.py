@@ -31,6 +31,7 @@ import threading
 import time
 
 from .registry import CorpusRegistry
+from .handler import scope_pairs
 
 # Yüklenecek korpuslar: "sinif/ders" listesi, virgülle.
 #   RAG_CORPORA=10/biyoloji,10/kimya,10/fizik
@@ -214,21 +215,36 @@ class MultiCorpusService:
         if sebep == "corpus_ambiguous":
             return None, sebep
         rol = req.get("role") or {}
-        scope = req.get("scope") or {}
-        sinif = scope.get("sinif") or rol.get("sinif")
-        ders = scope.get("ders") or (req.get("options") or {}).get("ders")
-        if not ders:
-            dersler = list(rol.get("ders_list") or [])
-            # Tek ders taşıyorsa belirsizlik yok; birden fazlaysa BİLİNEN
-            # korpuslarla kesiştir — tek aday kalıyorsa onu kur.
-            adaylar = [d for d in dersler
-                       if (str(sinif), str(d)) in self._specs]
-            if len(dersler) == 1:
-                ders = dersler[0]
-            elif len(adaylar) == 1:
-                ders = adaylar[0]
-            elif adaylar:
-                return None, "corpus_ambiguous"
+        raw_scope = req.get("scope")
+        # YENİ rag.chat biçimi: çift listesi. Eski sözlük/sinif+ders_list yolu
+        # (`else`) AYNEN kalır (geriye uyum).
+        pairs = scope_pairs(raw_scope) if isinstance(raw_scope, (list, tuple)) else []
+        if pairs:
+            if len(pairs) == 1:
+                sinif, ders = pairs[0]
+            else:
+                adaylar = [(s, d) for (s, d) in pairs
+                           if (str(s), str(d)) in self._specs]
+                if len(adaylar) == 1:
+                    sinif, ders = adaylar[0]
+                else:
+                    return None, "corpus_ambiguous"
+        else:
+            scope = raw_scope if isinstance(raw_scope, dict) else {}
+            sinif = scope.get("sinif") or rol.get("sinif")
+            ders = scope.get("ders") or (req.get("options") or {}).get("ders")
+            if not ders:
+                dersler = list(rol.get("ders_list") or [])
+                # Tek ders taşıyorsa belirsizlik yok; birden fazlaysa BİLİNEN
+                # korpuslarla kesiştir — tek aday kalıyorsa onu kur.
+                adaylar = [d for d in dersler
+                           if (str(sinif), str(d)) in self._specs]
+                if len(dersler) == 1:
+                    ders = dersler[0]
+                elif len(adaylar) == 1:
+                    ders = adaylar[0]
+                elif adaylar:
+                    return None, "corpus_ambiguous"
         if not sinif or not ders:
             return None, "no_corpus"
         # Yapilandirmada YAZAN ama diskte OLMAYAN kitap "hazirlaniyor" demez:
