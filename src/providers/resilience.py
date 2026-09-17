@@ -22,6 +22,7 @@ sağlayıcı arızası ikinci güvenlik katmanını sessizce kapatmıyor.
 """
 from __future__ import annotations
 
+import json
 import os
 import random
 import threading
@@ -30,6 +31,9 @@ import time
 # Yeniden denenebilir HTTP durumları: yalnız geçici olanlar.
 # 400/401/403/404/422 DENENMEZ — istek yanlış, tekrarlamak yalnız kota yakar.
 RETRYABLE_STATUS = frozenset({408, 409, 425, 429, 500, 502, 503, 504})
+
+#: Gövdeden taşınan sağlayıcı mesajının kırpma sınırı.
+BODY_SNIPPET = 200
 
 MAX_ATTEMPTS = int(os.environ.get("LLM_MAX_ATTEMPTS", "3"))
 BASE_DELAY_S = float(os.environ.get("LLM_RETRY_BASE_S", "0.5"))
@@ -53,6 +57,65 @@ class LlmUnavailable(RuntimeError):
         self.status = status
         self.attempts = attempts
         self.elapsed_s = elapsed_s
+
+
+class ProviderBodyError(RuntimeError):
+    """2xx GÖVDESİNDE gelen sağlayıcı hatası.
+
+    Kilo/OpenRouter tipi geçitler yük altında HTTP **200** ile
+    `{"error":{"message":"...","code":503}}` döndürüyor. Durum koduna bakan bir
+    istemci bunu "başarı" sayar, sonra `choices` okunamayınca anlaşılmaz bir
+    ayrıştırma hatası çıkarır ve yeniden deneme hiç olmaz. Bu istisna o gövdeyi
+    taşır; `status` gövdedeki `error.code` (yoksa None = bilinmeyen, geçici
+    sayılır). Sınıflandırma `is_retryable`'da.
+    """
+
+    def __init__(self, message: str, *, status: int | None = None):
+        super().__init__(message)
+        self.status = status
+
+
+def provider_error_from_body(frame) -> tuple[str, int | None] | None:
+    """2xx gövdesini denetler: `error` nesnesi/dizgesi varsa (mesaj, kod) döndürür.
+
+    Dönen mesaj SAĞLAYICININ kendi metnini taşır (`message`, yoksa `error`'ın
+    JSON'u) — böylece "choices yok" gibi bir ayrıştırma hatası yerine gerçek
+    neden görünür.
+    """
+    if not isinstance(frame, dict):
+        return None
+    error = frame.get("error")
+    if isinstance(error, str) and error.strip():
+        return f"sağlayıcı hatası: {error.strip()[:BODY_SNIPPET]}", None
+    if not isinstance(error, dict):
+        return None
+    kod = error.get("code")
+    status = kod if isinstance(kod, int) and not isinstance(kod, bool) else None
+    mesaj = error.get("message")
+    ayrinti = (mesaj.strip() if isinstance(mesaj, str) and mesaj.strip()
+               else json.dumps(error, ensure_ascii=False))
+    onek = (f"sağlayıcı hatası (HTTP {status})" if status is not None
+            else "sağlayıcı hatası")
+    return f"{onek}: {ayrinti[:BODY_SNIPPET]}", status
+
+
+def is_retryable(exc) -> tuple[bool, int | None]:
+    """Hangi hata tekrar denenebilir. Taşıma ayrıntısı BURADA kalır.
+
+    4xx'lerin çoğu (400/401/403/404/422) tekrar DENENMEZ: istek yanlıştır,
+    tekrarlamak yalnız kota yakar ve gecikme ekler.
+    """
+    import socket
+    import urllib.error
+    if isinstance(exc, ProviderBodyError):
+        # Gövdedeki kod geçici mi? Kodsuz (bilinmeyen) hata geçici sayılır.
+        return (exc.status is None) or (exc.status in RETRYABLE_STATUS), exc.status
+    if isinstance(exc, urllib.error.HTTPError):
+        return exc.code in RETRYABLE_STATUS, exc.code
+    if isinstance(exc, (urllib.error.URLError, socket.timeout, TimeoutError,
+                        ConnectionError)):
+        return True, None
+    return False, None
 
 
 class CircuitBreaker:

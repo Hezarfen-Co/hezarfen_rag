@@ -37,6 +37,91 @@ def _http(payload, status=200):
     return _R()
 
 
+def _yanit(payload):
+    """2xx gövdeli `urlopen` taklidi."""
+    class _R:
+        def read(self_inner):
+            return json.dumps(payload).encode()
+
+        def __enter__(self_inner):
+            return self_inner
+
+        def __exit__(self_inner, *a):
+            return False
+
+    return _R()
+
+
+class GatewayBodyErrorTests(unittest.TestCase):
+    """GEÇİT 2xx GÖVDESİNDE HATA DÖNDÜREBİLİR (Kilo/OpenRouter, yük altında HTTP
+    200 + `{"error":{"code":503,...}}`).
+
+    Kod durumuna bakan istemci bunu başarı sayar; `data` gelmeyince çıkan
+    "beklenmeyen yanıt" mesajı gerçek nedeni (sağlayıcı yükü) gizler ve yeniden
+    deneme hiç olmaz — gömme indeksinin KURULUŞU böyle düşer.
+    """
+
+    _VEKTOR = {"data": [{"index": 0, "embedding": [3.0, 4.0]}]}
+
+    def _emb(self, **kw):
+        return ApiEmbedder(base_url="https://ornek/v1", model="m",
+                           api_key="k", **kw)
+
+    def _yama(self, yanitlar):
+        cagri = {"n": 0}
+
+        def _say(istek, timeout=None):
+            cagri["n"] += 1
+            yanit = yanitlar[cagri["n"] - 1]
+            if isinstance(yanit, BaseException):
+                raise yanit
+            return yanit
+
+        return (mock.patch("urllib.request.urlopen", side_effect=_say),
+                # create=True: düzeltme ÖNCESİ dosyada bu ad yok; o hâlde de
+                # test DAVRANIŞSAL olarak düşsün (AttributeError ile değil).
+                mock.patch("src.embed.provider.backoff_delay", return_value=0.0,
+                           create=True),
+                cagri)
+
+    def test_govdede_gecici_hata_yeniden_denenir(self):
+        yanitlar = [_yanit({"error": {"message": "Upstream error from Nvidia: "
+                                                 "Service temporarily overloaded",
+                                      "code": 503}}),
+                    _yanit(self._VEKTOR)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            m = self._emb(dim=2).embed(["x"])
+        self.assertEqual(cagri["n"], 2)
+        self.assertAlmostEqual(float(np.linalg.norm(m[0])), 1.0, places=5)
+
+    def test_govdede_kalici_hata_ilk_denemede_saglayicinin_mesajiyla_biter(self):
+        yanitlar = [_yanit({"error": {"message": "model bulunamadi", "code": 400}})]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            with self.assertRaises(EmbeddingUnavailable) as ctx:
+                self._emb(dim=2).embed(["x"])
+        self.assertEqual(cagri["n"], 1)
+        self.assertIn("model bulunamadi", str(ctx.exception))
+
+    def test_govdede_dizge_bicimi_hata_gecici_sayilir(self):
+        yanitlar = [_yanit({"error": "temporary upstream failure"}),
+                    _yanit(self._VEKTOR)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            self._emb(dim=2).embed(["x"])
+        self.assertEqual(cagri["n"], 2)
+
+    def test_gercek_http_5xx_yeniden_denenir(self):
+        import urllib.error
+        yanitlar = [urllib.error.HTTPError("u", 503, "m", {}, None),
+                    _yanit(self._VEKTOR)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            self._emb(dim=2).embed(["x"])
+        self.assertEqual(cagri["n"], 2)
+
+
 class FactoryTests(unittest.TestCase):
     def test_local_is_the_default(self):
         """Ölçülmüş bütün kalite sayıları yerel yola ait; varsayılan
@@ -158,7 +243,8 @@ class ApiEmbedderTests(unittest.TestCase):
     def test_http_error_is_typed(self):
         import urllib.error
         hata = urllib.error.HTTPError("u", 429, "rate", {}, None)
-        with mock.patch("urllib.request.urlopen", side_effect=hata):
+        with mock.patch("urllib.request.urlopen", side_effect=hata), \
+             mock.patch("src.embed.provider.backoff_delay", return_value=0.0):
             with self.assertRaises(EmbeddingUnavailable):
                 self._emb(dim=2).embed(["x"])
 

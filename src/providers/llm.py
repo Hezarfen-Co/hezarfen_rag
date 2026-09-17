@@ -44,8 +44,9 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from ..pricing import Usage
-from .resilience import (CircuitBreaker, RETRYABLE_STATUS,
-                         call_with_retry)
+from .resilience import (CircuitBreaker, ProviderBodyError, call_with_retry,
+                         provider_error_from_body,
+                         is_retryable as _is_retryable)
 
 DEFAULT_BASE = "https://api.deepseek.com"
 DEFAULT_MODEL = "deepseek-chat"   # API model id — pricing.MODEL_ALIASES ile fiyata eşlenir
@@ -112,22 +113,6 @@ class ChatResult:
 DEFAULT_TIMEOUT = float(os.environ.get("LLM_TIMEOUT_S", "30"))
 
 
-def _is_retryable(exc) -> tuple[bool, int | None]:
-    """Hangi hata tekrar denenebilir. Taşıma ayrıntısı BURADA kalır.
-
-    4xx'lerin çoğu (400/401/403/404/422) tekrar DENENMEZ: istek yanlıştır,
-    tekrarlamak yalnız kota yakar ve gecikme ekler.
-    """
-    import socket
-    import urllib.error
-    if isinstance(exc, urllib.error.HTTPError):
-        return exc.code in RETRYABLE_STATUS, exc.code
-    if isinstance(exc, (urllib.error.URLError, socket.timeout, TimeoutError,
-                        ConnectionError)):
-        return True, None
-    return False, None
-
-
 class LLMClient:
     """OpenAI-uyumlu sohbet istemcisi.
 
@@ -188,7 +173,16 @@ class LLMClient:
             method="POST")
         def _gonder():
             with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                return json.loads(resp.read().decode("utf-8"))
+                data = json.loads(resp.read().decode("utf-8"))
+            # GEÇİT 2xx GÖVDESİNDE HATA DÖNDÜREBİLİR (Kilo/OpenRouter, yük
+            # altında HTTP 200 + `{"error":{"code":503,...}}`). Durum koduna
+            # bakmak bunu başarı sayar; `choices` okunamayınca geriye sessiz bir
+            # boş metin kalırdı. Sınıflandırma `_is_retryable`'da: geçici kod
+            # yeniden denenir, kalıcı kod sağlayıcının kendi mesajıyla biter.
+            hata = provider_error_from_body(data)
+            if hata is not None:
+                raise ProviderBodyError(hata[0], status=hata[1])
+            return data
 
         t0 = time.time()
         # #78: jitter'lı üstel yeniden deneme + devre kesici. Jitter ŞART —

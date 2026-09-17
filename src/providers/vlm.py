@@ -24,6 +24,8 @@ import urllib.request
 from dataclasses import dataclass, field
 
 from ..pricing import Usage
+from .resilience import (ProviderBodyError, call_with_retry, is_retryable,
+                         provider_error_from_body)
 
 # Türkçe, öğretim-odaklı captioning yönergesi (görsel içerikten METİN çıkarımı).
 DEFAULT_CAPTION_PROMPT = (
@@ -85,9 +87,22 @@ class VLMCaptioner:
                 headers={"Content-Type": "application/json",
                          "Authorization": f"Bearer {self._api_key}"},
                 method="POST")
+
+            def _gonder():
+                with urllib.request.urlopen(req, timeout=self.timeout) as resp:
+                    data = json.loads(resp.read().decode("utf-8"))
+                # GECIT 2xx GOVDESINDE HATA DONDUREBILIR (Kilo/OpenRouter, yuk
+                # altinda HTTP 200 + `{"error":{"code":503,...}}`). Eskiden bu
+                # yanit `data["choices"]` KeyError'ina dusuyor, asagidaki genis
+                # `except` onu YUTUYOR ve gorsel SESSIZCE betimsiz kaliyordu --
+                # gecici bir yuk, indekse kalici olarak eksik bir birim yazardi.
+                hata = provider_error_from_body(data)
+                if hata is not None:
+                    raise ProviderBodyError(hata[0], status=hata[1])
+                return data
+
             t0 = time.time()
-            with urllib.request.urlopen(req, timeout=self.timeout) as resp:
-                data = json.loads(resp.read().decode("utf-8"))
+            data = call_with_retry(_gonder, is_retryable=is_retryable)
             latency = time.time() - t0
             text = (data["choices"][0]["message"]["content"] or "").strip()
             usage = Usage.from_api(data.get("usage", {}))

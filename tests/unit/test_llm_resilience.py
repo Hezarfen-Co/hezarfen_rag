@@ -9,10 +9,13 @@ bu gövdeyi **parse edemiyor**.
 Gerçek hayat kanıtı (EXP-009): DeepSeek/NVIDIA uçlarında **%92 HTTP 429** ve
 300 s timeout yaşandı.
 """
+import json
+import os
 import unittest
 import urllib.error
+from unittest import mock
 
-from src.providers.llm import DEFAULT_TIMEOUT, _is_retryable
+from src.providers.llm import DEFAULT_TIMEOUT, LLMClient, _is_retryable
 from src.providers.resilience import (BREAKER_THRESHOLD, CircuitBreaker,
                                       LlmUnavailable, backoff_delay,
                                       call_with_retry)
@@ -20,6 +23,21 @@ from src.providers.resilience import (BREAKER_THRESHOLD, CircuitBreaker,
 
 def _http(code):
     return urllib.error.HTTPError("u", code, "m", {}, None)
+
+
+def _yanit(payload):
+    """2xx gövdeli `urlopen` taklidi (durum kodu 200)."""
+    class _R:
+        def read(self_inner):
+            return json.dumps(payload).encode()
+
+        def __enter__(self_inner):
+            return self_inner
+
+        def __exit__(self_inner, *a):
+            return False
+
+    return _R()
 
 
 class RetryClassificationTests(unittest.TestCase):
@@ -230,6 +248,82 @@ class ServiceContractTests(unittest.TestCase):
         for alan in ("text", "abstained", "reason", "citations",
                      "used_source_ids", "cost_usd", "cache_hit"):
             self.assertIn(alan, out, alan)
+
+
+class GatewayBodyErrorTests(unittest.TestCase):
+    """GEÇİT 2xx GÖVDESİNDE HATA DÖNDÜREBİLİR (Kilo/OpenRouter tipi geçitler yük
+    altında HTTP 200 + `{"error":{"code":503,...}}` döndürüyor).
+
+    Durum koduna bakan istemci bunu başarı sayar; sonra `choices` okunamayınca
+    ortaya anlaşılmaz bir "boş cevap" çıkar ve **yeniden deneme hiç olmaz**.
+    Geçici yük böylece açıklanamayan bir arızaya dönüşür.
+    """
+
+    _SECENEK = {"choices": [{"message": {"content": "cevap"}}], "usage": {}}
+
+    def _istemci(self, **kw):
+        with mock.patch.dict(os.environ, {"DEEPSEEK_API_KEY": "",
+                                          "NVIDIA_API_KEY": ""}):
+            return LLMClient(base_url="https://gecit/v1", api_key="k",
+                             timeout=1.0, **kw)
+
+    def _yama(self, yanitlar):
+        """`urlopen` taklidi (sırayla) + çağrı sayacı. Beklemeler sıfırlanır.
+
+        Yama ÇAĞRIYLA AYNI `with` bloğunda kalmalı: `urlopen` modül özniteliği
+        olduğu için blok dışında yapılan çağrı **gerçek ağa** çıkar.
+        """
+        cagri = {"n": 0}
+
+        def _say(req, timeout=None):
+            cagri["n"] += 1
+            yanit = yanitlar[cagri["n"] - 1]
+            if isinstance(yanit, BaseException):   # HTTPError -> yükselt
+                raise yanit
+            return yanit
+
+        return (mock.patch("urllib.request.urlopen", side_effect=_say),
+                mock.patch("src.providers.resilience.backoff_delay",
+                           return_value=0.0), cagri)
+
+    def test_govdede_gecici_hata_yeniden_denenir(self):
+        """503 = yuk; ilk yanıt 200 ama gövdede hata -> ikinci deneme başarılı."""
+        yanitlar = [_yanit({"error": {"message": "Upstream error from Nvidia: "
+                                                 "Service temporarily overloaded",
+                                      "code": 503}}),
+                    _yanit(self._SECENEK)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            self.assertEqual(self._istemci(max_attempts=3).chat("soru").text, "cevap")
+        self.assertEqual(cagri["n"], 2)
+
+    def test_govdede_kalici_hata_ilk_denemede_biter(self):
+        """400 = istek yanlış; tekrar denemek yalnız kota yakar. Mesaj
+        SAĞLAYICININ kendi metnini taşımalı."""
+        yanitlar = [_yanit({"error": {"message": "model bulunamadi", "code": 400}})]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            with self.assertRaises(LlmUnavailable) as ctx:
+                self._istemci(max_attempts=3).chat("soru")
+        self.assertEqual(cagri["n"], 1)
+        self.assertIn("model bulunamadi", str(ctx.exception))
+
+    def test_govdede_dizge_bicimi_hata_gecici_sayilir(self):
+        """Kod yoksa tür bilinmiyor -> geçici sayılır (referans davranış)."""
+        yanitlar = [_yanit({"error": "temporary upstream failure"}),
+                    _yanit(self._SECENEK)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            self.assertEqual(self._istemci(max_attempts=3).chat("soru").text, "cevap")
+        self.assertEqual(cagri["n"], 2)
+
+    def test_gercek_http_5xx_hala_yeniden_denenir(self):
+        """Gövde denetimi eklenirken taşıma yolu BOZULMAMALI."""
+        yanitlar = [_http(503), _yanit(self._SECENEK)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            self.assertEqual(self._istemci(max_attempts=3).chat("soru").text, "cevap")
+        self.assertEqual(cagri["n"], 2)
 
 
 if __name__ == "__main__":

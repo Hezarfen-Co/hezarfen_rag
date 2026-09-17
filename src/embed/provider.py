@@ -25,15 +25,24 @@ SEÇİM `RAG_EMBED_PROVIDER` ile yapılır: `local` (varsayılan) | `api`.
    vektörlerle yeni sorgu vektörünü karşılaştırmak anlamsız sonuç üretir —
    `corpus_version` değişmeli ve indeks yeniden kurulmalıdır. Boyut uyuşmazlığı
    burada AÇIKÇA hata verir; sessizce yanlış sonuç döndürmez.
+
+4. GEÇİT 2xx GÖVDESİNDE HATA DÖNDÜREBİLİR (Kilo/OpenRouter, yük altında HTTP
+   200 + `{"error":{"code":503,...}}`). Bu kod onu "beklenmeyen yanıt" diye
+   okumaz: geçici kodu yeniden dener, kalıcı kodda sağlayıcının KENDİ mesajıyla
+   İLK denemede biter.
 """
 from __future__ import annotations
 
 import json
 import os
+import time
 import urllib.error
 import urllib.request
 
 import numpy as np
+
+from ..providers.resilience import (RETRYABLE_STATUS, backoff_delay,
+                                    provider_error_from_body)
 
 PROVIDER = os.environ.get("RAG_EMBED_PROVIDER", "local").strip().lower()
 API_BASE = os.environ.get("RAG_EMBED_API_BASE", "").rstrip("/")
@@ -41,6 +50,10 @@ API_MODEL = os.environ.get("RAG_EMBED_MODEL", "")
 API_KEY_ENV = os.environ.get("RAG_EMBED_API_KEY_ENV", "RAG_EMBED_API_KEY")
 API_TIMEOUT = float(os.environ.get("RAG_EMBED_TIMEOUT_S", "30"))
 API_BATCH = int(os.environ.get("RAG_EMBED_BATCH", "32"))
+
+#: Geçici sayılan bir hata (2xx gövdesindeki geçici kod ya da 429/5xx durum
+#: kodu) için toplam deneme sayısı. Kalıcı hatalar İLK denemede biter.
+CALL_ATTEMPTS = 3
 
 
 class EmbeddingUnavailable(RuntimeError):
@@ -96,19 +109,39 @@ class ApiEmbedder:
             f"{self.base_url}/embeddings", data=json.dumps(govde).encode("utf-8"),
             headers={"Content-Type": "application/json",
                      **({"Authorization": f"Bearer {self._key}"} if self._key else {})})
-        try:
-            with urllib.request.urlopen(istek, timeout=self.timeout) as yanit:
-                veri = json.loads(yanit.read())
-        except urllib.error.HTTPError as e:
-            govde_metni = ""
+        deneme = 0
+        while True:
+            deneme += 1
             try:
-                govde_metni = e.read().decode("utf-8", "replace")[:200]
-            except Exception:                                   # noqa: BLE001
-                pass
-            raise EmbeddingUnavailable(
-                f"gomme API {e.code}: {govde_metni}") from e
-        except Exception as e:                                  # noqa: BLE001
-            raise EmbeddingUnavailable(f"gomme API: {type(e).__name__}: {e}") from e
+                with urllib.request.urlopen(istek, timeout=self.timeout) as yanit:
+                    veri = json.loads(yanit.read())
+            except urllib.error.HTTPError as e:
+                # GERCEK DURUM KODU tasiyan hata (429/5xx gecici sayilir).
+                govde_metni = ""
+                try:
+                    govde_metni = e.read().decode("utf-8", "replace")[:200]
+                except Exception:                                   # noqa: BLE001
+                    pass
+                hata = EmbeddingUnavailable(f"gomme API {e.code}: {govde_metni}")
+                gecici = e.code in RETRYABLE_STATUS
+            except Exception as e:                                  # noqa: BLE001
+                raise EmbeddingUnavailable(f"gomme API: {type(e).__name__}: {e}") from e
+            else:
+                # GECIT 2xx GOVDESINDE HATA DONDUREBILIR (Kilo/OpenRouter, yuk
+                # altinda HTTP 200 + `{"error":{"code":503,...}}`). Kod durumuna
+                # bakmak bunu basari sayardi; `data` yok diye cikan "beklenmeyen
+                # yanit" mesaji gercek nedeni (saglayici overload) GIZLERDI.
+                h = provider_error_from_body(veri)
+                if h is None:
+                    break
+                mesaj, durum = h
+                hata = EmbeddingUnavailable(f"gomme API {mesaj}")
+                # Kodsuz (bilinmeyen) govde hatasi gecici sayilir; kalici kod
+                # ILK denemede saglayicinin kendi mesajiyla biter.
+                gecici = durum is None or durum in RETRYABLE_STATUS
+            if not gecici or deneme >= CALL_ATTEMPTS:
+                raise hata
+            time.sleep(backoff_delay(deneme))
         try:
             sirali = sorted(veri["data"], key=lambda d: d.get("index", 0))
             return [d["embedding"] for d in sirali]

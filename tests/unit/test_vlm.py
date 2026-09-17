@@ -2,12 +2,29 @@
 
 Sağlayıcı-bağımsız istemci + zarif degradasyon + saf yardımcılar
 (target_visual_pages, merge_visual_units). Gerçek VLM çağrısı DEMO'da (key gelince)."""
+import json
 import unittest
+from unittest import mock
 
 from src.providers.vlm import VLMCaptioner
 from src.ingest.canonical import CanonicalUnit
 from src.ingest.visual_caption import (VISUAL_KIND, target_visual_pages,
                                        merge_visual_units, caption_visual_units)
+
+
+def _yanit(payload):
+    """2xx gövdeli `urlopen` taklidi."""
+    class _R:
+        def read(self_inner):
+            return json.dumps(payload).encode()
+
+        def __enter__(self_inner):
+            return self_inner
+
+        def __exit__(self_inner, *a):
+            return False
+
+    return _R()
 
 
 def _u(page, block_no, kind="paragraph", text="metin"):
@@ -75,6 +92,67 @@ class GracefulCaptionPassTests(unittest.TestCase):
         self.assertEqual(caption_visual_units(
             "yok.pdf", doc_id="d", sinif="12", ders="biyoloji", kaynak_turu="ders_kitabi",
             page_visual={1: "figure_heavy"}, captioner=c), [])
+
+
+class GatewayBodyErrorTests(unittest.TestCase):
+    """GEÇİT 2xx GÖVDESİNDE HATA DÖNDÜREBİLİR (Kilo/OpenRouter, yük altında HTTP
+    200 + `{"error":{"code":503,...}}`).
+
+    Eskiden bu yanıt `data["choices"]` KeyError'ına düşüyor, modülün geniş
+    `except`'i onu YUTUYOR ve görsel SESSİZCE betimsiz kalıyordu: geçici bir yük
+    indekse kalıcı olarak eksik bir birim yazardı. Zarif degradasyon sözleşmesi
+    korunur (kalıcı hata yine boş CaptionResult), ama geçici hata artık deneyerek
+    geçilir.
+    """
+
+    _BETIM = {"choices": [{"message": {"content": "sekil: besgen"}}], "usage": {}}
+
+    def _captioner(self):
+        return VLMCaptioner(model="m", base_url="https://gecit/v1", api_key="k",
+                            timeout=1.0)
+
+    def _yama(self, yanitlar):
+        cagri = {"n": 0}
+
+        def _say(req, timeout=None):
+            cagri["n"] += 1
+            yanit = yanitlar[cagri["n"] - 1]
+            if isinstance(yanit, BaseException):
+                raise yanit
+            return yanit
+
+        return (mock.patch("urllib.request.urlopen", side_effect=_say),
+                mock.patch("src.providers.resilience.backoff_delay",
+                           return_value=0.0), cagri)
+
+    def test_govdede_gecici_hata_yeniden_denenir(self):
+        yanitlar = [_yanit({"error": {"message": "Service temporarily overloaded",
+                                      "code": 503}}),
+                    _yanit(self._BETIM)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            out = self._captioner().caption_with_usage(b"\x89PNG...")
+        self.assertEqual(cagri["n"], 2)
+        self.assertEqual(out.text, "sekil: besgen")
+
+    def test_govdede_kalici_hata_ilk_denemede_boş_doner(self):
+        """Kalıcı (400) hata: TEK deneme; sözleşme gereği boş CaptionResult."""
+        yanitlar = [_yanit({"error": {"message": "model bulunamadi", "code": 400}})]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            out = self._captioner().caption_with_usage(b"\x89PNG...")
+        self.assertEqual(cagri["n"], 1)
+        self.assertEqual(out.text, "")
+
+    def test_gercek_http_5xx_yeniden_denenir(self):
+        import urllib.error
+        yanitlar = [urllib.error.HTTPError("u", 503, "m", {}, None),
+                    _yanit(self._BETIM)]
+        p1, p2, cagri = self._yama(yanitlar)
+        with p1, p2:
+            out = self._captioner().caption_with_usage(b"\x89PNG...")
+        self.assertEqual(cagri["n"], 2)
+        self.assertEqual(out.text, "sekil: besgen")
 
 
 if __name__ == "__main__":
