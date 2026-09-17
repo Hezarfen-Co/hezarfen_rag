@@ -57,7 +57,7 @@ services:
   rag:
     <<: *rag-common
     # HEZARFEN_TAG deploy tarafından yazılan stack.env'den gelir (--env-file).
-    image: localhost/hezarfen_rag:${HEZARFEN_TAG:-latest}
+    image: localhost/hezarfen_rag:${HEZARFEN_TAG:-current}
     container_name: hezarfen_rag
     profiles: ["product"]            # otomatik kalkmaz; backend hazır olunca çalıştır
 
@@ -92,4 +92,4 @@ volumes:
 networks:
   backend_net:
     external: true
-    name: hezarfen_backend_default
+    name: ${HEZARFEN_NET:-hezarfen_backend_default}

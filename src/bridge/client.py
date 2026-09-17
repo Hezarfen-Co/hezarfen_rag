@@ -145,12 +145,12 @@ def login(base_url: str, *, school: str, username: str, password: str,
 def reader_from_env():
     """Env'den bir okuyucu kurar; eksikse None (çağıran senaryoya düşer).
 
-    HEZARFEN_BACKEND_URL, HEZARFEN_SCHOOL, HEZARFEN_USER, HEZARFEN_PASS
+    AI_BACKEND_URL, RAG_BACKEND_SCHOOL, RAG_BACKEND_USER, RAG_BACKEND_PASS
     """
-    url = os.environ.get("HEZARFEN_BACKEND_URL")
-    okul = os.environ.get("HEZARFEN_SCHOOL")
-    kul = os.environ.get("HEZARFEN_USER")
-    sifre = os.environ.get("HEZARFEN_PASS")
+    url = os.environ.get("AI_BACKEND_URL")
+    okul = os.environ.get("RAG_BACKEND_SCHOOL")
+    kul = os.environ.get("RAG_BACKEND_USER")
+    sifre = os.environ.get("RAG_BACKEND_PASS")
     if not (url and okul and kul and sifre):
         return None
     jeton = login(url, school=okul, username=kul, password=sifre)
