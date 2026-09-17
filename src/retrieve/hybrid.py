@@ -39,6 +39,22 @@ class HybridRetriever:
             return True
         return can_access(role_ctx, sinif=m.get("sinif"), ders=m.get("ders"))
 
+    def _sorgu_vektoru(self, query: str):
+        """Sorgu gömme vektörü — sağlayıcı SORGU/PASAJ ayrımı sunuyorsa onu kullanır.
+
+        NEDEN: `embed()` pasaj niyetidir. Sorguyu da pasaj olarak gömmek, uzak
+        sağlayıcıların (`voyage`, `cohere`) retrieval için istediği ayrımı
+        SESSİZCE kaldırır — Voyage'da `document` yerine `query`, Cohere'de
+        `search_document` yerine `search_query` gönderilmesi gerekir. Yerel
+        BGE-M3'te böyle bir ayrım YOKTUR (`embed_query` tanımlı değildir), o
+        yüzden davranış orada eskisi gibi kalır: tek kod yolu, sağlayıcının
+        sunduğu kadar ayrım.
+        """
+        sorgu = getattr(self.embedder, "embed_query", None)
+        if sorgu is not None:
+            return sorgu(query)[0]
+        return self.embedder.embed([query])[0]
+
     def retrieve(self, query: str, top_k: int = 20,
                  dense_k: int = 40, bm25_k: int = 40, sparse_k: int = 30,
                  role_ctx=None, school=None):
@@ -55,7 +71,7 @@ class HybridRetriever:
             return []
         if role_ctx is not None and self.meta is None:
             return []                                            # fail-closed (bkz. docstring)
-        qv = self.embedder.embed([query])[0]
+        qv = self._sorgu_vektoru(query)
         rankings = [self.dense.search(qv, dense_k, school=school),
                     self.bm25.search(query, bm25_k, school=school)]
         if self.sparse is not None:

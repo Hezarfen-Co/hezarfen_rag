@@ -95,6 +95,16 @@ class NoOpReranker:
         out = [(cid, 1.0 - (i / (n * 2.0))) for i, (cid, _t) in enumerate(items)]
         return out[:top_k] if top_k else out
 
+    def warmup(self):
+        """Yüklenecek bir şey YOK (kapalı sağlayıcı) — kanca arayüz için durur.
+
+        `build_service`/`SharedModels` `warmup()`u koşulsuz çağırır; eksikliği
+        canlı kurulumda AttributeError olarak yakan sınıf (2026-09-17,
+        `ApiReranker`) burada da kapatıldı: sağlayıcı sınıflarının HEPSİ aynı
+        arayüzü taşır.
+        """
+        return self
+
 
 class ApiReranker:
     """Cohere / Jina / Voyage uyumlu rerank istemcisi.
@@ -123,6 +133,23 @@ class ApiReranker:
         self._key = api_key if api_key is not None else os.environ.get(API_KEY_ENV, "")
         if not self.url:
             raise ValueError("API rerank icin RAG_RERANK_API_URL gerekli")
+
+    def warmup(self):
+        """Uç noktayı AÇILIŞTA yokla — ilk gerçek soru ödemesin.
+
+        Yerel yol burada modeli yükler (`BGEReranker.warmup`); API yolunda
+        karşılığı ERİŞİLEBİLİRLİKtir: yanlış anahtar ya da yanlış uç, cevabı
+        ilk soruda değil AÇILIŞTA vermeli ("yeşil görünen, ölü ürün" sınıfı).
+        Çağrı minimal ama GERÇEKTİR ve sağlayıcı nezdinde bir birim sorgu
+        olarak faturalanır — gizlemiyoruz. Hata `RerankUnavailable` olarak
+        yükselir; boru hattı kurulmaz, `/ready` 503 verir, neden logda durur.
+
+        (`build_service`/`SharedModels` bu kancayı KOŞULSUZ çağırır; eksikliği
+        canlı kurulumda `AttributeError: 'ApiReranker' object has no attribute
+        'warmup'` olarak yakalandı — 2026-09-17.)
+        """
+        self.rerank("isinma", [("isinma", "isinma")], top_k=1)
+        return self
 
     def rerank(self, query: str, items, top_k: int | None = None,
                normalize: bool = True):

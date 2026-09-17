@@ -288,8 +288,23 @@ SİLİNMEDİ, `COHERE_API_KEY` yedek anahtar olarak duruyor). Ölçülen sözle�
 | rerank sınır alanı | Voyage `top_k` ( `top_n` → 400 "not supported"); Cohere `top_n` (`top_k` → 422) → ad uçtan çözülür |
 
 Kod: `src/embed/provider.py` (`VoyageEmbedder`, `INPUT_TYPES` eşlemesi,
-`_BoyutKapisi`), `src/rerank/provider.py` (`data[]` kabulü + `top_k_field`),
+`BODY_EXTRA`, `_BoyutKapisi`), `src/rerank/provider.py` (`data[]` kabulü,
+`top_k_field`, `warmup`), `src/retrieve/hybrid.py` (`_sorgu_vektoru`),
 `src/service/preflight.py` (`_EMBED_API = ("api", "cohere", "voyage")`).
+
+CANLI KURULUMDA (2026-09-17, ilk gerçek dağıtım) API yolunun HİÇ KOŞMADIĞI
+anlaşıldı; üç sessiz sınıf sırayla düştü ve üçü de kapatıldı:
+
+1. `encoding_format: "float"` — Voyage yalnız `base64` kabul ediyor (400
+   "accepted values are 'base64'"). Alan artık sağlayıcıya özel
+   (`BODY_EXTRA`); alanı göndermemek float döndürüyor (ölçüldü).
+2. `ApiReranker.warmup` YOKTU ama `build_service` onu koşulsuz çağırıyor:
+   `AttributeError` → boru hattı hiç kurulmadı (`/ready` 503 kalır).
+   `NoOpReranker`'da da aynı eksik vardı (sınıf taraması).
+3. Sorgu, retrieval'da PASaj niyetiyle gömülüyordu (`embed([query])`) → uzak
+   sağlayıcıların sorgu/pasaj ayrımı boşa gidiyordu. `_sorgu_vektoru` artık
+   `embed_query` varsa onu kullanır; BGE-M3'te davranış aynı.
+
 ÜCRETSİZ KOTA İDDİASI: **belgelenmiş, ölçülmemiş** (sağlayıcının fiyat sayfası
 kendi içinde tutarsız); kontrol yeri panelin kullanım/faturalama ekranı.
 

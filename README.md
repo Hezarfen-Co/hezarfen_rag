@@ -229,6 +229,19 @@ koşmadan — `EmbeddingDimensionMismatch` ile, model ADI ve İKİ boyutla
 reddedilir (`src/embed/provider.py::_BoyutKapisi`). Boyut değiştirmek korpusun
 tamamının yeniden indekslenmesini gerektirir.
 
+**SORGU NİYETİ:** retrieval sorguyu `embed()` (pasaj niyeti) ile gömüyordu;
+uzak sağlayıcıda bu, yukarıdaki tablonun tamamını boşa çıkarırdı. Artık
+`HybridRetriever._sorgu_vektoru` sağlayıcı `embed_query` sunuyorsa onu kullanır
+(Voyage `query`, Cohere `search_query`); BGE-M3'te ayrım olmadığı için yerel
+yol eskisi gibi `embed()` ile kalır.
+
+**AÇILIŞ YOKLAMASI:** `build_service` reranker'da `warmup()`u KOŞULSUZ çağırır;
+API yollarında bu kanca eksikti (canlı kurulumda `AttributeError: 'ApiReranker'
+object has no attribute 'warmup'`). Artık `ApiReranker.warmup()` uç noktayı tek
+minimal GERÇEK çağrıyla yoklar (yanlış anahtar ilk soruda değil açılışta
+görülsün; sağlayıcı nezdinde bir birim sorgu faturalanır), `NoOpReranker.warmup()`
+ise boştur.
+
 Yerel yol **silinmedi** ama artık **imajda değil**: varsayılan imge KÜÇÜKTÜR
 (torch/FlagEmbedding/ağırlık YOK). Yerel bağımlılıklar bir podman **volume'ü**
 içindeki venv'de durur; servis onu `sys.path`e ekler. Geçiş **workflow'suz ve

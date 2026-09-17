@@ -637,6 +637,39 @@ class ApiRerankerTests(unittest.TestCase):
         u = " ".join(rerank_warnings(self._rr()))
         self.assertIn("KALİBRE DEĞİL", u)
 
+    def test_every_rerank_provider_exposes_warmup(self):
+        """`build_service`/`SharedModels` `warmup()`u KOŞULSUZ çağırır; eksik
+        kanca boru hattını çökertir (canlı kurulumda yakalandı: AttributeError
+        'ApiReranker' object has no attribute 'warmup')."""
+        for ad in ("api", "off", "local"):
+            kw = ({"url": "https://ornek/rerank", "model": "m", "api_key": "k"}
+                  if ad == "api" else {})
+            with self.subTest(ad):
+                rr = build_reranker(provider=ad, **kw)
+                self.assertTrue(callable(getattr(rr, "warmup", None)),
+                                f"{ad} warmup() taşımalı")
+
+    def test_api_warmup_makes_one_real_call(self):
+        cagri = {"n": 0}
+
+        def _say(istek, timeout=None):
+            gonderilen = json.loads(istek.data)
+            cagri["n"] += 1
+            cagri["govde"] = gonderilen
+            return _http({"data": [{"index": 0, "relevance_score": 0.5}]})
+
+        with mock.patch("urllib.request.urlopen", side_effect=_say):
+            self._rr().warmup()
+        self.assertEqual(cagri["n"], 1)
+        self.assertEqual(cagri["govde"]["documents"], ["isinma"])
+
+    def test_api_warmup_failure_is_typed_not_an_attribute_error(self):
+        import urllib.error
+        hata = urllib.error.HTTPError("u", 401, "auth", {}, None)
+        with mock.patch("urllib.request.urlopen", side_effect=hata):
+            with self.assertRaises(RerankUnavailable):
+                self._rr().warmup()
+
 
 if __name__ == "__main__":
     unittest.main()

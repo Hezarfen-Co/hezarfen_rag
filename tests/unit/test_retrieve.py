@@ -44,5 +44,57 @@ class SparseIndexTests(unittest.TestCase):
         self.assertAlmostEqual(top[0][1], 0.5, places=5)
 
 
+class QueryEmbeddingIntentTests(unittest.TestCase):
+    """Sorgu, sağlayıcının SORGU niyetiyle gömülmeli.
+
+    `HybridRetriever.retrieve` sorguyu `embed()` (pasaj niyeti) ile gömüyordu:
+    uzak sağlayıcılarda bu, istediğimiz sorgu/pasaj ayrımını SESSİZCE kaldırır
+    (Voyage'a `document`, Cohere'e `search_document`). Yerel BGE-M3'te ayrım
+    yoktur → tek kod yolu, sağlayıcının sunduğu kadar ayrım."""
+
+    class _Emb:
+        """Yerel yol benzeri: `embed_query` YOK (BGE-M3'te ayrım yok)."""
+        sparse_supported = False
+
+        def __init__(self):
+            self.cagrilar = []
+
+        def embed(self, texts, batch_size=12):
+            import numpy as np
+            self.cagrilar.append(("passage", list(texts)))
+            return np.ones((len(texts), 2), dtype="float32")
+
+        def embed_sparse(self, texts, batch_size=12):
+            return [{} for _ in texts]
+
+    class _SplitEmb(_Emb):
+        """Uzak sağlayıcı benzeri: sorgu/pasaj ayrımı SUNUYOR."""
+
+        def embed_query(self, text):
+            import numpy as np
+            self.cagrilar.append(("query", [text]))
+            return np.ones((1, 2), dtype="float32")
+
+    class _Index:
+        def search(self, q, k, school=None):
+            return []
+
+    def _retr(self, ayrim: bool):
+        from src.retrieve import HybridRetriever
+        emb = self._SplitEmb() if ayrim else self._Emb()
+        return HybridRetriever(emb, self._Index(), self._Index()), emb
+
+    def test_query_intent_is_used_when_the_provider_supports_it(self):
+        rr, emb = self._retr(True)
+        rr.retrieve("fotosentez nedir", top_k=3, school="okul-a")
+        self.assertEqual(emb.cagrilar[0][0], "query", "sorgu 'query' niyetiyle gömülmeli")
+
+    def test_local_provider_without_the_split_still_uses_embed(self):
+        """BGE-M3'te `embed_query` YOK: davranış eskisi gibi `embed()` kalmalı."""
+        rr, emb = self._retr(False)
+        rr.retrieve("fotosentez nedir", top_k=3, school="okul-a")
+        self.assertEqual(emb.cagrilar[0][0], "passage")
+
+
 if __name__ == "__main__":
     unittest.main()
