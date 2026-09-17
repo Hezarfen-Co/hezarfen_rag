@@ -151,13 +151,21 @@ class ApiEmbedder:
     #: sağlayıcı SINIFINDA durur, çağıran katman kendi niyetini korur.
     INPUT_TYPES: dict = {}
 
+    #: OpenAI-uyumlu gövdeye EKLENEN alanlar. `encoding_format="float"` çoğu
+    #: uçta kabul edilir (OpenAI, NIM, Cohere-uyumluluk); Voyage YALNIZCA
+    #: `base64` kabul eder — ölçüldü 2026-09-17: 400 "Value 'float' supplied for
+    #: argument 'encoding_format' is not valid -- accepted values are 'base64'".
+    #: Alanı hiç göndermemek float döndürür (ölçüldü), o yüzden Voyage sözlüğü
+    #: BOŞTUR. `api` yolunda gövde bayt-bayt aynı kalır.
+    BODY_EXTRA: dict = {"encoding_format": "float"}
+
     def _input_type(self, input_type: str) -> str:
         """rag'in niyeti (`query`/`passage`) → sağlayıcının kabul ettiği ad."""
         return self.INPUT_TYPES.get(input_type, input_type)
 
     def _call(self, texts: list[str], input_type: str) -> list:
         govde = {"model": self.model_name, "input": list(texts),
-                 "encoding_format": "float"}
+                 **self.BODY_EXTRA}
         # NVIDIA NIM ve Cohere `input_type` ister (query/passage ayrimi retrieval
         # kalitesini belirgin degistirir); OpenAI yok sayar. Gondermek guvenli.
         # `api` yolunda `_input_type` AYNI dizeyi döndürür (gövde değişmez).
@@ -296,18 +304,31 @@ class _BoyutKapisi:
 class VoyageEmbedder(_BoyutKapisi, ApiEmbedder):
     """Voyage (`POST {base}/embeddings`, OpenAI biçimi) istemcisi.
 
-    Taşıma OpenAI yoluyla BİREBİR aynıdır (`data[].embedding`); tek gerçek
-    fark `input_type` SÖZLÜĞÜ — Voyage `passage`ı reddediyor. Ölçüldü
-    2026-09-17:
+    Taşıma OpenAI yoluyla BİREBİR aynıdır (`data[].embedding`); iki gerçek fark
+    vardır ve ikisi de ÖLÇÜLDÜ (2026-09-17):
+
+    1. `input_type` SÖZLÜĞÜ — Voyage `passage`ı reddediyor:
 
         400 Value 'passage' supplied for argument 'input_type' is not valid
             -- accepted values are 'query' or 'document'
 
-    Yani rag'in `passage` niyeti Voyage'a `document` olarak gitmeli; aksi hâlde
-    HER indeks kurulumu 400 ile düşer. Boyut kapısı ortak (`_BoyutKapisi`).
+       Yani rag'in `passage` niyeti Voyage'a `document` olarak gitmeli; aksi
+       hâlde HER indeks kurulumu 400 ile düşer.
+
+    2. `encoding_format` — Voyage YALNIZ `base64` kabul eder:
+
+        400 Value 'float' supplied for argument 'encoding_format' is not valid
+            -- accepted values are 'base64'
+
+       Alanı hiç göndermemek float vektör döndürür (ölçüldü: 200), o yüzden
+       gövde eki BOŞTUR. (Bu satır canlı kurulumda yakalandı: servis 503
+       "not_ready" veriyordu ve log tam bu 400'ü gösteriyordu.)
+
+    Boyut kapısı ortak (`_BoyutKapisi`).
     """
 
     INPUT_TYPES = VOYAGE_INPUT_TYPES
+    BODY_EXTRA: dict = {}
     MODEL_DIMS = VOYAGE_MODEL_DIMS
 
 

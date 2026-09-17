@@ -142,7 +142,9 @@ class VoyageEmbedderTests(unittest.TestCase):
                 "model": "voyage-test-model", "usage": {"total_tokens": 3}}
 
     def test_openai_shaped_endpoint(self):
-        """`{base}/embeddings` + `input[]` — OpenAI yoluyla aynı taşıma."""
+        """`{base}/embeddings` + `input[]` — OpenAI yoluyla aynı taşıma.
+        AMMA `encoding_format` GİTMEZ: Voyage onu yalnız `base64` kabul eder
+        (ölçüldü: 400 "... accepted values are 'base64'")."""
         gonderilen = []
 
         def _yakala(istek, timeout=None):
@@ -155,6 +157,9 @@ class VoyageEmbedderTests(unittest.TestCase):
         self.assertEqual(url, "https://api.voyageai.com/v1/embeddings")
         self.assertEqual(govde["model"], "voyage-test-model")
         self.assertEqual(govde["input"], ["pasaj"])
+        self.assertNotIn("encoding_format", govde,
+                         "Voyage `float` encoding_format'ı 400 ile reddediyor")
+        self.assertEqual(set(govde), {"model", "input", "input_type"})
 
     def test_passage_maps_to_document_and_query_to_query(self):
         """Voyage `passage`ı REDDEDİYOR (400). Eşleme yapılmazsa indeks
@@ -501,6 +506,21 @@ class ApiEmbedderTests(unittest.TestCase):
         with mock.patch("urllib.request.urlopen",
                         side_effect=AssertionError("cagrilmamaliydi")):
             self.assertEqual(self._emb(dim=4).embed([]).shape, (0, 4))
+
+    def test_api_body_is_unchanged(self):
+        """`api` yolu bayt-bayt aynı kalmalı: yerel-sağlayıcı kancaları
+        (`INPUT_TYPES`, `BODY_EXTRA`) varsayılanda gövdeyi DEĞİŞTİRMEZ."""
+        gonderilen = []
+
+        def _yakala(istek, timeout=None):
+            gonderilen.append(json.loads(istek.data))
+            return _http({"data": [{"index": 0, "embedding": [1.0, 0.0]}]})
+
+        with mock.patch("urllib.request.urlopen", side_effect=_yakala):
+            self._emb(dim=2).embed(["x"])
+        self.assertEqual(gonderilen[0]["encoding_format"], "float")
+        self.assertEqual(set(gonderilen[0]),
+                         {"model", "input", "encoding_format", "input_type"})
 
     def test_query_and_passage_use_different_input_type(self):
         """NVIDIA/Cohere'de `input_type` retrieval kalitesini belirgin
