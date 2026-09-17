@@ -89,6 +89,11 @@ x-rag-common: &rag-common
     # HEZARFEN_NET gibi bir filo anahtarı: korpus başka yerdeyse operatör yazar.
     - ${HEZARFEN_DATA_VOLUME:-./data}:/app/data:ro,z
     - rag-cost:/cost               # maliyet defteri (restart'ta kaybolmasın)
+    # İNDEKS ÖNBELLEĞİ (#75): gömme vektörleri burada kalır. Konteyner yeniden
+    # yaratılsa bile AYNI korpus için gömme ATLANIR (yeniden başlatmada
+    # "kaynak yok / hazırlanıyor" penceresi böylece kapanır). Volume'ü silmek
+    # indeksi yeniden kurar — yalnız maliyet/gecikme bedeli, doğruluk etkilenmez.
+    - rag-index:/index
   healthcheck:
     # `/health` liveness'tır: süreç ayakta mı. Hazır olup olmadığı `/ready`de
     # (#50/#82) — boru hattı ~40 s kurulurken kap SAĞLIKSIZ sayılmamalı.
@@ -143,6 +148,7 @@ services:
 volumes:
   rag-models:
   rag-cost:
+  rag-index:                      # indeks önbelleği (#75) — bkz. yukarıdaki mount
   rag-local:                      # yerel yığın (venv) — bkz. deploy/provision_local_stack.sh
 
 networks:

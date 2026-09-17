@@ -430,15 +430,28 @@ class MultiCorpusService:
 
     # -- gözlem ----------------------------------------------------------
     @property
+    def korpus_hazir(self) -> bool:
+        """GERÇEKTEN kurulu bir indeks var mı (`/ready`nin `hazir_tur`u için).
+
+        #75/OPS: konteyner yeniden yaratıldığında indeks kaybolur ve hiçbir
+        # korpus kurulu olmaz; bu durumda `/ready` "ready" dememeli."""
+        return bool(self.registry.keys())
+
+    @property
     def generator(self):
-        """`/ready` "generator var mı" diye bakıyor. Çok-korpusta hazır olmak
-        = EN AZ BİR korpus yüklü ya da yüklenebilir olmak."""
+        """`/ready` "generator var mı" diye bakıyor.
+
+        #75/OPS — ESKİDEN burada `object() if self._specs else None` vardı:
+        korpus TANIMLI olduğu sürece (hiçbiri KURULU olmasa bile) `/ready`
+        "hazır" diyordu — yani yeniden yaratılan konteynerde sorular
+        `service_warming_up` dönerken readiness YEŞİL yanıyordu. Artık yalnız
+        gerçekten KURULU bir korpus varsa generator döner."""
         for k in self.registry.keys():
             svc = self.registry.get(k.sinif, k.ders, school=k.school)
             g = getattr(svc, "generator", None)
             if g is not None:
                 return g
-        return object() if self._specs else None
+        return None
 
     @property
     def doc(self):

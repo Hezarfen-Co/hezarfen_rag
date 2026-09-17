@@ -352,8 +352,22 @@ def create_app(service, *, service_token: str | None = None,
         """#50: eskiden `/health` servis BOZUK olsa da `ok` donuyordu.
         Readiness ayri: generator/doc gercekten kurulu mu."""
         hazir = getattr(service, "generator", None) is not None
+        # #75/OPS — SAĞLAYICI-mi, KORPUS-mi? Konteyner yeniden yaratıldığında
+        # indeks bellekte olduğu için bir süre "hazır ama soru cevaplayamaz"
+        # durumu vardı; operatör bunu `/ready`den AYIRT EDEMİYORDU. `korpus_hazir`
+        # gerçekten KURULU bir indeks var mı der; `hazir_tur` ikisini ayırır:
+        #   tam       → sağlayıcı hazır VE en az bir korpus kurulu (soru cevaplanır)
+        #   saglayici → sağlayıcı hazır, korpus henüz YOK/İNŞA EDİLİYOR (cevap yok)
+        #   yok       → sağlayıcı bile hazır değil
+        korpus_hazir = (bool(getattr(service, "korpus_hazir"))
+                        if hasattr(service, "korpus_hazir")
+                        else getattr(service, "doc", None) is not None)
+        hazir_tur = ("tam" if (hazir and korpus_hazir)
+                     else "saglayici" if hazir else "yok")
         return JSONResponse(status_code=200 if hazir else 503,
                             content={"status": "ready" if hazir else "not_ready",
+                                     "korpus_hazir": korpus_hazir,
+                                     "hazir_tur": hazir_tur,
                                      "ozet": getattr(service, "doc", None) is not None,
                                      "soru": getattr(service, "question_gen", None) is not None,
                                      # operator hangi frenlerin ACIK oldugunu
@@ -630,7 +644,32 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     # #82 (EXP-010/OPS-10): dense ve sparse TEK geçişte üretilir. Ayrı
     # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü
     # (10-biyoloji, 327 chunk, GPU): iki geçiş 8,4 s -> tek geçiş 3,9 s (%53).
-    vecs, sparse = emb.embed_both(texts, batch_size=16)
+    #
+    # #75 — İNDEKS ÖNBELLEĞİ. Gömme AĞ çağrısıdır (yerel yolda CPU'da dakikalar);
+    # çıktısı içerik+model türevlidir, bu yüzden volume'de saklanır ve yeniden
+    # yaratılan konteynerde AYNI korpus için tekrar ödenmez. Kalıcılık sözleşmesi
+    # ve anahtar türetimi: src/index/disk_cache.py başlığı.
+    from ..embed import provider as _embed_provider
+    from ..index import disk_cache as _disk
+    _root = _disk.cache_root()
+    _sig = _disk.embed_signature(_embed_provider.PROVIDER,
+                                 _embed_provider.API_BASE,
+                                 _embed_provider.API_MODEL,
+                                 _embed_provider.INDEX_DIM)
+    _key = _disk.cache_key(doc.doc_id, texts, _sig)
+    _hit = _disk.load(_root, doc.doc_id, _key, dim=_embed_provider.INDEX_DIM,
+                      n=len(ids)) if _root else None
+    if _hit is not None and _hit[0] == ids:
+        _, vecs, sparse = _hit
+        print(f"[indeks] onbellek isabeti: {doc.doc_id} "
+              f"({len(ids)} chunk) — gömme ATLANDI", flush=True)
+    else:
+        vecs, sparse = emb.embed_both(texts, batch_size=16)
+        if _root:
+            _yazildi = _disk.save(_root, doc.doc_id, _key, ids, vecs, sparse)
+            if _yazildi:
+                print(f"[indeks] onbellege yazildi: {doc.doc_id} "
+                      f"({len(ids)} chunk)", flush=True)
     meta = {c.chunk_id: {"sinif": sinif, "ders": ders, "school": sahip}
             for c in children}
     retr = HybridRetriever(emb, DenseIndex(dim=1024).build(ids, vecs, school=sahip),
@@ -751,6 +790,11 @@ class _LazyService:
         self.doc = getattr(service, "doc", None)
         self.summarizer = getattr(service, "summarizer", None)
         self.question_gen = getattr(service, "question_gen", None)
+
+    @property
+    def korpus_hazir(self) -> bool:
+        """Korpus GERÇEKTEN kuruldu mu (`/ready`nin `hazir_tur`u için, #75)."""
+        return self._gercek is not None and self.doc is not None
 
     def _yonlendir(self, ad, req):
         if self._gercek is None:

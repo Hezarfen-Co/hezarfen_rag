@@ -74,6 +74,7 @@ ENV HF_HOME=/models \
     PYTHONUNBUFFERED=1 \
     HOST=0.0.0.0 \
     PORT=8000 \
+    RAG_INDEX_CACHE=/index \
     RAG_EMBED_PROVIDER=api \
     RAG_RERANK_PROVIDER=api
 

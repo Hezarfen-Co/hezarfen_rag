@@ -126,8 +126,21 @@ class ComposeTests(unittest.TestCase):
         self.assertIn("env_file", self.y)
 
     def test_model_cache_and_cost_ledger_are_persistent(self):
-        for v in ("rag-models", "rag-cost"):
+        for v in ("rag-models", "rag-cost", "rag-index"):
             self.assertIn(v, self.y)
+
+    def test_index_cache_is_wired_end_to_end(self):
+        """#75 — İndeks önbelleği zincirin tamamında bağlı olmalı: Containerfile
+        varsayılanı `/index`, compose volume'ü oraya mount, servis dizini okuyor.
+        Biri eksikse önbellek sessizce kapalı kalır (konteyner yeniden yaratılınca
+        korpus yeniden gömülür ve bir süre cevapsız kalır)."""
+        self.assertIn("rag-index:/index", self.y)
+        self.assertIn("RAG_INDEX_CACHE=/index", _oku("Containerfile"))
+        kaynak = "\n".join(
+            f.read_text(encoding="utf-8")
+            for f in sorted(pathlib.Path(_KOK, "src").rglob("*.py"))
+        )
+        self.assertIn("RAG_INDEX_CACHE", kaynak)
 
     def test_security_knobs_are_wired(self):
         """Güvenlik düğmeleri sessizce kablosuz kalmamalı.
