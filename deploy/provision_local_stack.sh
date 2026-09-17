@@ -28,7 +28,17 @@
 # bununla cevaplar ve reddi mesajında eksik olduğunu adıyla söyler.
 set -euo pipefail
 
-VOLUME=${RAG_LOCAL_VOLUME:-hezarfen_rag_local}
+# VOLUME ADI: compose.yaml'daki anahtar `rag-local`'dir ve compose onu proje adıyla
+# ÖNEKLER (ör. hezarfen_rag_rag-local). Betik ÖNCE var olanı bulur; yoksa
+# RAG_LOCAL_VOLUME verilmişse onu, o da yoksa `hezarfen_rag_local` yaratır ve
+# uyarır (aksi halde servis "sağlanmamış" derdi — sessiz bir yanlış volume).
+if [ -n "${RAG_LOCAL_VOLUME:-}" ]; then
+  VOLUME=$RAG_LOCAL_VOLUME
+else
+  VOLUME=$(podman volume ls --format '{{.Name}}' 2>/dev/null | grep -E '(^|_)rag-local$' | head -1 || true)
+  VOLUME=${VOLUME:-hezarfen_rag_local}
+fi
+echo "kullanılan volume: $VOLUME" 
 IMAGE=${RAG_IMAGE:-localhost/hezarfen_rag:current}
 TORCH_INDEX=${TORCH_INDEX:-https://download.pytorch.org/whl/cpu}
 MONTAJ=/local-stack
