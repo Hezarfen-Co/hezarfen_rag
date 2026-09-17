@@ -32,6 +32,11 @@ alanı sayesinde dosya baytları **o kullanıcı adına** okunabilir (`ai`
 görevlisinin kendi başına erişimi yoktur). Bu yol öğrenci/öğretmen notlarını
 indekslemek için yeterlidir.
 
+**Yanıt (2026-09-17):** servis `{"files": [{"id", "doc_id"}, ...]}` döner —
+`id` isteğin `RagFile.id`'siyle **aynı**, `doc_id` o ekin indeksteki korpus
+kimliği. Backend `course_note_file.rag_doc_id`'yi bu eşleşmeden doldurur
+(`bridge/contract.py`: `RagIndexReply`). Ayrıntı: `API-CONTRACT.md` §0.1.
+
 ## 3. İKİ BOŞLUK — kişiselleştirme ve atıf bugün köprüden geçemiyor
 
 ### 3.1 `chat.reply` isteği kimin sorduğunu taşımıyor
@@ -54,45 +59,58 @@ answer is the service's job"*. Ama servis **hangi öğrenci** olduğunu bilmeden
 
 Bu ikincisi bir güvenlik kuralıdır, bir özellik değil (bkz. EXP-010/SEC-01).
 
-### 3.2 `chat.reply` cevabı atıf taşımıyor
+### 3.2 `chat.reply` cevabı atıf taşımıyor — RAG için ÇÖZÜLDÜ
 
-```rust
-pub struct ChatReplyPayload { pub text: String }
+`ChatReplyPayload` **hâlâ** yalnız `text` taşır; ama ürünün "atıfa tıklayınca
+sayfayı bulursun" ihtiyacı artık ayrı bir yetenekle karşılanıyor: backend'in
+`rag.chat` yeteneği. Tel biçiminin **otoritesi backend'in kendi belgesidir**
+(`hezarfen_backend/README.md` → `## AI bridge (QUIC)` → `### The \`rag.chat\`
+capability`); burada yalnız özet var:
+
+```
+RagChatRequestPayload{ message, asker, asker_role, scope:[{sinif, ders}], history }
+RagChatReplyPayload{ text, abstained, reason,
+                     citations:[{n, doc_id, pages, span_ids, ders}] }
 ```
 
-Ürün sözümüz "her cümle kitaba dayanır, atıfa tıklayınca sayfayı bulursun".
-`citations`/`abstained`/`reason` için köprüde yer yok. Bugün atıflar ancak
-metnin **içinde** (`[1] s.102`) gidebilir; tıklanabilir kaynak, çekimser
-ayrımı ve hayalet-atıf telemetrisi kullanıcıya **ulaşamaz**.
+Yani tıklanabilir kaynak (`doc_id` → `course_note_file`), çekimser/red ayrımı
+(`abstained`/`reason`) ve hayalet-atıf telemetrisi rag.chat üzerinden kullanıcıya
+**ulaşır**. `chat.reply` yolu değişmedi: orada atıflar yine metnin İÇİNDE gider.
+Bu depodaki karşılıkları: `bridge/contract.py` `RagScopePair` (kapsam) ve
+atıf sözlüğündeki `doc_id` (bkz. `API-CONTRACT.md` §0.1, §1).
 
-## 4. Önerilen sözleşme değişikliği (backend ekibine)
+## 4. Sözleşme — backend ne YAYINLADI (bu belgenin eski önerisi geçersiz)
 
-Geriye uyumlu, iki alan ekler; mevcut servisleri bozmaz (`#[serde(default)]`):
+Bu bölüm eskiden `ChatRequestPayload`/`ChatReplyPayload`'ya `asker`/`citations`
+eklemeyi ÖNERİYORDU. Backend farklı bir yol seçti: atıf + kişiselleştirme
+RAG'e ÖZEL yeni bir yetenekte toplandı (`rag.chat`), `chat.reply` dokunulmadan
+kaldı. Yayınlanan tel biçimi (otorite: backend README `## AI bridge (QUIC)` →
+`### The \`rag.chat\` capability`):
 
 ```rust
-pub struct ChatRequestPayload {
+pub struct RagChatRequestPayload {
     pub message: String,
-    pub asker_role: String,
+    pub asker: String,        // kullanıcı kimliği — servis `on_behalf_of` okur
+    pub asker_role: String,   // student|teacher|parent|manager|admin (küçük harf)
+    pub scope: Vec<RagScopePair>,   // (sinif, ders) ÇİFTLERİ — bkz. §3.2
     #[serde(default)] pub history: Vec<ChatTurn>,
-    /// YENİ — soruyu soranın kullanıcı kimliği. Servis bunu `on_behalf_of`
-    /// olarak kullanıp öğrencinin kendi verisini okur; yetki backend'de kalır.
-    #[serde(default)] pub asker: Option<String>,
 }
-
-pub struct ChatReplyPayload {
+pub struct RagChatReplyPayload {
     pub text: String,
-    /// YENİ — metindeki [N] işaretlerinin çözümü.
-    #[serde(default)] pub citations: Vec<Citation>,
-    /// YENİ — cevap üretilmedi mi ve neden.
     #[serde(default)] pub abstained: bool,
     #[serde(default)] pub reason: String,
+    #[serde(default)] pub citations: Vec<RagCitation>,
 }
-
-pub struct Citation { pub n: u32, pub pages: Vec<i64>, pub source: String }
+pub struct RagScopePair { pub sinif: Option<String>, pub ders: String }
+pub struct RagCitation { pub n: u32, pub doc_id: String,
+                         pub pages: Vec<i64>, pub span_ids: Vec<String>,
+                         pub ders: Option<String> }
 ```
 
-`asker` alanı yeni bir yetki yüzeyi **açmaz**: servis zaten `ApiRequest`'te
-`on_behalf_of` kullanabiliyor; eksik olan tek şey kimin sorduğunu öğrenmek.
+`rag.index`'in **yanıtı** da bu haritayı tamamlar: servis her indekslediği ek
+için `{"files": [{"id", "doc_id"}, ...]}` döner (`id` = isteğin `RagFile.id`'si),
+backend `course_note_file.rag_doc_id`'yi bu eşleşmeden doldurur. Bu depodaki
+DTO karşılıkları: `bridge/contract.py` `RagScopePair`/`RagIndexReply`.
 
 ## 5. Bu tarafta yapılanlar (bu depoda)
 
@@ -127,7 +145,15 @@ Birleştirilmeden `can_access(sinif=, ders=)` kurulamaz.
 
 ## 7. Açık kalemler
 
-- Köprü istemcisi (QUIC/`hab/2` taşıması) yazılmadı.
-- `asker`/`citations` sözleşme değişikliği **backend ekibinin kararı**.
+- Köprü istemcisi (QUIC/`hab/2` taşıması) yazılmadı — `rag.chat` tel biçimi
+  backend'de YAYINLANDI ama bu depodaki transport onu henüz taşımıyor.
+- `rag.chat` `asker_role` gönderir (ayrı alan); bu depodaki handler rol adını
+  `role` sözlüğünden bekler. Köprü istemcisi kurulunca `asker_role` → `role.role`
+  eşlemesi orada yapılmalıdır (bkz. `API-CONTRACT.md` §0.2).
+- **Sınıfsız korpus yönlendirilemiyor:** `registry.py`/`multi.py` korpusları
+  `(str sinif, str ders)` ile anahtarlar; `(None, ders)` çifti `no_corpus`'a
+  düşer (yetki katmanı `can_access` bunu desteklese bile). Kapatmak için
+  korpus anahtarının sınıfsız bir sentinel kabul etmesi gerekir
+  (bkz. `API-CONTRACT.md` §0.2).
 - `RestReader` başkası adına okuyamaz (HTTP'de oturum sahibi kim ise o okur);
   bu bilinçli bir kısıttır, sessizce yanlış kullanıcıyı okumaktansa hata verir.

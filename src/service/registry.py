@@ -34,6 +34,8 @@ from __future__ import annotations
 import threading
 from dataclasses import dataclass, field
 
+from .handler import scope_pairs
+
 
 @dataclass(frozen=True)
 class CorpusKey:
@@ -112,7 +114,23 @@ class CorpusRegistry:
         SEC-01'in tam olarak bu şekli ölçülmüştü.
         """
         rol = req.get("role") or {}
-        scope = req.get("scope") or {}
+        raw_scope = req.get("scope")
+        # YENİ rag.chat biçimi: `scope` bir (sınıf,ders) ÇİFT listesidir. Eski
+        # sözlük biçimi (`{"sinif","ders"}`) aynen çalışmaya devam eder.
+        pairs = scope_pairs(raw_scope) if isinstance(raw_scope, (list, tuple)) else []
+        if pairs:
+            if len(pairs) == 1:
+                sinif, ders = pairs[0]
+            else:
+                yuklu = [(s, d) for (s, d) in pairs if self.get(s, d) is not None]
+                if len(yuklu) == 1:
+                    sinif, ders = yuklu[0]
+                else:
+                    # Birden çok aday: hedef belirsiz. Tahmin yanlış kitap demek.
+                    return None, "corpus_ambiguous"
+            svc = self.get(sinif, ders)
+            return (svc, "") if svc is not None else (None, "no_corpus")
+        scope = raw_scope if isinstance(raw_scope, dict) else {}
         sinif = scope.get("sinif") or rol.get("sinif")
         ders = scope.get("ders") or (req.get("options") or {}).get("ders")
 

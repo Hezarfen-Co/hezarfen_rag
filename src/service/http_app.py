@@ -54,6 +54,17 @@ class RoleModel(BaseModel):
     ders_list: list[str] = Field(default_factory=list, max_length=64)
 
 
+class ScopePairModel(BaseModel):
+    """rag.chat kapsamı — bir (sınıf, ders) ÇİFTİ.
+
+    YENİ biçim (backend `RagScopePair`): eski `role.sinif` + `role.ders_list`
+    KARTEZYEN çarpım ifade ediyordu; çift listesi her grant'i tek tek taşır.
+    `sinif` boş/None = sınıfa bağlı olmayan korpus (okul kulübü/etüt).
+    """
+    sinif: str | None = Field(default=None, max_length=16)
+    ders: str = Field(min_length=1, max_length=64)
+
+
 class ChatOptions(BaseModel):
     """Eskiden serbest `dict`ti ve `int(opts.get(...))` ile handler'a geciyordu."""
     top_n: int = Field(default=6, ge=1, le=20)
@@ -65,6 +76,9 @@ class ChatRequest(BaseModel):
     query: str = Field(min_length=1, max_length=MAX_QUERY_CHARS)
     history: list[dict] | None = Field(default=None, max_length=MAX_HISTORY_TURNS)
     role: RoleModel | None = None
+    # rag.chat kapsamı: (sınıf,ders) ÇİFT listesi (eski `role.sinif`+`ders_list`
+    # GERİYE UYUMLU çalışır). Kısa liste; çift başına sınır ders adıyla aynı.
+    scope: list[ScopePairModel] | None = Field(default=None, max_length=200)
     options: ChatOptions = Field(default_factory=ChatOptions)
 
 

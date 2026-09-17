@@ -13,16 +13,19 @@ Backend deposuna DOKUNULMAZ — yalnız okunur.
 import unittest
 
 from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_PROTOCOL,
-                                  AI_RAG_INDEX_CAPABILITY, ApiError, ApiRequest,
-                                  ASSIGNABLE_ROLES, BlobRequest, ChatReplyPayload,
-                                  ChatRequestPayload, ChatTurn, RagFile,
-                                  RagIndexPayload, decode_api_response)
+                                  AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY,
+                                  ApiError, ApiRequest, ASSIGNABLE_ROLES,
+                                  BlobRequest, ChatReplyPayload, ChatRequestPayload,
+                                  ChatTurn, RagFile, RagIndexPayload,
+                                  RagIndexReply, RagIndexReplyFile,
+                                  RagScopePair, decode_api_response)
 
 
 class YetenekAdlariTests(unittest.TestCase):
     def test_capability_strings(self):
         self.assertEqual(AI_CHAT_CAPABILITY, "chat.reply")
         self.assertEqual(AI_RAG_INDEX_CAPABILITY, "rag.index")
+        self.assertEqual(AI_RAG_CHAT_CAPABILITY, "rag.chat")
 
     def test_protocol_name(self):
         self.assertEqual(AI_PROTOCOL, "hab/2")
@@ -53,6 +56,30 @@ class RagIndexTelBicimiTests(unittest.TestCase):
         p = RagIndexPayload.from_wire({"course_note": "01NOTE", "course": "01C",
                                        "author": "01A", "title": "t", "content": "c"})
         self.assertEqual(p.files, [])
+
+    def test_index_reply_keys_are_id_and_doc_id(self):
+        """Backend `course_note_file.rag_doc_id`'yi bu eşleşmeden doldurur —
+        `id` (istekteki `RagFile.id` ile AYNI) → `doc_id`. Anahtar adları
+        değişirse backend sessizce boş kalır; bu yüzden sabitlenir."""
+        r = RagIndexReply(files=[RagIndexReplyFile(id="01FILE", doc_id="5eda1f0a9c32")])
+        self.assertEqual(r.to_wire(), {
+            "files": [{"id": "01FILE", "doc_id": "5eda1f0a9c32"}]})
+
+    def test_index_reply_round_trips(self):
+        w = {"files": [{"id": "01A", "doc_id": "d1"}, {"id": "01B", "doc_id": "d2"}]}
+        r = RagIndexReply.from_wire(w)
+        self.assertEqual(r.to_wire(), w)
+        self.assertEqual(RagIndexReply.from_wire({}).files, [])
+
+    def test_scope_pair_keys_are_sinif_and_ders(self):
+        """rag.chat kapsamı bir (sınıf, ders) ÇİFTİDİR; `sinif=None` sınıfsız
+        (okul kulübü/etüt) korpusu gösterir. Boş `sinif` anahtardır ve
+        `None`'a normalize edilir."""
+        self.assertEqual(RagScopePair(sinif="10", ders="biyoloji").to_wire(),
+                         {"sinif": "10", "ders": "biyoloji"})
+        self.assertEqual(RagScopePair.from_wire({"sinif": "", "ders": "satranc"}).to_wire(),
+                         {"sinif": None, "ders": "satranc"})
+        self.assertEqual(RagScopePair.from_wire({"ders": "satranc"}).sinif, None)
 
 
 class ChatTelBicimiTests(unittest.TestCase):

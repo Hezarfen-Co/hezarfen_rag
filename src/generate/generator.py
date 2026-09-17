@@ -520,7 +520,7 @@ class Generator:
                                      "page": _format_pages(pages),
                                      "text": ctx.text})
             source_lookup[i] = {"chunk_id": ctx.chunk_id, "span_ids": list(ctx.span_ids),
-                                "pages": pages}
+                                "pages": pages, "doc_id": getattr(ctx, "doc_id", "")}
             # #54: parent genişletmesi AYRI numaralı kaynak — kendi sayfasıyla.
             # Child'ın hemen ardında durur ki bağlam kopmasın.
             for ek_metin, ek_spans in source_units(ctx)[1:]:
@@ -532,7 +532,8 @@ class Generator:
                                          "page": _format_pages(ek_pages),
                                          "text": ek_metin})
                 source_lookup[i] = {"chunk_id": ctx.parent_id or ctx.chunk_id,
-                                    "span_ids": list(ek_spans), "pages": ek_pages}
+                                    "span_ids": list(ek_spans), "pages": ek_pages,
+                                    "doc_id": getattr(ctx, "doc_id", "")}
 
         system, user = build_grounded_prompt(q, numbered_sources)
         result = self.deepseek.chat(user, system=system, temperature=temperature,
@@ -554,7 +555,7 @@ class Generator:
                 continue
             citations.append({"n": n, "chunk_id": src["chunk_id"],
                               "span_ids": src["span_ids"], "pages": src["pages"],
-                              "ders": self.ders})
+                              "ders": self.ders, "doc_id": src["doc_id"]})
             used_source_ids.append(src["chunk_id"])
         invalid_citations = sorted(set(invalid_citations))
         # #62: hayalet `[N]` kullanıcıya gösterilen metinden KIRPILIR — eskiden

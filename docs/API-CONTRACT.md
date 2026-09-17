@@ -12,6 +12,43 @@ header/body'sinden körü körüne alınmaz** (RES-002 §2, RES-003 §7: RagArt'
 buydu). Kasa izolasyonu (öğrenci yalnız kendi sınıf/dersini görür) bu role'e dayanır;
 yanlış role = veri sızıntısı. RAG `role`'ü olduğu gibi uygular, doğrulamaz.
 
+### 0.1 İki tel-biçimi kararı (2026-09-17)
+
+**`rag.index` yanıtı bir dosya eşleşmesi taşır.** Servis,
+`{"files": [{"id": ..., "doc_id": ...}, ...]}` döner. `id` isteğin `RagFile.id`'siyle
+**aynı** değerdir; `doc_id` o ekin indekste kazandığı korpus kimliğidir. Neden:
+backend `course_note_file.rag_doc_id`'yi yalnız bu eşleşmeden öğrenir — bir eki
+yeniden indekslerken/silerken hangi korpusu hedefleyeceğini bilmeli (`bridge/contract.py`:
+`RagIndexReply`/`RagIndexReplyFile`).
+
+**`rag.chat` kapsamı (sınıf, ders) ÇİFT listesidir.** Eski `role.sinif` +
+`role.ders_list` biçimi bir KARTEZYEN ÇARPIM ifade eder (`sinif="10"` +
+`ders_list=["biyoloji","satranç"]` → "10-biyoloji **VE** 10-satranç"); oysa gerçek
+kapsam "10-biyoloji **VEYA** okul-satranç" olabilir ve düzleştirme yanlış bir
+(sınıf,ders) grant'i açar. Çift listesi her grant'i tek tek taşır; `sinif` boş/None
+= sınıfa bağlı olmayan korpus (okul kulübü/etüt). Eski biçim **geriye uyumlu**
+çalışmaya devam eder, ancak `scope` çift listesi VERİLİRSE o tercih edilir
+(`bridge/contract.py`: `RagScopePair`; `guard/roles.can_access`).
+
+### 0.2 Bilinen açıklar (2026-09-17, kapatılmadı)
+
+**(a) `asker_role` → `role` eşlemesi henüz yok.** Backend `rag.chat`'te soranın
+rolünü AYRI bir `asker_role` alanında gönderir (`RagChatRequestPayload`); bu
+deponun handler'ı rol adını `role` sözlüğünden okur (`{\"role\": \"student\"}`).
+HTTP gövdesinde `role` modeli dolduğu için sorun yoktur, ama QUIC köprüsü
+`RagChatRequestPayload`'ı HAM geçirirse `asker_role` rol adına çevrilmezse
+erişim fail-closed reddedilir. Köprü istemcisi yazılınca `asker_role` →
+`role.role` eşlemesi ORADA yapılmalıdır (transport henüz yazılmadı).
+
+**(b) Sınıfsız korpus yönlendirilemiyor.** `scope` çiftindeki `sinif` boş/None
+olabilir (okul kulübü/etüt) ve yetki katmanı bunu destekler
+(`can_access` tam-çift eşleşmesi). ANCAK yönlendirme katmanı korpusları hâlâ
+`(str sinif, str ders)` ile anahtarlar (`src/service/registry.py`,
+`src/service/multi.py`); `(None, ders)` çifti bu yüzden **`no_corpus`** döner.
+Kapatmak için korpus anahtarının sınıfsız bir sentinel (`\"\"` ya da ayrı bir
+anahtar alanı) kabul etmesi ve `book_path`/keşif mantığının sınıfsız dizini
+bulması gerekir — bu wave'de YAPILMADI.
+
 ## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
 
 Denetimde (OPS-16) şu tespit edildi: bu sözleşme backend'e *"kaynak yükleme/
@@ -67,8 +104,8 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
   "reason": "",                                 // "" | guard_<kat> | insufficient_data | model_abstained
   "invalid_citations": [],                      // (#62) çözülemeyen [N] numaraları
   "citations": [
-    {"n": 1, "chunk_id": "5eda...:c14", "span_ids": ["...#20.1"], "pages": [20,21], "ders": "biyoloji"},
-    {"n": 2, "chunk_id": "5eda...:c10", "span_ids": ["...#17.3"], "pages": [17,18], "ders": "biyoloji"}
+    {"n": 1, "chunk_id": "5eda...:c14", "span_ids": ["...#20.1"], "pages": [20,21], "ders": "biyoloji", "doc_id": "5eda1f0a9c32"},
+    {"n": 2, "chunk_id": "5eda...:c10", "span_ids": ["...#17.3"], "pages": [17,18], "ders": "biyoloji", "doc_id": "5eda1f0a9c32"}
   ],
   "used_source_ids": ["5eda...:c14", "5eda...:c10"],
   "cost_usd": 0.00058,

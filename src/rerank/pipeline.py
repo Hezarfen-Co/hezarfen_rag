@@ -24,6 +24,9 @@ class RerankedContext:
     # Model parent'taki bilgiyi kullanip [N] atifladiginda donen sayfa CHILD'in
     # sayfasiydi; kullanici atifa tiklayinca iddiayi o sayfada BULAMIYORDU.
     parent_span_ids: list = field(default_factory=list)
+    # Kaynağın korpus kimliği (Chunk.doc_id) — atıf backend'e `doc_id` olarak
+    # taşınır (`course_note_file.rag_doc_id` eşleşmesi için).
+    doc_id: str = ""
 
 
 # M2-7 (#59, EXP-010/ACC-06) -- KISIT YAPISAL DEGIL, ILGILILIK TABANLI.
@@ -153,5 +156,6 @@ def rerank_select(query, hits, chunks_by_id, reranker, *, top_n: int = 10,
             # orada kirpar), boylece bu katman saf veri tasiyici kalir.
             pspans = list(parent.span_ids)
         results.append(RerankedContext(cid, sc, ch.text, list(ch.span_ids),
-                                       ch.parent_id, ptext, pspans))
+                                       ch.parent_id, ptext, pspans,
+                                       getattr(ch, "doc_id", "")))
     return results

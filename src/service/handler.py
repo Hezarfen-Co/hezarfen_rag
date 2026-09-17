@@ -15,19 +15,63 @@ from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
 
 
-def _role_ctx(role: dict | None):
+def scope_pairs(scope) -> list:
+    """İstekteki `scope`'u (sınıf, ders) ÇİFT listesine indirger.
+
+    İki biçim kabul edilir — YENİ `[{sinif, ders}, ...]` (rag.chat) ve eski
+    `{"sinif": ..., "ders": ...}` sözlüğü (özet/soru yolu). Sözlük biçimi tek
+    çift verir; `sinif`/`ders` yoksa boş liste. Sıra korunur.
+
+    NEDEN ÇİFT: bkz. `bridge/contract.RagScopePair` (çapraz-çarpım güvenliği).
+    """
+    if isinstance(scope, (list, tuple)):
+        out = []
+        for p in scope:
+            if isinstance(p, dict) and p.get("ders"):
+                s = p.get("sinif")
+                out.append((str(s) if s not in (None, "") else None, str(p["ders"])))
+            elif hasattr(p, "ders"):
+                out.append((p.sinif, p.ders))
+        return out
+    if isinstance(scope, dict):
+        d = scope.get("ders")
+        if d:
+            s = scope.get("sinif")
+            return [(str(s) if s not in (None, "") else None, str(d))]
+    return []
+
+
+def _role_ctx(role: dict | None, scope=None):
     """API role sözlüğü → RoleContext. Tanınmayan/eksik rol → None.
 
     DİKKAT (#43): `None` "rol yok" demektir, "her şeye erişebilir" DEMEZ.
     Çağıranın bunu fail-CLOSED yorumlaması ZORUNLUDUR (bkz. `_scope_denied`).
     EXP-010/SEC-02'de tam bu yorum hatası vardı: `if role_ctx is not None:`
-    koruması yüzünden rol çözülemeyince kontrol TAMAMEN atlanıyordu."""
+    koruması yüzünden rol çözülemeyince kontrol TAMAMEN atlanıyordu.
+
+    KAPSAM (çift listesi): `scope` bir (sınıf, ders) çift listesi ise
+    (`scope_pairs`) role'ün `sinif`/`ders_list` ALANLARINDAN ÖNCE gelir — backend
+    artık kapsamı bu biçimde gönderiyor. Eski `sinif`+`ders_list` biçimi
+    GERİYE UYUMLU çalışmaya devam eder. `sinif`/`ders_list` burada, çiftlerden
+    türetilirken KARTEZYEN ÇARPIMA DÜŞÜLMEZ: yalnız tüm çiftlerin paylaştığı
+    ortak sınıf yazılır (paylaşılan sınıf yoksa None); asgari düzeyde ayrıcalık
+    verilir, hiçbir (sınıf,ders) çifti yanlışlıkla AÇILMAZ.
+    """
     if not role or not isinstance(role, dict):
         return None
     try:
         r = Role(str(role.get("role", "")).strip().lower())
     except ValueError:
         return None
+    # GÜVENLİK: yalnız ÇİFT LİSTESİ yetki GRANT'i sayılır. Özet/soru yolunun
+    # sözlük `scope`'u istemci-beyanlı bir EŞLEŞME girdisidir (SEC-01) — ondan
+    # grant türetmek client'ın özneyi kendisi bildirmesi demek olurdu.
+    pairs = scope_pairs(scope) if isinstance(scope, (list, tuple)) else []
+    if pairs:
+        sinifler = {s for s, _ in pairs}
+        ortak = next(iter(sinifler)) if len(sinifler) == 1 else None
+        return RoleContext(role=r, sinif=ortak, ders_list=[d for _, d in pairs],
+                           scope_pairs=list(pairs))
     return RoleContext(role=r, sinif=role.get("sinif"),
                        ders_list=list(role.get("ders_list") or []))
 
@@ -113,7 +157,8 @@ def _answer_to_dict(a) -> dict:
         "reason": a.reason or "",
         "citations": [{"n": c.get("n"), "chunk_id": c.get("chunk_id"),
                        "span_ids": c.get("span_ids", []), "pages": c.get("pages", []),
-                       "ders": c.get("ders", "")} for c in a.citations],
+                       "ders": c.get("ders", ""), "doc_id": c.get("doc_id", "")}
+                      for c in a.citations],
         "used_source_ids": list(a.used_source_ids),
         # #62 (EXP-010/ACC-12): hayalet `[N]` numaralari payload'a HIC girmiyordu.
         # Metinden kirpilsa bile backend'in "bu cevapta cozulemeyen atif vardi"
@@ -145,7 +190,7 @@ class RagService:
         if not query:
             return {"text": "", "abstained": True, "reason": "empty_query",
                     "citations": [], "used_source_ids": [], "cost_usd": 0.0, "cache_hit": False}
-        role_ctx = _role_ctx(req.get("role"))
+        role_ctx = _role_ctx(req.get("role"), req.get("scope"))
         karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
         if not karar.allowed:
             return _budget_denied(karar, "chat")
