@@ -39,6 +39,12 @@ on:
 # Deploy serileştirmesi işin kendisinde: yeni bir push, uçuştaki VPS değişimine
 # dokunmadan bayat Validate/Build'i iptal edebilmeli.
 
+permissions:
+  contents: read
+  # workflow_dispatch yolu `gh run list/view` ile en yeni yeşil koşuyu arar ve o
+  # koşunun artefaktini indirir; ikisi de Actions API'sidir ve YAZMA GEREKMEZ.
+  actions: read
+
 env:
   SERVICE: hezarfen_rag_compose
   DEPLOY_SUBDIR: hezarfen_rag
