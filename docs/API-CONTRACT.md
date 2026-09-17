@@ -32,14 +32,13 @@ kapsam "10-biyoloji **VEYA** okul-satranç" olabilir ve düzleştirme yanlış b
 
 ### 0.2 Bilinen açıklar (2026-09-17; (a) kapandı, (b) açık)
 
-**(a) `asker_role` → `role` eşlemesi — ÇÖZÜLDÜ (2026-09-17), taşıma kaldı.**
+**(a) `asker_role` → `role` eşlemesi — ÇÖZÜLDÜ (2026-09-17; taşıma da landı).**
 Backend `rag.chat`'te soranın rolünü AYRI bir `asker_role` alanında gönderir
 (`RagChatRequestPayload`). Eşleme artık transport-bağımsız dağıtıcıda YAPILIR:
 `bridge/dispatch.py::Dispatcher._govde` her iki yetenek için de
 `{"role": {"role": asker_role}}` üretir (`role` yoksa servis zaten
-`role_required` ile fail-closed reddeder). Geriye kalan TEK eksik, çerçeveyi
-taşıyan QUIC istemcisidir (BL-010): `bridge/client.py` çerçeve kurma/çözme
-kısmını taşımasız hazır tutar.
+`role_required` ile fail-closed reddeder). Çerçeveyi taşıyan QUIC istemcisi de
+yazıldı (`bridge/transport.py`, 2026-09-17) — bu madde TAMAMEN kapandı.
 
 **(b) Sınıfsız korpus yönlendirilemiyor.** `scope` çiftindeki `sinif` boş/None
 olabilir (okul kulübü/etüt) ve yetki katmanı bunu destekler
@@ -80,10 +79,11 @@ sınıfını geri getirirdi. Yerine: her korpusun bir okulu vardır (`require_ow
 okulsuz okur hiçbir şey görmez.
 
 **Köprüde durum:** dağıtıcı (`bridge/dispatch.py`) transport-BAĞIMSIZ hazır ve
-testlidir (okul eko'su, yetenek eşlemesi, `asker_role` → `role`). QUIC
-taşıması (`bridge/client.py::BridgeReader`'ın ağ kısmı) henüz YAZILMADI:
-`rag.chat` uçtan uca HİÇ servis edilmedi (BL-010). HTTP yüzeyi yerel
-koşum/ölçüm için durur; backend onu ÇAĞIRMAZ.
+testlidir (okul eko'su, yetenek eşlemesi, `asker_role` → `role`). QUIC taşıması
+(`bridge/transport.py`) 2026-09-17'de eklendi: dial-out + kayıt + gelen
+`Request`lerin dağıtıcıya verilmesi + yeniden bağlanma. `rag.chat` böylece
+telden servis edilebilir; `rag.index` hâlâ TİPLİ REDDEDER (sunulmuyor).
+HTTP yüzeyi yerel koşum/ölçüm için durur; backend onu ÇAĞIRMAZ.
 
 ## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
 
@@ -254,9 +254,9 @@ HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
 - **Maliyet:** her çağrı `cost_usd` döner; backend `costlog`/telemetriye yazabilir.
 - **Servis girişi:** HTTP servisi bu repoda VAR (`src/service/http_app.py` +
   `compose.yaml` + `Containerfile` + systemd unit + CI deploy); backend onu
-  ÇAĞIRMAZ — gerçek entegrasyon QUIC/`hab/2` köprüsüdür ve taşıması henüz
-  yazılmadı (§0.3 sonu, BL-010). Yani `rag.chat` bugüne dek uçtan uca
-  servis edilmedi; HTTP yüzeyi yerel koşum/ölçüm içindir.
+  ÇAĞIRMAZ — gerçek entegrasyon QUIC/`hab/2` köprüsüdür ve taşıması
+  `src/bridge/transport.py` ile LANDI (2026-09-17, BL-010 kapandı). `rag.chat`
+  artık telden servis edilir; HTTP yüzeyi yerel koşum/ölçüm için durur.
 - Kesin Python arayüzü: `src/generate/Generator.answer(query, history=, top_n=, ...)` →
   `GroundedAnswer`; `src/summarize/Summarizer.summarize(units, scope_label=)` →
   `GroundedSummary`; `src/guard/RoleContext` + `can_access`; `src/retrieve/HybridRetriever(meta=)`.

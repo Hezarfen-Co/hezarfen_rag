@@ -20,9 +20,12 @@ RAG servisi:
 4. Dosya baytlarını `BlobRequest` ile ayrı akıştan alır.
 
 > HTTP servisi yine de değerlidir (yerel geliştirme, backend-dışı entegrasyon,
-> ölçüm koşumları) — ama **köprünün yerine geçmez**. Köprü istemcisi
-> (QUIC taşıması) henüz yazılmadı; `src/bridge/client.py` çerçeve kurma ve
-> cevap çözme kısmını taşımadan bağımsız hazır tutuyor.
+> ölçüm koşumları) — ama **köprünün yerine geçmez**. Köprünün QUIC taşıması
+> artık VAR: `src/bridge/transport.py` backend'e dial-out eder, `rag.chat` +
+> `rag.index` ilan eder ve gelen `Request`leri `bridge/dispatch.py`'ye verir
+> (§4.2). `src/bridge/client.py` ise hâlâ yalnız çerçeve kurma/çözme tarafıdır:
+> backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
+> bağlanmadı — bugünkü yetenekler onu istemiyor (§7).
 
 ## 2. Bugün ÇALIŞAN yol: `rag.index`
 
@@ -131,16 +134,54 @@ Bu depodaki uygulama (ayrıntılı tablo: `API-CONTRACT.md` §0.3):
 | cevap cache | anahtara `school` girer (iki okul hit paylaşamaz) | `cache/response_cache.py` |
 
 **Durum:** dağıtıcı transport-bağımsız hazır ve testli; QUIC taşıması
-(`bridge/client.py`'ın ağ kısmı) henüz yazılmadı → `rag.chat` uçtan uca HİÇ
-servis edilmedi (BL-010).
+`src/bridge/transport.py`de LANDI (§4.2) → `rag.chat` artık telden servis
+edilebilir. Eksik kalan parçalar §7'de.
+
+## 4.2 Taşıma — `src/bridge/transport.py` (2026-09-17, BL-010 kapandı)
+
+Backend QUIC **sunucusudur**; servis dial-out eder (`ai/protocol.rs:3-7`).
+Taşıma bunu yapar:
+
+| adım | ne | kod |
+|---|---|---|
+| sertifika | `GET /ai/certificate` — HER yeniden bağlanmada (backend her boot'ta yeniden üretir) | `transport.fetch_certificate` |
+| el sıkışma | `Hello{protocol:"hab/2", service, capabilities, token, max_concurrent}` → `Greeting{welcome\|rejected}` | `contract.build_hello`, `BridgeTransport.register` |
+| kayıt | ilan edilen yetenekler: **`rag.chat` + `rag.index`**. `chat.reply` KARŞILANIR ama İLAN EDİLMEZ — o yetenek chatbot'undur, ilan etmek sohbet trafiğini RAG'e yönlendirirdi | `transport.ADVERTISED_CAPABILITIES` |
+| canlı tutma | QUIC PING her 10 s (`constant.rs:555`); uygulama düzeyinde heartbeat çerçevesi yok | `BridgeTransport.keepalive` |
+| iş yönü | backend'in açtığı akışta tek `Request` → `Dispatcher.handle` → tek `Response`. Boru hattı işlemci/GPU yoğun olduğu için executor'da koşar: PING'ler durmasın | `BridgeTransport._serve_request` |
+| yeniden bağlanma | üstel geri çekilme + jitter; **hiçbir hatada çıkılmaz** | `transport.run_forever` |
+
+**Ortam (filo adları — yeni ad icat edilmedi):** `AI_BRIDGE_HOST` (varsayılan
+`hezarfen_backend`) · `AI_BRIDGE_PORT` (8090) · `AI_BACKEND_URL`
+(`http://hezarfen_backend:7656`) · `AI_TLS_SERVER_NAME` (`localhost`) ·
+`AI_SERVICE_NAME` (`rag`) · `AI_SHARED_TOKEN` · `AI_TLS_FINGERPRINT` (boş →
+TOFU: her açılışta `warn`; dolu → pinlenir, uyuşmazsa BAĞLANILMAZ) ·
+`AI_MAX_CONCURRENT` (4; backend 1..=64'e kırpar) · `AI_RECONNECT_SECS` (3,0) ·
+`AI_RECONNECT_MAX_SECS` (120,0) · `LOG_LEVEL`.
+
+**Boot politikası (uygulanan):** backend yokken süreç DÜŞMEZ — loglar, bekler ve
+yeniden dener; backend geldiğinde KENDİLİĞİNDEN kaydolur. Köprü uvicorn
+sürecinin içinde ayrı bir arka plan thread'inde koşar
+(`http_app.create_app_with_warmup` → `transport.start_in_background`), yani HTTP
+yüzeyi taşımadan bağımsız çalışır. `AI_SHARED_TOKEN` yoksa da denenir: uydurma
+token/varsayılan okul YOK; backend `unauthorized` der, bekleme tavana çekilir,
+denemek bırakılmaz.
+
+**Testler (ağ yok, DB yok):** `tests/unit/test_bridge_transport.py` sahte bir
+QUIC sunucusuyla (`tests/unit/_fake_bridge.py`, aioquic, 127.0.0.1) kaydı,
+okul eko'sunu, tipli redleri (`invalid_school`, okulsuz çerçevede cevapsız akış,
+`index_path_unwired`), kopma sonrası yeniden kaydolmayı ve backend-yokken boot
+politikasını koşar.
 
 ## 5. Bu tarafta yapılanlar (bu depoda)
 
 | paket / dosya | ne |
 |---|---|
 | **`src/bridge/`** | **Üretimde koşan entegrasyon kodu.** Adı bilerek `backend` değil: bu paket backend DEĞİL, backend'e bağlanan taraftır (backend'in kendi terimi: `hab/2` = *hezarfen ai bridge*). |
-| `src/bridge/contract.py` | Tel biçiminin Python karşılığı; anahtar adları **testle sabitlendi** (backend'in kendi testiyle aynı gerekçe) |
+| `src/bridge/contract.py` | Tel biçiminin Python karşılığı; anahtar adları **testle sabitlendi** (backend'in kendi testiyle aynı gerekçe). El sıkışma + çerçeveleme sabitleri de burada (`build_hello`, `parse_greeting`, `encode_frame`, `FrameStream`) |
 | `src/bridge/client.py` | `BridgeReader` (hab/2), `RestReader` (doğrudan HTTP), `FakeReader` (çevrimdışı) — üçü aynı `.get()` arayüzü |
+| `src/bridge/transport.py` | **QUIC taşıması**: dial-out, `Hello`/`Greeting`, gelen `Request` → `Dispatcher`, PING, üstel geri çekilmeyle yeniden bağlanma, TLS pinleme (§4.2) |
+| `src/bridge/dispatch.py` | Transport-BAĞIMSIZ dağıtıcı: okul zorunlu, tipli redler, cevapta okul eko'su |
 | `src/bridge/student.py` | `/users/me` + `/classes` + `/courses` + `/notes` + `/course-notes` → `StudentContext` → `RoleContext` (kasa izolasyonu) |
 | `src/bridge/subject_map.py` | Backend ders başlığı ↔ korpus ders slug'ı (Türkçe İ/ı katlamalı) |
 | **`src/demo/`** | **Ürün kodu DEĞİL** — örnek veri üretimi. `src/bridge`'den ayrı tutulur; karışırsa "hangi kod üretimde çalışıyor" sorusu cevapsız kalır. |
@@ -167,15 +208,29 @@ Birleştirilmeden `can_access(sinif=, ders=)` kurulamaz.
 
 ## 7. Açık kalemler
 
-- Köprü istemcisi (QUIC/`hab/2` taşıması) yazılmadı — `rag.chat` tel biçimi
-  backend'de YAYINLANDI ama bu depodaki transport onu henüz taşımıyor.
-- `rag.chat` `asker_role` gönderir (ayrı alan); bu depodaki handler rol adını
-  `role` sözlüğünden bekler. Köprü istemcisi kurulunca `asker_role` → `role.role`
-  eşlemesi orada yapılmalıdır (bkz. `API-CONTRACT.md` §0.2).
+- **Köprü taşıması LANDI** (`src/bridge/transport.py`, 2026-09-17) — `rag.chat`
+  artık telden servis edilir: kayıt, okul eko'su, tipli redler, kopma sonrası
+  yeniden bağlanma ve backend-yokken boot politikası sahte bir QUIC sunucusuyla
+  test edilir (`tests/unit/test_bridge_transport.py`).
+- **`rag.index` hâlâ SUNULMUYOR** — taşıma onu taşır ama dağıtıcı tipli
+  reddeder (`index_path_unwired`): dizin yazımı ek dosya BAYTLARINI
+  (`BlobRequest`) ve korpus yönlendirmesini ister. Sahte bir "tamam" demek
+  yerine reddedilir; backend başarısız indekslemede eski `rag_output` satırını
+  korur.
+- **Backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
+  bağlanmadı.** Bugünkü iki yetenek de onu istemez (`rag.chat`'in kapsamı
+  çerçevede gelir; `rag.index` sunulmuyor), bu yüzden çağıranı olmayan bir yol
+  yazılmadı. Öğrenci bağlamı (`BridgeReader`) gerektiren bir yetenek eklenirse
+  `client.py`'ın senkron `(gönder, al)` arayüzü ile taşımanın async akışları
+  arasında bir uyarlama gerekir.
+- `rag.chat` `asker_role` → `role.role` eşlemesi dağıtıcıda YAPILIYOR
+  (`bridge/dispatch.py::_govde`) — kapandı; taşıma yalnız çerçeveyi taşır.
 - **Sınıfsız korpus yönlendirilemiyor:** `registry.py`/`multi.py` korpusları
   `(str sinif, str ders)` ile anahtarlar; `(None, ders)` çifti `no_corpus`'a
   düşer (yetki katmanı `can_access` bunu desteklese bile). Kapatmak için
   korpus anahtarının sınıfsız bir sentinel kabul etmesi gerekir
   (bkz. `API-CONTRACT.md` §0.2).
+- **Kalıcı Qdrant yok (RISK-01):** indeks in-memory; yeniden başlatmada her
+  korpus yeniden kurulur (#75).
 - `RestReader` başkası adına okuyamaz (HTTP'de oturum sahibi kim ise o okur);
   bu bilinçli bir kısıttır, sessizce yanlış kullanıcıyı okumaktansa hata verir.

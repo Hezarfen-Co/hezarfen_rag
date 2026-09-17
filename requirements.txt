@@ -33,6 +33,11 @@ deepeval>=1.0          # kalite metrikleri (faithfulness, answer relevancy/corre
 fastapi>=0.110         # HTTP endpoint (API-CONTRACT.md)
 uvicorn>=0.30          # ASGI sunucu (uvicorn[standard])
 
+# --- Köprü taşıması (src/bridge/transport.py — hab/2 dial-out) ---
+# Backend QUIC sunucusudur, servis dial-out eder; taşıma aioquic ister.
+# Kardeş servisler de (zeka, podcast, Çelebi) bunu kullanır.
+aioquic>=1.0
+
 # --- İndirme araçları (eba_dl/, scraper'lar) ---
 requests>=2.32
 gdown>=5.0

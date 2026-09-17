@@ -149,16 +149,29 @@ kadar sınandı).
 E-31/E-46 politika kararı bekliyor ve kod işi değil; E-09 yükleme ucu açılana
 kadar bekleyebilir.
 
-### BL-010 — Köprü (hab/2) istemcisi yazılmadı
-**Kaynak:** `docs/BACKEND-INTEGRATION.md`, 2026-09-11 · **Durum:** AÇIK
+### BL-010 — Köprü (hab/2) taşıması
+**Kaynak:** `docs/BACKEND-INTEGRATION.md`, 2026-09-11 · **Durum:** KAPANDI (2026-09-17)
 
-Backend QUIC **sunucusudur**, AI servisleri ona dial eder. Mevcut FastAPI
-servisimizi backend çağırmaz. `src/bridge/client.py` çerçeve kurma/çözme
-kısmını taşımadan bağımsız hazır tutuyor; eksik olan QUIC taşıması,
-`Hello`/`Greeting` el sıkışması ve `Request` döngüsü.
+Backend QUIC **sunucusudur**, AI servisleri ona dial eder. Taşıma yazıldı:
+`src/bridge/transport.py` — `AI_BRIDGE_HOST/PORT`e aioquic ile dial-out, ALPN
+`hab/2`, `Hello`/`Greeting` el sıkışması, `rag.chat` + `rag.index` ilanı
+(`chat.reply` karşılanır ama ilan EDİLMEZ), QUIC PING ile canlı tutma, gelen
+`Request`lerin transport-bağımsız dağıtıcıya (`bridge/dispatch.py`) verilmesi ve
+üstel geri çekilmeyle sonsuz yeniden bağlanma. TLS: sertifika `GET
+/ai/certificate` ile çekilir; `AI_TLS_FINGERPRINT` doluysa pinlenir, boşsa TOFU
+(loglanır). HTTP yüzeyiyle aynı süreçte, ayrı bir arka plan thread'inde koşar.
 
-**Bağımlılık:** `AI_SHARED_TOKEN`, TLS sertifikası ve ayakta bir backend
-(compose'da `AI_QUIC_ADDR: 0.0.0.0:8090`).
+**Test:** `tests/unit/test_bridge_transport.py` — sahte QUIC sunucusu
+(`tests/unit/_fake_bridge.py`), ağ/DB yok: kayıt, istek→dağıtım→cevap (okul
+eko'su), tipli redler (`invalid_school`, okulsuz çerçevede cevapsız akış,
+`index_path_unwired`), kopma sonrası yeniden kaydolma, backend-yokken süreç
+çıkmaz + backend gelince kendiliğinden katılır.
+
+**Kalan (bilinçli):** `rag.index` hâlâ TİPLİ REDDEDER (ek dosya baytları
+`BlobRequest` + korpus yönlendirmesi ister, yazılmadı); backend'den OKUMA yolu
+(`ApiRequest`/`BlobRequest`) QUIC üzerinden bağlanmadı — bugünkü yetenekler
+istemediği için çağıranı olmayan yol yazılmadı. Ayrıntı:
+`docs/BACKEND-INTEGRATION.md` §4.2 + §7.
 
 ### BL-011 — Veli (parent) görünürlüğü kurulmadı
 **Kaynak:** `src/demo/school.py`, 2026-09-11 · **Durum:** AÇIK

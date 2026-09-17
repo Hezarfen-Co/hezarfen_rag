@@ -21,6 +21,9 @@ duyurur ve backend'in açtığı akışlarda `Request` çerçevesi bekleriz. Mev
 """
 from __future__ import annotations
 
+import asyncio
+import json
+import struct
 from dataclasses import dataclass, field, asdict
 
 # --- yetenek adları (constant.rs) ---
@@ -28,6 +31,42 @@ AI_CHAT_CAPABILITY = "chat.reply"
 AI_RAG_INDEX_CAPABILITY = "rag.index"
 AI_RAG_CHAT_CAPABILITY = "rag.chat"      # RAG'e özel kutu (chatbot'tan AYRI)
 AI_PROTOCOL = "hab/2"
+
+# --- taşıma sabitleri (el sıkışma + çerçeveleme) ---------------------------
+# Kaynak: `hezarfen_backend/src/constant.rs`. Değerler ZEKA'nın kanıtlanmış
+# istemcisiyle (`hezarfen_zeka/service/src/protocol.py`) BİREBİR aynıdır: aynı
+# backend, aynı tel. Burada olmalarının sebebi: tel biçiminin TEK evi burası
+# (`protocol.rs` + `constant.rs` karşılığı), taşıma ise yalnız bunları kullanır.
+AI_ALPN = "hab/2"
+"""`constant.rs:531` — TLS ALPN. Sürüm kapısı BURADA da reddeder: `hab/1`
+konuşan bir servis el sıkışmada elenir, kaydolamaz."""
+
+AI_MAX_FRAME_BYTES = 8 * 1024 * 1024
+"""`constant.rs:536` — tek çerçevenin tavanı. Uzunluk ÖNEKİ, gövde ayrılmadan
+ÖNCE denetlenir; kötü bir uzunluk bellek tüketemez (`protocol.rs:286-289`)."""
+
+AI_MAX_CONCURRENT_PER_WORKER = 64
+"""`constant.rs:547` — backend `Hello.max_concurrent`i 1..=64 arasına kırpar."""
+
+AI_IDLE_TIMEOUT_SECS = 30
+"""`constant.rs:554` — QUIC boşta kalma zaman aşımı."""
+
+AI_KEEPALIVE_SECS = 10
+"""`constant.rs:555` — PING aralığı: boşta kalma penceresinin çok altında ki
+sağlıklı ama sessiz bir servis düşürülmesin. Uygulama düzeyinde heartbeat
+ÇERÇEVESİ yoktur (`protocol.rs:13-14`)."""
+
+CERTIFICATE_PATH = "/ai/certificate"
+"""`src/web/ai.rs` — `certificate_pem` + `fingerprint_sha256` döner."""
+
+GREETING_TIMEOUT_SECS = 8.0
+"""Bizim değerimiz: backend'in el sıkışma penceresinin (10 s) ALTINDA tutulur ki
+reddi biz görelim, akış altımızdan kesilmesin."""
+
+PERMANENT_REJECTS = ("unauthorized", "unsupported_protocol")
+"""Yapılandırma/dağıtım değişmeden düzelmeyen retler (`server.rs:1030-1046`).
+Bekleme yine sürer — çıkmak yok — ama tavana çekilir: kalıcı bir redde gürültü
+yapmadan bekleriz ve sorun düzeldiğinde kendiliğinden bağlanırız."""
 
 # Backend'in kabul ettiği okul rolleri (domain/role.rs — `ai` ATANAMAZ).
 ASSIGNABLE_ROLES = ("parent", "student", "teacher", "manager", "admin")
@@ -401,3 +440,128 @@ def decode_api_response(frame: dict) -> tuple[int, object]:
     if frame.get("outcome") == "err":
         raise ApiError(f"{frame.get('code', '?')}: {frame.get('message', '')}")
     return int(frame["status"]), frame.get("body")
+
+
+# ------------------------------------------------- çerçeveleme (protocol.rs)
+# `protocol.rs:267-304`: u32 big-endian uzunluk + o kadar bayt JSON. Çerçevenin
+# kendisi burada kurulur/çözülür; AKIŞ (kim açar, kim kapatır) taşımanın işi.
+
+
+def encode_frame(obj) -> bytes:
+    """Bir nesneyi tek uzunluk-önekli JSON çerçeveye çevir.
+
+    Boyut tavanı YAZARKEN de uygulanır (`protocol.rs:275-277`): sınırın üstünde
+    bir çerçeve yazmak, karşı tarafın okuyamayacağı bir akış bırakmaktır."""
+    body = json.dumps(obj, ensure_ascii=False, separators=(",", ":")).encode("utf-8")
+    if len(body) > AI_MAX_FRAME_BYTES:
+        raise FrameTooLarge(len(body))
+    return struct.pack(">I", len(body)) + body
+
+
+class FrameTooLarge(BridgeFrameError):
+    """Çerçeve `AI_MAX_FRAME_BYTES` tavanını aşıyor."""
+
+    def __init__(self, size: int) -> None:
+        super().__init__(
+            f"{size} bayt, {AI_MAX_FRAME_BYTES} baytlık çerçeve sınırını aşıyor",
+            "frame_too_large")
+        self.size = size
+
+
+class HandshakeRejected(BridgeFrameError):
+    """`Greeting{type:"rejected"}` — backend kaydı reddetti.
+
+    `code` makine okunabilirdir: `unauthorized` / `unsupported_protocol` /
+    `no_capabilities` / `malformed` (`server.rs:1030-1046`)."""
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(message, code)
+
+    @property
+    def permanent(self) -> bool:
+        """Yeniden denemek tek başına düzeltir mi? Düzeltmez — ama beklemeyi
+        BIRAKMAYIZ (kalıcı rette tavana çekiliriz, çıkmayız)."""
+        return self.code in PERMANENT_REJECTS
+
+
+class FrameStream:
+    """Tek bir QUIC akışından çerçeve okuyan tampon.
+
+    `feed()` aioquic'in `StreamDataReceived` olayından beslenir; `read_frame()`
+    bir tam çerçeve döndürür. Akış çerçevenin ortasında biterse `EOFError`."""
+
+    def __init__(self) -> None:
+        self._buf = bytearray()
+        self._queue: asyncio.Queue[bytes | None] = asyncio.Queue()
+        self._eof = False
+
+    def feed(self, data: bytes, end: bool) -> None:
+        if data:
+            self._queue.put_nowait(data)
+        if end:
+            self._queue.put_nowait(None)
+
+    async def read_exact(self, n: int) -> bytes:
+        while len(self._buf) < n:
+            if self._eof:
+                raise EOFError("çerçeve tamamlanmadan akış bitti")
+            chunk = await self._queue.get()
+            if chunk is None:
+                self._eof = True
+                continue
+            self._buf.extend(chunk)
+        out = bytes(self._buf[:n])
+        del self._buf[:n]
+        return out
+
+    async def read_frame(self):
+        (length,) = struct.unpack(">I", await self.read_exact(4))
+        # Uzunluk, gövde AYRILMADAN önce denetlenir (`protocol.rs:286-289`).
+        if length > AI_MAX_FRAME_BYTES:
+            raise FrameTooLarge(length)
+        body = await self.read_exact(length)
+        try:
+            return json.loads(body)
+        except ValueError as exc:
+            raise BridgeFrameError(f"çerçeve gövdesi geçerli JSON değil: {exc}") from exc
+
+
+# ------------------------------------------------------ el sıkışma (kontrol)
+# `protocol.rs:85-119`: `Hello` servisten backend'e, `Greeting` backend'den
+# servise. `Hello` KASITLI olarak okul TAŞIMAZ: filo paylaşımlıdır, tek bağlantı
+# dağıtımdaki her okula hizmet eder ve her `Request` kendi okulunu adlandırır.
+
+
+def build_hello(service: str, capabilities, token: str,
+                max_concurrent: int) -> dict:
+    """Kontrol akışına yazılacak `Hello` çerçevesi. Protokol her zaman `hab/2`."""
+    return {
+        "protocol": AI_PROTOCOL,
+        "service": service,
+        "capabilities": list(capabilities),
+        "token": token,
+        "max_concurrent": max(1, min(int(max_concurrent),
+                                     AI_MAX_CONCURRENT_PER_WORKER)),
+    }
+
+
+def parse_greeting(raw) -> str:
+    """`Greeting`i çöz ve `worker_id` döndür; red ise `HandshakeRejected` atar.
+
+    Etiket alanı `type`, değerler `welcome`/`rejected` (`protocol.rs:106-119`).
+    `welcome` gelse bile YANKILANAN protokol denetlenir: eşleşmeyen bir sürümle
+    devam etmek, yanlış ayrışacak çerçeveler yazmak demektir."""
+    if not isinstance(raw, dict):
+        raise HandshakeRejected("malformed", "greeting bir nesne değil")
+    kind = raw.get("type")
+    if kind == "rejected":
+        raise HandshakeRejected(str(raw.get("code") or "malformed"),
+                                str(raw.get("message") or ""))
+    if kind != "welcome":
+        raise HandshakeRejected("malformed", f"bilinmeyen greeting type: {kind!r}")
+    yankilanan = str(raw.get("protocol") or "")
+    if yankilanan != AI_PROTOCOL:
+        raise HandshakeRejected(
+            "unsupported_protocol",
+            f"backend '{yankilanan}' yankıladı, biz '{AI_PROTOCOL}' konuşuyoruz")
+    return str(raw.get("worker_id") or "?")

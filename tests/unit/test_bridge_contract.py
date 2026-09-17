@@ -10,15 +10,22 @@ Biz o "başka dildeki servis"iz. Bu dosya aynı sabitlemeyi bu tarafta yapar:
 backend'de bir alan adı değişirse burada KIRILIR, sessizce yanlış çalışmaz.
 Backend deposuna DOKUNULMAZ — yalnız okunur.
 """
+import asyncio
+import json
+import struct
 import unittest
 
-from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_PROTOCOL,
-                                  AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY,
-                                  ApiError, ApiRequest, ASSIGNABLE_ROLES,
-                                  BlobRequest, ChatReplyPayload, ChatRequestPayload,
-                                  ChatTurn, RagFile, RagIndexPayload,
-                                  RagIndexReply, RagIndexReplyFile,
-                                  RagScopePair, decode_api_response)
+from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_ALPN,
+                                  AI_MAX_CONCURRENT_PER_WORKER, AI_MAX_FRAME_BYTES,
+                                  AI_PROTOCOL, AI_RAG_CHAT_CAPABILITY,
+                                  AI_RAG_INDEX_CAPABILITY, ApiError, ApiRequest,
+                                  ASSIGNABLE_ROLES, BlobRequest, ChatReplyPayload,
+                                  ChatRequestPayload, ChatTurn, FrameStream,
+                                  FrameTooLarge, HandshakeRejected, RagFile,
+                                  RagIndexPayload, RagIndexReply,
+                                  RagIndexReplyFile, RagScopePair,
+                                  build_hello, decode_api_response, encode_frame,
+                                  parse_greeting)
 
 
 class YetenekAdlariTests(unittest.TestCase):
@@ -158,6 +165,77 @@ class ApiOkumaTests(unittest.TestCase):
         with self.assertRaises(ApiError):
             decode_api_response({"outcome": "err", "id": "1", "school": "demo",
                               "code": "forbidden_path", "message": "no"})
+
+
+class ElSikismaTelBicimiTests(unittest.TestCase):
+    """El sıkışma + çerçeveleme — backend'in `protocol.rs`/`constant.rs`i.
+
+    Taşıma (`bridge/transport.py`) bu adları KULLANIR; backend bir alanı
+    yeniden adlandırırsa kayıt sessizce bozulmak yerine BURADA kırılır."""
+
+    def test_alpn_is_hab2(self):
+        """`constant.rs:531` — ALPN sürüm kapısı; `hab/1` el sıkışmada elenir."""
+        self.assertEqual(AI_ALPN, "hab/2")
+
+    def test_hello_keys_are_the_wire_names(self):
+        hello = build_hello("rag", ("rag.chat", "rag.index"), "tok", 4)
+        self.assertEqual(sorted(hello), ["capabilities", "max_concurrent",
+                                         "protocol", "service", "token"])
+        self.assertEqual(hello["protocol"], AI_PROTOCOL)
+        self.assertEqual(hello["capabilities"], ["rag.chat", "rag.index"])
+        self.assertNotIn("school", hello)      # filo paylaşımlı: Hello okul TAŞIMAZ
+
+    def test_hello_max_concurrent_is_clamped(self):
+        """`constant.rs:547` — backend 1..=64 arasına kırpar."""
+        self.assertEqual(build_hello("rag", ("rag.chat",), "t", 999)["max_concurrent"],
+                         AI_MAX_CONCURRENT_PER_WORKER)
+        self.assertEqual(build_hello("rag", ("rag.chat",), "t", 0)["max_concurrent"], 1)
+
+    def test_greeting_welcome_returns_worker_id(self):
+        self.assertEqual(
+            parse_greeting({"type": "welcome", "worker_id": "W1",
+                            "protocol": AI_PROTOCOL}), "W1")
+
+    def test_greeting_rejection_carries_code_and_permanence(self):
+        with self.assertRaises(HandshakeRejected) as ctx:
+            parse_greeting({"type": "rejected", "code": "unauthorized",
+                            "message": "invalid token"})
+        self.assertEqual(ctx.exception.code, "unauthorized")
+        self.assertTrue(ctx.exception.permanent)
+
+    def test_greeting_version_mismatch_is_rejected(self):
+        """`welcome` gelse bile yankılanan sürüm denetlenir."""
+        with self.assertRaises(HandshakeRejected) as ctx:
+            parse_greeting({"type": "welcome", "worker_id": "W1",
+                            "protocol": "hab/1"})
+        self.assertEqual(ctx.exception.code, "unsupported_protocol")
+
+    def test_frame_is_length_prefixed_json(self):
+        ham = encode_frame({"a": 1})
+        uzunluk = int.from_bytes(ham[:4], "big")
+        self.assertEqual(uzunluk, len(ham) - 4)
+        self.assertEqual(json.loads(ham[4:]), {"a": 1})
+
+    def test_oversize_length_prefix_is_refused_before_the_body(self):
+        """`protocol.rs:286-289`: uzunluk, gövde AYRILMADAN önce denetlenir."""
+
+        async def senaryo() -> None:
+            akis = FrameStream()
+            # Yalnız 4 bayt: tavanın üstünde bir uzunluk. Gövde HİÇ gelmez.
+            akis.feed(struct.pack(">I", AI_MAX_FRAME_BYTES + 1), end=False)
+            with self.assertRaises(FrameTooLarge):
+                await akis.read_frame()
+
+        asyncio.run(senaryo())
+
+    def test_partial_stream_raises_eof(self):
+        async def senaryo() -> None:
+            akis = FrameStream()
+            akis.feed(encode_frame({"x": "y"})[:6], end=True)
+            with self.assertRaises(EOFError):
+                await akis.read_frame()
+
+        asyncio.run(senaryo())
 
 
 if __name__ == "__main__":
