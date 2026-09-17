@@ -228,6 +228,22 @@ class ErrorContractTests(unittest.TestCase):
         self.assertTrue(body["text"])                  # kullanıcıya Türkçe mesaj
         self.assertIn("request_id", body)
 
+    def test_unhandled_error_is_also_logged_with_its_cause(self):
+        """SESSİZ 503: tipli gövde tek başına yetmez — operatör nedeni logdan
+        görebilmeli (canlıda iki 503 logda HİÇ iz bırakmadı)."""
+        import contextlib
+        import io
+        err = io.StringIO()
+        c = TestClient(create_app(_Exploding(), rate_limit_per_min=0),
+                       raise_server_exceptions=False)
+        with contextlib.redirect_stderr(err):
+            r = c.post("/rag/chat", json={"query": "q"})
+        self.assertEqual(r.status_code, 503)
+        iz = err.getvalue()
+        self.assertIn("[http][HATA]", iz)
+        self.assertIn("RuntimeError", iz)         # hata TÜRÜ logda
+        self.assertIn("429", iz)                  # nedeni taşıyan mesaj logda
+
     def test_request_id_header_on_success(self):
         r = _client().post("/rag/chat", json={"query": "q"})
         self.assertTrue(r.headers.get("X-Request-Id"))

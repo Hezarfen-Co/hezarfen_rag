@@ -13,6 +13,7 @@ Test:        create_app(stub_service) + fastapi.testclient.TestClient  (model ge
 from __future__ import annotations
 
 import os
+import sys
 import warnings
 
 from fastapi import FastAPI, Header, HTTPException, Request
@@ -302,7 +303,15 @@ def create_app(service, *, service_token: str | None = None,
         except (asyncio.TimeoutError, TimeoutError):
             return _tipli_hata(504, "timeout",
                                "Cevap zamaninda hazir olmadi, tekrar dener misin?", rid)
-        except Exception:
+        except Exception as e:                                  # noqa: BLE001
+            # SESSİZ 503 SINIFI (canlıda yakalandı, 2026-09-17): bu dal
+            # yakalanmamış hatayı tipli cevaba çevirir ama İZ BIRAKMIYORDU —
+            # iki `/rag/chat` isteği 503 döndü ve logda nedeni HİÇ görünmedi;
+            # gerçek sebep (sağlayıcının geçici hatası) ancak elle tekrar
+            # deneyip gözlemleyerek anlaşıldı. Artık tür + mesaj (kısaltılmış)
+            # loglanır; SIR yazılmaz, istemciye de yalnız tipli gövde gider.
+            print(f"[http][HATA] istek {rid}: {type(e).__name__}: {str(e)[:300]}",
+                  file=sys.stderr, flush=True)
             return _tipli_hata(503, "service_unavailable",
                                "Şu anda cevap üretemiyorum, biraz sonra tekrar dene.", rid)
         resp.headers["X-Request-Id"] = rid
