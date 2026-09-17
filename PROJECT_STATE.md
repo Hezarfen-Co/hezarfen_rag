@@ -274,6 +274,25 @@ için kalibre değildir → operatör dosyasındaki
 7,6 GiB'i backend+postgres+frontend+chatbot ile PAYLAŞIR → `RAG_MAX_CORPORA`
 valfi açık tutulmalı.
 
+#### Sahadaki sağlayıcı: VOYAGE (2026-09-17, ücretsiz kota tercihi)
+
+Kullanıcı "ücretsiz olanları kullan" dedi; `voyage` yolu eklendi (Cohere yedeği
+SİLİNMEDİ, `COHERE_API_KEY` yedek anahtar olarak duruyor). Ölçülen sözleşme —
+üçü de canlı doğrulandı, varsayım yok:
+
+| ne | ölçüm |
+|---|---|
+| gömme ucu | `POST {RAG_EMBED_API_BASE}/embeddings`, `data[].embedding`, **1024 boyut** (`voyage-multilingual-2`) |
+| `input_type` | Voyage `passage`ı **REDDEDİYOR**: 400 "accepted values are 'query' or 'document'" → kod `passage`ı `document` olarak gönderir (`VOYAGE_INPUT_TYPES`) |
+| rerank yanıtı | `data[]` (`index` + `relevance_score`) — Cohere `results[]` idi, ikisi de kabul |
+| rerank sınır alanı | Voyage `top_k` ( `top_n` → 400 "not supported"); Cohere `top_n` (`top_k` → 422) → ad uçtan çözülür |
+
+Kod: `src/embed/provider.py` (`VoyageEmbedder`, `INPUT_TYPES` eşlemesi,
+`_BoyutKapisi`), `src/rerank/provider.py` (`data[]` kabulü + `top_k_field`),
+`src/service/preflight.py` (`_EMBED_API = ("api", "cohere", "voyage")`).
+ÜCRETSİZ KOTA İDDİASI: **belgelenmiş, ölçülmemiş** (sağlayıcının fiyat sayfası
+kendi içinde tutarsız); kontrol yeri panelin kullanım/faturalama ekranı.
+
 ### 11.3 Veri sahipliği — türev store'lar (standing rule)
 
 - Qdrant (embedded, in-memory: `src/index/dense.py:39`) + SQLite cevap cache

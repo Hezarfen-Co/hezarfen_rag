@@ -613,8 +613,10 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     # (parent genisletme ACC-03'e gore atifi yanlis sayfaya kaydiriyor).
     by_id = ({c.chunk_id: c for c in all_chunks} if include_parents
              else {c.chunk_id: c for c in children})
-    # #96: gomme saglayicisi env ile secilir (local | api). Varsayilan local --
-    # olculmus butun kalite sayilari (EXP-011/013/017/018) o yola aittir.
+    # #96: gomme saglayicisi env ile secilir (local | api | cohere). Varsayilan
+    # local -- olculmus butun kalite sayilari (EXP-011/013/017/018) o yola aittir.
+    # `cohere` yolunda ilk gomme indeksin boyutunu (1024) dogrular; farkli
+    # boyutlu model ADIYLA reddedilir (bkz. embed/provider.py::INDEX_DIM).
     emb = shared.embedder if shared is not None else build_embedder()
     # #82 (EXP-010/OPS-10): dense ve sparse TEK geçişte üretilir. Ayrı
     # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü

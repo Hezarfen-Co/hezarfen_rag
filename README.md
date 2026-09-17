@@ -199,7 +199,35 @@ Gömme ve rerank ayrı ayrı seçilebilir ve **ikisi de tam çalışır durumda*
 | | `RAG_EMBED_PROVIDER` | `RAG_RERANK_PROVIDER` | kime |
 |---|---|---|---|
 | **Dağıtım varsayılanı** | `api` | `api` | 7,6 GiB'lik GPU'suz sunucu; ölçülen zarf 1,1–2,6 GB |
+| **Sahadaki dağıtım seçimi (2026-09-17)** | `voyage` | `api` | Voyage'ın ücretsiz kotası: `voyage-multilingual-2` (1024 boyut) + `rerank-3` |
+| Yedek API yolu | `cohere` | `api` | Cohere native `/v2/embed`; `input_type` uyumluluk katmanında reddediliyor |
 | Ölçülmüş kalite yolu | `local` | `local` | golden set / eval; bütün kalite sayıları (EXP-011/013/017/018) buraya ait |
+
+**Ücretsiz kota iddiası BELGELENMİŞTİR, ÖLÇÜLMEMİŞTİR:** Voyage'ın
+fiyatlandırma sayfası hangi modellerin ücretsiz kotayı taşıdığı konusunda kendi
+içinde tutarsızdır. Doğrulama yeri sağlayıcı panelinin kullanım/faturalama
+ekranıdır (belgelenen: `voyage-multilingual-2` 50M token, `rerank-3` 200M işlenen
+token). Ücret sürprizi istemiyorsan ilk gerçek indeksten sonra oraya bak.
+
+### Sağlayıcıların birbirinden AYRILDIĞI iki nokta (ikisi de ölçüldü)
+
+| | istek gövdesi | `input_type` | rerank yanıtı | rerank sınır alanı |
+|---|---|---|---|---|
+| `api` (OpenAI-uyumlu) | `input[]` + `/embeddings` | sorgu/pasaj AYNEN gider | `results[]` | `top_n` |
+| `voyage` | `input[]` + `/embeddings` | `query` / **`document`** | **`data[]`** | **`top_k`** |
+| `cohere` | `texts[]` + `/embed` | `search_query` / `search_document` | `results[]` | `top_n` |
+
+Yanlış olanı göndermek sessiz bir kalite kaybı değil, AÇIK bir 4xx'tir — bu
+yüzden bu tablo kodda sabittir: Voyage `passage` → 400 "accepted values are
+'query' or 'document'"; Cohere `top_k` → 422 "unknown field"; Voyage `top_n` →
+400 "Argument 'top_n' is not supported". Sınır alanının adı uç adından çözülür
+(`RAG_RERANK_TOP_K_PARAM` ile ezilebilir).
+
+**BOYUT DEĞİŞMEZİ:** indeks 1024 boyutludur (BGE-M3 dense). Modeli 384'lük
+`light` varyantına çevirmek vektörleri karıştırırdı; ilk gömme — hiçbir sorgu
+koşmadan — `EmbeddingDimensionMismatch` ile, model ADI ve İKİ boyutla
+reddedilir (`src/embed/provider.py::_BoyutKapisi`). Boyut değiştirmek korpusun
+tamamının yeniden indekslenmesini gerektirir.
 
 Yerel yol **silinmedi** ama artık **imajda değil**: varsayılan imge KÜÇÜKTÜR
 (torch/FlagEmbedding/ağırlık YOK). Yerel bağımlılıklar bir podman **volume'ü**

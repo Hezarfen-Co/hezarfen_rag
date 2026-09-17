@@ -53,6 +53,10 @@ DEPLOY_DEFAULT_PROVIDERS = {
 
 #: `build_reranker`/`build_embedder` ile AYNI sözlük (kaynak: provider.py).
 _EMBED_LOCAL = ("local", "", "bge", "bgem3")
+#: API gömme yolları: `api` OpenAI-uyumlu /embeddings, `cohere` native /embed,
+#: `voyage` OpenAI biçimli /embeddings (input_type sözlüğü ayrı). Üçü de AYNI
+#: yapılandırma adlarını ister (taban + model + anahtar).
+_EMBED_API = ("api", "cohere", "voyage")
 _RERANK_LOCAL = ("local", "", "bge")
 _RERANK_OFF = ("off", "none", "yok")
 
@@ -184,15 +188,19 @@ def check_provider_config(env: Mapping[str, str] | None = None) -> list[str]:
         # Yerel model: API anahtarı gerekmez AMA yığın bir yerden gelmeli
         # (küçük imge onu taşımaz → volume ya da geliştirme makinesi).
         eksik.extend(yerel_yigin_eksik(env))
-    elif emb == "api":
+    elif emb in _EMBED_API:
+        # `api` (OpenAI-uyumlu), `cohere` (native /v2/embed) ve `voyage`
+        # (OpenAI biçimli /v1/embeddings) AYNI üç adı ister: taban adres +
+        # model + anahtar. Uç/sözlük farkı istemcinin içindedir, yapılandırma
+        # yüzeyi ise tek: RAG_EMBED_API_BASE.
         for ad in ("RAG_EMBED_API_BASE", "RAG_EMBED_MODEL"):
             if not _deger(env, ad):
-                eksik.append(f"{ad} boş (RAG_EMBED_PROVIDER=api için zorunlu)")
+                eksik.append(f"{ad} boş (RAG_EMBED_PROVIDER={emb} için zorunlu)")
         eksik.extend(_anahtar_eksik(env, getattr(_embed, "API_KEY_ENV", ""),
                                     "RAG_EMBED_API_KEY_ENV", "gömme"))
     else:
         eksik.append(f"RAG_EMBED_PROVIDER={emb!r} tanınmıyor "
-                     "(geçerli: local | api)")
+                     "(geçerli: local | api | cohere | voyage)")
 
     # --- rerank ----------------------------------------------------------
     rr = (getattr(_rerank, "PROVIDER", "local") or "").strip().lower()

@@ -88,6 +88,45 @@ class ProviderConfigTests(unittest.TestCase):
         with _saglayicilar():
             self.assertEqual(preflight.check_provider_config(_tam_api_env()), [])
 
+    def test_cohere_selection_needs_the_same_three_names(self):
+        """`cohere` native `/v2/embed` yoludur ama yapılandırma yüzeyi AYNI:
+        taban adres + model + anahtar. Denetim onu tanımazsa servis açılışta
+        "tanınmıyor" diye reddederdi — oysa yol gerçek."""
+        with _saglayicilar("cohere", "api"):
+            eksik = preflight.check_provider_config({})
+        metin = "\n".join(eksik)
+        for ad in ("RAG_EMBED_API_BASE", "RAG_EMBED_MODEL", "RAG_EMBED_API_KEY"):
+            self.assertIn(ad, metin, f"{ad} adıyla söylenmeli")
+
+    def test_cohere_complete_config_passes(self):
+        with _saglayicilar("cohere", "api"):
+            self.assertEqual(preflight.check_provider_config(_tam_api_env()), [])
+
+    def test_voyage_selection_is_accepted_with_the_same_three_names(self):
+        """Sahadaki seçim: `RAG_EMBED_PROVIDER=voyage` (OpenAI biçimli
+        /v1/embeddings, üstelik `input_type` sözlüğü ayrı). Denetim onu
+        tanımazsa servis açılışta reddederdi — oysa yol gerçek ve canlı."""
+        with _saglayicilar("voyage", "api"):
+            eksik = preflight.check_provider_config({})
+        metin = "\n".join(eksik)
+        for ad in ("RAG_EMBED_API_BASE", "RAG_EMBED_MODEL", "RAG_EMBED_API_KEY"):
+            self.assertIn(ad, metin, f"{ad} adıyla söylenmeli")
+
+    def test_voyage_complete_config_passes(self):
+        with _saglayicilar("voyage", "api"):
+            self.assertEqual(preflight.check_provider_config(_tam_api_env()), [])
+
+    def test_cohere_key_can_come_through_env_name_indirection(self):
+        """Sahadaki gerçek biçim: `RAG_EMBED_API_KEY_ENV=RAG_EMBED_API_KEY`."""
+        ortam = _tam_api_env()
+        ortam.pop("RAG_EMBED_API_KEY")
+        with _saglayicilar("cohere", "api"):
+            with mock.patch.object(embed_provider, "API_KEY_ENV",
+                                   "RAG_EMBED_API_KEY"):
+                self.assertEqual(
+                    preflight.check_provider_config(
+                        {**ortam, "RAG_EMBED_API_KEY": "deger"}), [])
+
     def test_key_can_come_through_env_name_indirection(self):
         """Kodun GERÇEK mekanizması: `*_API_KEY_ENV=<DEĞİŞKEN>`."""
         ortam = _tam_api_env()

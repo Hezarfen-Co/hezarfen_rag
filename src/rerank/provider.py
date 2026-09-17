@@ -35,6 +35,30 @@ API_MODEL = os.environ.get("RAG_RERANK_MODEL", "")
 API_KEY_ENV = os.environ.get("RAG_RERANK_API_KEY_ENV", "RAG_RERANK_API_KEY")
 API_TIMEOUT = float(os.environ.get("RAG_RERANK_TIMEOUT_S", "30"))
 
+#: Sınır alanının adı sağlayıcıya göre DEĞİŞİR ve yanlış ad 4xx demektir
+#: (ölçüldü 2026-09-17): Cohere `top_n` bekler (`top_k` → 422 "unknown field:
+#: parameter 'top_k'"), Voyage `top_k` bekler (`top_n` → 400 "Argument 'top_n'
+#: is not supported by our API"). Varsayılan UÇ ADINDAN çözülür — çünkü iki
+#: sağlayıcı da `RAG_RERANK_PROVIDER=api` ile seçiliyor, ayrım yalnız URL'de.
+#: `RAG_RERANK_TOP_K_PARAM` ile açıkça ezilebilir (uç kopyası/vekil için).
+TOP_K_PARAM = os.environ.get("RAG_RERANK_TOP_K_PARAM", "").strip()
+
+#: Sınır alanını `top_k` sayan uç (Voyage). Diğerleri Cohere/Jina uyumlu.
+VOYAGE_HOST = "voyageai.com"
+
+
+def top_k_field(url: str = "", override: str = "") -> str:
+    """Sınır alanının adı: Voyage `top_k`, Cohere/Jina `top_n`.
+
+    Not: sınır İSTEĞE BAĞLIDIR — `rerank_select` bu alanı hiç göndermiyor
+    (`src/rerank/pipeline.py:100`, top_k'sız çağrı) ve istemci sonucu zaten
+    yerel olarak `top_k`ya kırpıyor. Alan yalnız ağ taşımasını azaltır.
+    """
+    secim = (override or TOP_K_PARAM).strip()
+    if secim:
+        return secim
+    return "top_k" if VOYAGE_HOST in (url or API_URL).lower() else "top_n"
+
 
 class RerankUnavailable(RuntimeError):
     """Rerank sağlayıcısına ulaşılamıyor."""
@@ -73,7 +97,7 @@ class NoOpReranker:
 
 
 class ApiReranker:
-    """Cohere / Jina uyumlu rerank istemcisi.
+    """Cohere / Jina / Voyage uyumlu rerank istemcisi.
 
     `calibrated_scores = False`: API skorları 0-1 aralığındadır ama BGE'nin
     sigmoid dağılımıyla AYNI DEĞİLDİR. `abstain_score=0,30` eşiği BGE üzerinde
@@ -81,18 +105,21 @@ class ApiReranker:
     taşımak olur. Yeni sağlayıcı için EXP-017 kalibrasyonu TEKRAR koşulmalıdır
     (`python -m src.eval.calibrate_abstain_cli`).
 
-    İki yaygın yanıt biçimi desteklenir; ikisi de `results[]` içinde `index` ve
-    `relevance_score` döndürür. Biçim tanınmazsa **istisna atılır** — sessizce
-    aday sırasına düşmek, kalite kaybını görünmez kılardı.
+    İki yaygın yanıt biçimi desteklenir: Cohere/Jina `results[]`, Voyage
+    `data[]` — ikisi de `index` ve `relevance_score` taşır. Hiçbiri yoksa
+    **istisna atılır** — sessizce aday sırasına düşmek, kalite kaybını görünmez
+    kılardı.
     """
 
     calibrated_scores = False
 
     def __init__(self, *, url: str | None = None, model: str | None = None,
-                 api_key: str | None = None, timeout: float | None = None):
+                 api_key: str | None = None, timeout: float | None = None,
+                 top_k_param: str | None = None):
         self.url = (url if url is not None else API_URL).rstrip("/")
         self.model_name = model if model is not None else API_MODEL
         self.timeout = API_TIMEOUT if timeout is None else float(timeout)
+        self.top_k_param = top_k_param if top_k_param is not None else TOP_K_PARAM
         self._key = api_key if api_key is not None else os.environ.get(API_KEY_ENV, "")
         if not self.url:
             raise ValueError("API rerank icin RAG_RERANK_API_URL gerekli")
@@ -107,7 +134,7 @@ class ApiReranker:
         if self.model_name:
             govde["model"] = self.model_name
         if top_k:
-            govde["top_n"] = int(top_k)
+            govde[top_k_field(self.url, self.top_k_param)] = int(top_k)
         istek = urllib.request.Request(
             self.url, data=json.dumps(govde).encode("utf-8"),
             headers={"Content-Type": "application/json",
@@ -126,9 +153,14 @@ class ApiReranker:
             raise RerankUnavailable(f"rerank API: {type(e).__name__}: {e}") from e
 
         sonuclar = veri.get("results")
+        if sonuclar is None:
+            # Voyage `data[]` döndürür (aynı `index` + `relevance_score`);
+            # Cohere/Jina `results[]`. İKİSİ DE kabul, hiçbiri yoksa yüksek ses.
+            sonuclar = veri.get("data")
         if not isinstance(sonuclar, list):
             raise RerankUnavailable(
-                f"rerank API beklenmeyen yanit: {str(veri)[:160]}")
+                f"rerank API beklenmeyen yanit (ne results ne data): "
+                f"{str(veri)[:160]}")
         out = []
         for r in sonuclar:
             i = r.get("index")
