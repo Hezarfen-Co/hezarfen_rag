@@ -361,6 +361,12 @@ def create_app(service, *, service_token: str | None = None,
                                      # CPU'ya sessiz dusus aksi halde yalniz
                                      # gecikmeden anlasilir.
                                      "cuda": cuda_status(),
+                                     # #96 + API varsayilani: operator "hangi
+                                     # saglayici kosuyor" sorusunu /ready'den
+                                     # cevaplayabilmeli; eksik yapilandirma
+                                     # acilista reddedildigi icin burada
+                                     # YALNIZ ad gorunur (sir yazilmaz).
+                                     "saglayici": _saglayici_raporu(),
                                      # #86: operator "hangi ders hazir"
                                      # sorusunu tahminle degil uctan
                                      # cevaplayabilmeli; ilk sorusu yavas
@@ -436,8 +442,28 @@ REQUIRE_CUDA = os.environ.get("RAG_REQUIRE_CUDA", "").strip().lower() in (
 def cuda_status() -> dict:
     """CUDA görünürlüğü — `/ready` bunu makine-okunur raporlar.
 
-    torch import edilemezse bile ÇÖKMEZ: bu bir teşhis fonksiyonudur.
+    TORCH IMPORT ETMEDEN de cevap verir: varsayılan imge KÜÇÜKTÜR (API yolu,
+    torch yok) ve o imajda import denemesi yalnız gürültü + gecikme üretir
+    (torch importu bu makinede ~0,4 GB RSS ölçüldü). Kurulu olduğunda eskisi
+    gibi raporlanır — davranış kaybı yok.
     """
+    import importlib.util
+    import sys as _sys
+    # `find_spec` bir modül taklidi (test) ya da bozuk bir kurulum üzerinde
+    # ValueError/ImportError atabilir; o zaman IMPORT yoluna bırakılır ve hata
+    # eskisi gibi RAPORLANIR (torch'suz imajda ise hiç import denenmez).
+    kurulu = "torch" in _sys.modules
+    if not kurulu:
+        try:
+            kurulu = importlib.util.find_spec("torch") is not None
+        except (ImportError, ValueError):
+            kurulu = True
+    if not kurulu:
+        return {"available": False, "device_count": 0, "required": REQUIRE_CUDA,
+                "reason": "torch kurulu değil: bu imaj KÜÇÜK (API sağlayıcı yolu) "
+                          "derlendi. Yerel modeller için RAG_LOCAL_VENV/"
+                          "RAG_LOCAL_MODELS_DIR + deploy/provision_local_stack.sh, "
+                          "ya `--build-arg WITH_LOCAL_MODELS=1`."}
     try:
         import torch
     except Exception as e:                                   # noqa: BLE001
@@ -644,6 +670,25 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
                       question_gen=QuestionGenerator(), ders=ders, school=sahip)
 
 
+def _saglayici_raporu() -> dict:
+    """`/ready` için sağlayıcı seçimi — SIR YAZILMAZ, yalnız ad.
+
+    Operatör "hangi sağlayıcı koşuyor" sorusunu log okumadan cevaplayabilsin
+    (eksik yapılandırma zaten açılışta reddedilir → burada YALNIZCA seçim).
+    """
+    from ..embed import provider as _emb
+    from ..rerank import provider as _rr
+    gomme = (getattr(_emb, "PROVIDER", "") or "local").strip().lower()
+    rr = (getattr(_rr, "PROVIDER", "") or "local").strip().lower()
+    out = {"gomme": gomme, "rerank": rr}
+    if "local" in (gomme, rr):
+        # Yerel yığın artık imajda DEĞİL: volume'daki sağlamanın durumu
+        # makine-okunur bildirilir ("sağlanmış için <tag>", "yok").
+        from .preflight import yerel_yigin_durumu
+        out["yerel_yigin"] = yerel_yigin_durumu()
+    return out
+
+
 def _yapilandirma_uyarilari() -> list[str]:
     """#50: varsayilanlar GERIYE UYUMLU secildi (mevcut kurulum bozulmasin) ama
     bu, uretimde sessizce korumasiz kalmak anlamina gelmemeli. Acilista acikca
@@ -721,6 +766,25 @@ def _c_parse(spec):
     return _parcalar(spec)
 
 
+def _kopruyu_baslat(service) -> None:
+    """hab/2 köprüsünü arka planda başlat (dial-out).
+
+    Sunucu ÖNCE ayağa kalksın diye BEKLENMEZ: köprü kendi thread'inde bağlanır
+    ve backend yoksa üstel geri çekilmeyle sonsuza dek dener — HTTP yüzeyi
+    (`/health`, `/ready`, `/rag/*`) bundan ETKİLENMEZ (aynı desen: ısıtma
+    thread'i). Ayrıntı ve boot politikası: `src/bridge/transport.py` başlığı,
+    `docs/BACKEND-INTEGRATION.md` §4.2.
+
+    Köprü AYARLARI bozuksa (örneğin `AI_BRIDGE_PORT=abc`) HTTP yüzeyi yine de
+    AÇILIR: sağlık uçları ayakta kalmalı ki operatör sorunu görebilsin.
+    """
+    from ..bridge.transport import start_in_background
+    try:
+        start_in_background(service)
+    except Exception as exc:                       # noqa: BLE001
+        print(f"[kopru][HATA] köprü başlatılamadı: {exc}", flush=True)
+
+
 def create_app_with_warmup():
     """uvicorn giriş noktası — sunucu HEMEN ayağa kalkar, boru hattı arka planda.
 
@@ -739,7 +803,16 @@ def create_app_with_warmup():
     # kapidan gecer; buradaki cagri onu konteyner acilisinda GORUNUR kilar.)
     from ..providers.llm import reject_retired_env
     reject_retired_env()
-    book = os.environ.get("BOOK_PATH", "data/lise/12/biyoloji/kitap.pdf")
+    # SAGLAYICI ON DENETIMI (fail-closed): `api` secilen saglayicinin taban
+    # adresi/modeli/anahtari eksikse uvicorn DAHA PORTU DINLEMEDEN durur.
+    # Eksik anahtarla ayaga kalkan servis /health ve /ready'de YESIL kalir,
+    # yalniz ilk gercek soru duser -- "calisiyor gibi gorunen, hicbir istege
+    # cevap veremeyen servis" (bkz. src/service/preflight.py).
+    from .preflight import enforce as _preflight
+    _preflight()
+    # Okul segmenti ZORUNLU (kiracılık): `<kök>/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`
+    # — düzeni taşımayan yol açık hata verir (multi.school_from_book_path).
+    book = os.environ.get("BOOK_PATH", "data/okul-a/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")
     for uyari in _yapilandirma_uyarilari():
@@ -780,6 +853,7 @@ def create_app_with_warmup():
 
             threading.Thread(target=_isit_cok, name="warmup-multi",
                              daemon=True).start()
+        _kopruyu_baslat(multi)
         return create_app(multi)
 
     service = _LazyService()
@@ -803,10 +877,18 @@ def create_app_with_warmup():
     print(f"[http] pipeline ARKA PLANDA kuruluyor: {book} ({sinif}/{ders})",
           flush=True)
     threading.Thread(target=_isit, name="warmup", daemon=True).start()
+    _kopruyu_baslat(service)
     return create_app(service)
 
 
-def main() -> None:
+def main(argv: list[str] | None = None) -> None:
+    argv = list(sys.argv[1:] if argv is None else argv)
+    # `--validate` (kardes servislerdeki desen): yalniz yapilandirmayi denetler,
+    # sunucuyu ACMAZ. Gercek kapi `create_app_with_warmup` icindedir; bu bayrak
+    # operatorun deploy oncesi ayni denetimi elle kosmasini saglar.
+    if "--validate" in argv:
+        from .preflight import main as _preflight_main
+        raise SystemExit(_preflight_main([a for a in argv if a != "--validate"]))
     import uvicorn
     app = create_app_with_warmup()
     host, port = os.environ.get("HOST", "127.0.0.1"), int(os.environ.get("PORT", "8000"))

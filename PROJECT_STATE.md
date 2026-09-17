@@ -99,8 +99,9 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
   (FastAPI; `/rag/chat`, `/rag/summarize`, `/rag/questions`, `/health`, `/ready`),
   `compose.yaml` + `Containerfile` + `deploy/hezarfen_rag_compose.service` +
   `.github/workflows/main.yml` (elle tetiklenen VPS deploy). Backend bu HTTP'yi
-  ÇAĞIRMAZ; gerçek entegrasyon QUIC `hab/2` köprüsüdür ve **taşıması henüz
-  yazılmadı** (BL-010) → `rag.chat` uçtan uca HİÇ servis edilmedi.
+  ÇAĞIRMAZ; gerçek entegrasyon QUIC `hab/2` köprüsüdür ve **taşıması yazıldı**
+  (`src/bridge/transport.py`, ¶11.4) → `rag.chat` artık telden servis edilir;
+  `rag.index` hâlâ TİPLİ REDDEDER (`index_path_unwired`).
   Kalıcı Qdrant hâlâ yok (in-memory indeks; #75/RISK-01).
 
 ## 4. Mimari Özet
@@ -110,24 +111,26 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
   **`hab/2`** sunucusudur, AI servisleri dial eder. Bu depodaki tel biçimi
   `src/bridge/contract.py` (anahtar adları testle sabitli), transport-BAĞIMSIZ
   dağıtıcı `src/bridge/dispatch.py` (okul zorunlu + cevapta eko; `asker_role` →
-  `role`; `rag.chat`/`chat.reply`), çerçeve kur/çöz `src/bridge/client.py`.
-  **Eksik olan tek parça QUIC taşımasıdır** — yani `rag.chat` uçtan uca bugüne
-  dek HİÇ servis edilmedi (BL-010). Girdi/çıktı sözleşmesi + kiracılık:
-  `docs/API-CONTRACT.md` §0.3, `docs/BACKEND-INTEGRATION.md` §4/§4.1.
+  `role`; `rag.chat`/`chat.reply`), **taşıma `src/bridge/transport.py`** (dial-out,
+  `Hello`/`Greeting`, `Request` → dağıtıcı → `Response`, PING, üstel geri
+  çekilmeyle sonsuz yeniden bağlanma; ¶11.4). Yani `rag.chat` telden servis
+  edilir; eksik kalan: `rag.index` (ek dosya baytları + korpus yönlendirmesi) ve
+  backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`, bugün çağıranı yok).
+  Girdi/çıktı sözleşmesi + kiracılık: `docs/API-CONTRACT.md` §0.3,
+  `docs/BACKEND-INTEGRATION.md` §4/§4.1/§4.2.
 
 ```mermaid
 flowchart LR
   T[Öğretmen] -->|course-note yükle| BE[(backend course-notes + FILES_PATH)]
-  BE -. korpus .-> RAG[hezarfen_rag - PLANLANAN]
+  BE -. korpus .-> RAG[hezarfen_rag]
   RAG -. index/embed/retrieve .-> RAG
   S[Öğrenci] -->|soru| FE[frontend] --> BR[backend QUIC hab/2] --> RAG --> BR --> FE --> S
-  classDef todo stroke-dasharray: 5 5;
-  class RAG todo;
 ```
-> Diyagram NİYETİ gösterir. 2026-09-17 durumu: `RAG` kutusu VAR (HTTP servisi +
-  boru hattı + transport-bağımsız `hab/2` dağıtıcısı); kesikli oklar hâlâ
-  çizilmemiştir çünkü **köprünün QUIC taşıması yazılmadı** — `rag.chat` uçtan uca
-  servis edilmedi.
+> Diyagram NİYETİ gösterir. 2026-09-17 durumu: `S → BR → RAG → BR → FE → S`
+> yolu ARTIK ÇALIŞIR (taşıma landı, `rag.chat` telden servis edilir). Kesikli
+> oklar hâlâ çizilmemiştir çünkü **korpus akışı yok**: `rag.index` tipli
+> reddediyor (dosya baytları `BlobRequest` ile okunmuyor), kalıcı Qdrant yok ve
+> öğretmenin yüklediği not otomatik indekslenmiyor.
 
 ## 5. Teknik Kararlar
 - **D1** — RAG kaynağı sıfırdan yükleme alanı GEREKMEZ: `course-notes` (öğretmen→kayıtlı-öğrenci, dosya ekli) doğal korpustur. **kabul edildi** (backend/frontend main'de doğrulandı 2026-08-16). ⚠️ **Çelişki düzeltmesi:** bu oturumun erken RAG cevabı "böyle bir alan yok" idi; o cevap course-notes eklenmeden önceki duruma aitti ve **artık geçersiz** — doğrulanmış gerçek: alan VAR.
@@ -145,9 +148,10 @@ flowchart LR
 ## 7. Görev Kuyruğu (Kadir yönüne bağlı)
 - **TASK-GOLDEN-APPROVE** — P1 — golden v1.1 (200 item) Kadir onayı → üretim ölçümü kilidi açılır. dep: Kadir. **BLOCKED**.
 - **TASK-CRISIS-LINE** — P1 — self-harm guardrail mesajına kriz-hattı no'su. dep: Kadir. **BLOCKED**.
-- **TASK-RAG-SERVICE** — P2 — HTTP servisi + `hab/2` dağıtıcısı TAMAM (2026-09-17);
-  kalan: **QUIC taşıması** (`bridge/client.py` ağı) + kalıcı Qdrant
-  (sözleşme: `docs/API-CONTRACT.md` §0.3). **TODO (kısmi)**.
+- **TASK-RAG-SERVICE** — P2 — HTTP servisi + `hab/2` dağıtıcısı + **QUIC taşıması
+  TAMAM** (2026-09-17, ¶11.4); kalan: `rag.index` yolunun yazılması (ek dosya
+  baytları + korpus yönlendirmesi) ve kalıcı Qdrant (sözleşme:
+  `docs/API-CONTRACT.md` §0.3). **KISMİ (eksik: index + kalıcı store)**.
 - **TASK-RAG-SCALE** — P3 — Faz 2 RAPTOR ölçek + çok-dersli korpus + özet-PDF/OCR (Faz 0.8). dep: Kadir yönü. **TODO**.
 - **TASK-REARCH** — P4 — derin yeniden-mimari (EB-KOS/layout/kalibrasyon) — "optimizasyon fazı", Kadir'e ayrıldı. **DEFERRED**.
 
@@ -201,7 +205,7 @@ Bellek sürücüleri (yerel/GPU yolunun bugünkü hâli):
 | torch çalışma zamanı | `Containerfile:47-52`; import `src/service/http_app.py:442` (`cuda_status`) | CPU tekerleği import RSS **395 MB** (bu makinede ölçüldü) |
 | korpus başına indeks | `src/index/dense.py`, `src/index/lexical.py`, `src/retrieve/sparse.py` | **+529 MB / 10k chunk** (EXP-010 OPS-09, `docs/reports/EXP-010-urun-hazirlik-denetimi.md:114`) |
 | korpus sayısı çarpanı | `src/service/multi.py:49-51` (`RAG_MAX_CORPORA` valfi) | RSS korpus sayısıyla lineer (#75) |
-| disk | `compose.yaml:41` + unit notu | ~4,5 GB model indirmesi + ~2 GB imaj |
+| disk | `compose.yaml` `x-rag-envelope` (`disk_min_gb`) | API yolunda model indirilmez: imaj ~2 GB + rollback kopyası + korpus → eşik **8 GB**. Yerel yol 4,5 GB model daha ister |
 
 **Reranker'ın API modu VAR** (gömmelerdeki gibi): `src/rerank/provider.py:75-96`
 (`ApiReranker`, Cohere/Jina uyumlu `results[].index`+`relevance_score`), seçim
@@ -229,13 +233,46 @@ RAG_ALLOW_UNCALIBRATED_ABSTAIN=1  # (ya da RAG_ABSTAIN_SCORE=0)
 RAG_MAX_CORPORA=2                 # bellek valfi (#75)
 ```
 
-Önerilen (UYGULANMADI) tavan: compose servisine `mem_limit: 2g` (podman-compose
-1.6 bu anahtarı kabul ediyor — yerel `config` rendıyla doğrulandı) + CI'daki
-kapasite eşiğinin 12.000 MB'tan ~2.048 MB'a çekilmesi. **Dürüst uyarılar:** (1)
-API gömme BGE-M3'ün SPARSE ayağını keser → ölçülmüş kalite sayıları geçersiz
-(`src/embed/provider.py:10-27`); (2) rerank API skorları çekimserlik eşiği için
-kalibre değildir; (3) sunucu bu servise ek olarak backend+postgres+frontend+chatbot
-koşar — 7,6 GiB'in hepsi rag'e ait değildir.
+UYGULANDI (2026-09-17, deploy lane) — API yolu artık **DAĞITIM VARSAYILANI**:
+`Containerfile` ENV `RAG_EMBED_PROVIDER=api` + `RAG_RERANK_PROVIDER=api`,
+operatör dosyası şablonu `deploy/hezarfen_rag.env.example` (düz `KEY=value`;
+systemd satır-içi `#` yorumunu DEĞERE katar). Kaynak zarfı **tek kaynak**:
+`compose.yaml` → `x-rag-envelope` (`mem_limit_mb: 3072`, `disk_min_gb: 8`) →
+ürün servisi `mem_limit: 3221225472` bayt; CI kapasite kapısı bu sayıları
+compose'dan okur (eski 12.000 MB / 20 GB eşikleri model çağından kalmaydı).
+3072 MB seçildi çünkü ölçülen tepe 3×10k chunk'ta ≈2,6 GB ve `3g` bu
+sağlayıcıda ONDALIK 2,86 GiB'e denk gelirdi.
+
+KÜÇÜK İMGE (aynı gün, kullanıcı kararı): varsayılan imge torch/FlagEmbedding/
+ağırlık TAŞIMAZ; bağımlılık listesi bölündü (`requirements.txt` = servis yolu,
+`requirements-local.txt` = yerel yığın, `requirements-eval.txt` = yalnız
+CI/geliştirme). Yerel yol bir EKLENTİ VOLUME'u olarak açılır:
+`deploy/provision_local_stack.sh` (pip İMGE İÇİNDE koşar — ABI/glibc uyumu şart;
+idempotent; volume'a `PROVISIONED` sürüm işareti yazar), `.env`:
+`RAG_LOCAL_VENV=/local-stack/venv` + `RAG_LOCAL_MODELS_DIR=/models`,
+geçiş = `systemctl --user restart hezarfen_rag_compose` (workflow/derleme YOK).
+`cuda_status` artık torch'u YALNIZ kuruluysa import eder; `local` seçilip yığın
+yoksa servis açılışta adıyla+komutuyla reddeder (ImportError değil).
+RAM DÜRÜSTLÜĞÜ: yerel mod ~4,5 GB ister → 7,6 GiB'lik sunucuda "diğer servisleri
+kapat" modudur; API modu 1,1-2,6 GB'dır ve varsayılandır.
+
+YEREL YOL KORUNDU (silinmedi, ölçüm yolu aynı): `RAG_EMBED_PROVIDER=local` +
+`RAG_RERANK_PROVIDER=local` iki satırla geri dönülür; FABRİKA varsayılanı hâlâ
+`local`, yani eval koşuları ve golden-set ölçümleri env'siz eskisi gibi çalışır
+(`tests/unit/test_providers_switch.py` + `tests/unit/test_providers_deploy.py`).
+
+Açılış ön denetimi (`src/service/preflight.py`, `python -m src.service.preflight`):
+eksik taban adresi/model/anahtar servisi **ayağa kaldırmaz** (SystemExit 2,
+`/health` hiç `ok` demez) — "yeşil görünüp ilk gerçek soruda düşen servis"
+sınıfı kapandı. Anahtar doğrudan (`RAG_*_API_KEY`) ya da
+`RAG_*_API_KEY_ENV=<DEĞİŞKEN>` dolaylı verilebilir.
+
+Dürüst uyarılar (değişmedi): (1) API gömme BGE-M3'ün SPARSE ayağını keser →
+ölçülmüş kalite sayıları geçersiz; (2) rerank API skorları çekimserlik eşiği
+için kalibre değildir → operatör dosyasındaki
+`RAG_ALLOW_UNCALIBRATED_ABSTAIN=1` bir "riski biliyorum" beyanıdır; (3) sunucu
+7,6 GiB'i backend+postgres+frontend+chatbot ile PAYLAŞIR → `RAG_MAX_CORPORA`
+valfi açık tutulmalı.
 
 ### 11.3 Veri sahipliği — türev store'lar (standing rule)
 
@@ -248,3 +285,38 @@ koşar — 7,6 GiB'in hepsi rag'e ait değildir.
   (2) `postgres` DSN şeması (`postgres` + `://`), (3) DSN taşıyan bir ortam
   değişkeni adı. Yani bu depo hiçbir koşulda uygulama DB'sine bağlanmaz;
   Qdrant/SQLite yalnız yerel türev store'lardır.
+
+### 11.4 Köprü taşıması — `src/bridge/transport.py` (2026-09-17, BL-010 kapandı)
+
+Backend QUIC **sunucusudur**, servis dial-out eder. Taşıma: sertifikayı
+`GET /ai/certificate` ile çeker (HER yeniden bağlanmada — backend her boot'ta
+yeniden üretir), ALPN `hab/2` ile bağlanır, kontrol akışına `Hello`
+(`{protocol, service, capabilities, token, max_concurrent}`) yazar, `Greeting`i
+okur, QUIC PING ile canlı kalır ve backend'in açtığı her akıştaki `Request`i
+transport-bağımsız dağıtıcıya verip tek `Response` yazar. Her hatada üstel geri
+çekilmeyle (jitter'li) yeniden dener — **süreç ASLA çıkmaz.**
+
+| ne | nerede |
+|---|---|
+| ilan edilen yetenekler | `rag.chat` + `rag.index` (`chat.reply` KARŞILANIR ama İLAN EDİLMEZ — o yetenek chatbot'undur) |
+| boot politikası | backend yokken süreç ayakta kalır, loglar, bekler; backend gelince KENDİLİĞİNDEN kaydolur. `AI_SHARED_TOKEN` yoksa da denenir (uydurma token YOK; `unauthorized` → bekleme tavana çekilir) |
+| nerede koşar | uvicorn sürecinin İÇİNDE ayrı bir arka plan thread'i (`http_app.create_app_with_warmup` → `transport.start_in_background`) — HTTP yüzeyi taşımadan bağımsız |
+| TLS | `AI_TLS_FINGERPRINT` dolu → PEM'den hesaplanan SHA-256 pinlenir, uyuşmazsa BAĞLANILMAZ; boş → TOFU, her açılışta `warn` |
+| testler | `tests/unit/test_bridge_transport.py` (sahte QUIC sunucusu: `tests/unit/_fake_bridge.py`, aioquic, 127.0.0.1; ağ/DB/model YOK) |
+
+**Ortam (filo adları — yeni ad icat edilmedi):** `AI_BRIDGE_HOST` ·
+`AI_BRIDGE_PORT` · `AI_BACKEND_URL` · `AI_TLS_SERVER_NAME` · `AI_SERVICE_NAME` ·
+`AI_SHARED_TOKEN` · `AI_TLS_FINGERPRINT` · `AI_MAX_CONCURRENT` ·
+`AI_RECONNECT_SECS` · `AI_RECONNECT_MAX_SECS` · `LOG_LEVEL` (ayrıntı:
+`docs/BACKEND-INTEGRATION.md` §4.2).
+
+**KAPSAM DIŞI (bilinçli, yalan söylenmiyor):**
+- `rag.index` hâlâ TİPLİ REDDEDER (`index_path_unwired`): dizin yazımı ek dosya
+  baytlarını (`BlobRequest`) ve korpus yönlendirmesini ister — yazılmadı.
+- Backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
+  bağlanmadı: bugünkü iki yetenek de onu istemiyor (`rag.chat` kapsamı
+  çerçevede), yani çağıranı olmayan bir yol yazılmadı.
+- **Canlı bir backend'e karşı uçtan uca koşum YAPILMADI** (bu oturumda ayakta
+  backend yoktu): kanıt sahte sunucuyla alınan gerçek QUIC el sıkışmasıdır
+  (kayıt, istek→dağıtım→cevap, tipli redler, kopma→yeniden kayıt,
+  backend-yokken boot).

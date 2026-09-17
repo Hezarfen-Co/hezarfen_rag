@@ -1,8 +1,9 @@
 # systemd KULLANICI unit'i: RAG servisini podman compose ile çalıştırır.
 # %h/hezarfen_rag içinde beklenen dosyalar:
 #   compose.yaml                     bu repodan (ya da deploy artefaktından)
-#   hezarfen_rag.env                 0600, depodaki .env.example'dan ELLE yazılır
-#                                    — otomasyon oluşturmaz/ezmez
+#   hezarfen_rag.env                 0600, depodaki deploy/hezarfen_rag.env.example
+#                                    şablonundan ELLE yazılır — otomasyon
+#                                    oluşturmaz/ezmez
 #   stack.env                        deploy sahipli; HEZARFEN_TAG taşır
 #   data/                            korpus (imgeye girmez; salt-okunur bağlanır)
 #
@@ -10,11 +11,22 @@
 #   podman compose build             # burada derle
 #   podman load -i image.tar         # ya da hazır imajı yükle
 #
-# KAPASİTE ÖN KOŞULU (ölçüldü): torch + BGE-M3 + reranker modelleri ~4,5 GB
-# disk ve çalışma anında birkaç GB RAM ister. GPU'suz bir makinede rerank
-# 95,9 s sürer ve ürün kapısı O-05 (p50 <= 6 s) GEÇİLMEZ — yani bu servis
-# GPU'suz bir sunucuda "çalışır" ama ürün olarak kullanılamaz. (Bellek
-# tavanı ölçümü ve API-embeddings/rerank seçeneği: PROJECT_STATE.md §11.)
+# KÜÇÜK İMGE + EKLENTİ VOLUME (2026-09-17): imge torch/FlagEmbedding TAŞIMAZ.
+# Yerel yola geçmek istersen: `bash deploy/provision_local_stack.sh` ile
+# `rag-local` volume'ünü sağla, .env'e RAG_*_PROVIDER=local +
+# RAG_LOCAL_VENV=/local-stack/venv + RAG_LOCAL_MODELS_DIR=/models yaz, unit'i
+# yeniden başlat. Derleme/workflow GEREKMEZ (mount'lar compose.yaml'da hazır).
+#
+# KAPASİTE ÖN KOŞULU (ölçüldü; API sağlayıcı yolu = DAĞITIM VARSAYILANI):
+# gömme ve rerank uzak API'de olduğu için yerel modeller HİÇ indirilmez;
+# Ölçülen zarf: torch import ~0,4 GB + 0,53 GB/10k chunk → tek korpus ≈1,1 GB,
+# 3 korpus ≈2,6 GB (PROJECT_STATE §11.2). compose `mem_limit` 3072 MB, CI
+# kapasite eşiği de aynı sayıyı compose'daki `x-rag-envelope` bloğundan okur.
+# YEREL/GPU YOLU (RAG_EMBED_PROVIDER=local) ise ~4,5 GB model indirir ve
+# GPU'suz makinede rerank 95,9 s sürer: kapı O-05 (p50 <= 6 s) GEÇİLMEZ —
+# yani o yapılandırma GPU'suz sunucuda "çalışır" ama ürün olarak kullanılamaz.
+# Eksik sağlayıcı yapılandırması sessizce geçilmez: servis AÇILIŞTA reddeder
+# (src/service/preflight.py) ve konteyner /health'i hiç cevaplamaz.
 #
 # ORTAM İKİ KANALDAN GELİR — bu bir tercih değil, sağlayıcının sınırıdır:
 #   * operatörün ayar dosyası -> `EnvironmentFile=` (systemd dosyayı unit'in

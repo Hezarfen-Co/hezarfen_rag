@@ -1,0 +1,23 @@
+# YEREL MODEL YIĞINI — VARSAYILAN İMGEYE GİRMEZ (küçük imge kararı, 2026-09-17).
+#
+# Neye yarar: `RAG_EMBED_PROVIDER=local` + `RAG_RERANK_PROVIDER=local` yolu
+# (BGE-M3 dense+sparse ve BGE-reranker-v2-m3). Ölçülmüş bütün kalite sayıları
+# (EXP-011/013/017/018) bu yola aittir; yol SİLİNMEDİ, yalnız imaja varsayılan
+# olarak konmuyor.
+#
+# Kurulum (geliştirme/ölçüm makinesi):
+#   pip install -r requirements.txt -r requirements-local.txt -r requirements-eval.txt
+#   # GPU:
+#   pip install "torch==2.6.0" --index-url https://download.pytorch.org/whl/cu124
+#
+# Konteyner: varsayılan imge KÜÇÜKTÜR (bu dosya kurulmaz). Yerel yetenekli imge:
+#   podman build --build-arg WITH_LOCAL_MODELS=1 \
+#                --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cpu .
+#
+# Torch kurulum notu (kök requirements'tan taşındı): buraya --extra-index-url
+# cu124 KOYMAYIN — pip PyPI'nin daha yüksek +cpu wheel'ini seçip GPU'yu atlıyor.
+# Doğrulandı: 2.14.0+cpu geldi.
+torch>=2.6
+
+# BGE-M3 (dense + sparse), çok dilli — yerel gömme.
+FlagEmbedding>=1.3

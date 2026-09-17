@@ -48,13 +48,15 @@ Yedek mevcut dosyaları aynen korur; data içindeki üç .part dosyası tamamlan
 
 ## Linux / Podman — konteyner dağıtımı
 
-`compose.yaml` iki profil sunar. Fark yalnız hız değil: **kapı O-05 (p50 ≤ 6 s)
-CPU'da geçilemiyor.**
+`compose.yaml` iki profil sunar. Ölçülen tablo **yerel modellerle** alındı ve
+dağıtım varsayılanının neden `api` olduğunu gösterir: kapı O-05 (p50 ≤ 6 s)
+yerel modellerle CPU'da geçilemiyor.
 
-| profil | torch | ölçülen p50 | kapı O-05 |
-|---|---|---|---|
-| `product` (CPU) | cu yok | ~96 s | ✗ |
-| `gpu` | cu130 | **4,96 s** | ✓ |
+| profil | torch | sağlayıcı | ölçülen p50 | kapı O-05 |
+|---|---|---|---|---|
+| `product` (CPU) | cu yok | **api** (dağıtım varsayılanı): rerank uzakta | — | ✓ (rerank 95,9 s'lik adım kalkar) |
+| `product` (CPU) | cu yok | `local`: rerank bu makinede | ~96 s | ✗ |
+| `gpu` | cu130 | `local` | **4,96 s** | ✓ |
 
 *(RTX 4060 Laptop, 10/biyoloji, gerçek `/rag/chat`, 10 soru — bkz. EXP-018.)*
 
@@ -64,12 +66,32 @@ podman compose --profile gpu     up -d --build     # GPU
 ```
 
 Dağıtım varsayılanlarının **tek kaynağı** `Containerfile`'ın `ENV` bloğudur
-(HF_HOME, HOST, PORT, BOOK_PATH, SINIF, DERS). `compose.yaml` hiçbir
-`environment:` girdisi taşımaz; sunucudaki değerler
-`~/hezarfen_rag/hezarfen_rag.env` dosyasından gelir (şablon: `.env.example`,
-`env_file:` ile okunur, dosyayı otomatik hiçbir şey yazmaz). Değerler konteyner
-**başlarken** okunur: değişiklikten sonra yeniden oluştur, yoksa eski değerlerle
-çalışmaya devam eder.
+(HF_HOME, HOST, PORT ve **sağlayıcı seçimi**: `RAG_EMBED_PROVIDER=api`,
+`RAG_RERANK_PROVIDER=api`). `compose.yaml`'ın `environment:` bloğu yalnız
+cihaza özel korpus seçimini (BOOK_PATH/SINIF/DERS, interpolasyon varsayılanlı)
+taşır; operatöre ait her şey `~/hezarfen_rag/hezarfen_rag.env` dosyasından
+gelir (şablon: **`deploy/hezarfen_rag.env.example`**, `env_file:` ile okunur,
+dosyayı otomatik hiçbir şey yazmaz). Değerler konteyner **başlarken** okunur:
+değişiklikten sonra yeniden oluştur, yoksa eski değerlerle çalışmaya devam eder.
+
+**Eksik sağlayıcı yapılandırması sessizce geçilmez.** Seçilen sağlayıcının
+taban adresi/modeli/anahtarı yoksa servis **açılışta reddeder**
+(`src/service/preflight.py`) — uvicorn portu dinlemeden süreç çıkar, `/health`
+hiç `ok` demez, deploy kapısı rollback yapar. Elle denetim:
+
+```bash
+python -m src.service.preflight          # ya da: python -m src.service.http_app --validate
+```
+
+Neden bu kapı var: eksik anahtarla ayakta kalan servis `/health` ve `/ready`'de
+yeşil kalıyor, yalnız **ilk gerçek soru** düşüyordu — deploy kapısı geçer, ürün
+ölü olur. Ön denetim eksiği ADIYLA söyler (hangi değişkene ne yazılacağı).
+
+**Kaynak zarfı — tek kaynak `compose.yaml` → `x-rag-envelope`:** konteyner
+`mem_limit` **3072 MB**, disk eşiği **8 GB** (rollback iki imajı da tutar).
+Ölçüm (API sağlayıcı yolu; PROJECT_STATE §11.2): torch import ~0,4 GB +
+0,53 GB/10k chunk → tek korpus ≈1,1 GB, 3×10k chunk ≈2,6 GB. CI kapasite
+kapısı bu iki sayıyı compose'dan okur (koda ikinci kez yazılmaz).
 
 ### CI deploy (GitHub Actions)
 
@@ -82,16 +104,18 @@ geçmezse önceki tag'e dön). Unit'in kendisi sürümle birlikte iner:
 `deploy/hezarfen_rag_compose.service`.
 
 **Deploy yalnız elle koşar** (`workflow_dispatch`) ve kapıda **kapasite ön
-kontrolü** vardır: en az 12 GB boşta RAM ve 20 GB disk istemezse, nedeniyle
-birlikte reddeder. Gerekçe ölçülmüş: modeller ~4,5 GB, çalışma anında birkaç GB
-RSS ve GPU'suz bir makinede rerank 95,9 s (kapı O-05 p50 ≤ 6 s). Küçük bir
-sunucuda bunu otomatik başlatmak, canlı stack'i RAM için sıkıştırıp karşılığında
-ürün kapısını geçmeyen bir servis verir. Ölçtüğümüz 7 GB'lık geliştirme
-sunucusu bu kapıdan **geçmez** (6 466 MB RAM boşta).
+kontrolü** vardır: eşikler `compose.yaml`'daki `x-rag-envelope` bloğundan
+okunur — RAM ≥ `mem_limit_mb` (**3072 MB**) ve disk ≥ **8 GB**; yetmezse
+nedeniyle birlikte reddeder. Gerekçe ölçülmüş: API gömme + API rerank ile
+yerel modeller hiç indirilmez (zarf 1,1–2,6 GB), yani eski 12 GB / 20 GB
+eşikleri model çağından kalmaydı. Ölçtüğümüz 7 GB'lık geliştirme sunucusu
+(6 466 MB boşta) bu kapıdan artık **geçer**.
 
 Kapıyı açmak için: repo secret'larına `SSH_PRIVATE_KEY`/`SSH_HOST`/`SSH_USER`
-ekle, sunucuya `~/hezarfen_rag/hezarfen_rag.env` (0600) ve
-`~/hezarfen_rag/data/` korpusunu koy, sonra `workflow_dispatch` ile koş.
+ekle, sunucuya `~/hezarfen_rag/hezarfen_rag.env` (0600, şablon:
+`deploy/hezarfen_rag.env.example`) ve `~/hezarfen_rag/data/`
+(`<okul>/lise/<sınıf>/<ders>/kitap.pdf`) korpusunu koy, sonra
+`workflow_dispatch` ile koş.
 
 ### GPU için tek seferlik ana makine kurulumu
 
@@ -170,13 +194,43 @@ anda sorsun" senaryosu bu hâliyle kapıyı geçmez (#96 / O-06).
 
 ## Sağlayıcı seçimi — yerel model ↔ uzak API
 
-Gömme ve rerank ayrı ayrı seçilebilir. **Varsayılan `local`**: ölçülmüş bütün
-kalite sayıları (EXP-011/013/017/018) o yola aittir.
+Gömme ve rerank ayrı ayrı seçilebilir ve **ikisi de tam çalışır durumda**.
+
+| | `RAG_EMBED_PROVIDER` | `RAG_RERANK_PROVIDER` | kime |
+|---|---|---|---|
+| **Dağıtım varsayılanı** | `api` | `api` | 7,6 GiB'lik GPU'suz sunucu; ölçülen zarf 1,1–2,6 GB |
+| Ölçülmüş kalite yolu | `local` | `local` | golden set / eval; bütün kalite sayıları (EXP-011/013/017/018) buraya ait |
+
+Yerel yol **silinmedi** ama artık **imajda değil**: varsayılan imge KÜÇÜKTÜR
+(torch/FlagEmbedding/ağırlık YOK). Yerel bağımlılıklar bir podman **volume'ü**
+içindeki venv'de durur; servis onu `sys.path`e ekler. Geçiş **workflow'suz ve
+derlemesizdir**:
 
 ```bash
-RAG_EMBED_PROVIDER=local    # local | api
-RAG_RERANK_PROVIDER=local   # local | api | off
+# 1) volume'u BİR KEZ sağla (pip İMGE İÇİNDE koşar: ABI/glibc uyumu şart).
+#    İdempotent: tekrar koşmak günceller, ikizlemez. --agirliklari-indir ~4,5 GB
+#    ağırlığı şimdi indirir (yoksa ilk yerel istekte iner).
+bash deploy/provision_local_stack.sh
+
+# 2) ~/hezarfen_rag/hezarfen_rag.env (satır-içi `#` yorum KOYMA)
+RAG_EMBED_PROVIDER=local
+RAG_RERANK_PROVIDER=local
+RAG_LOCAL_VENV=/local-stack/venv
+RAG_LOCAL_MODELS_DIR=/models
+
+# 3) uygula — başka hiçbir şey
+systemctl --user restart hezarfen_rag_compose
 ```
+
+Volume mount'u `compose.yaml`'da **hep takılıdır** (boş volume zararsız), yani
+geçiş yalnız `.env` + restart'tır. Sağlanmamış volume ile `local` seçilirse
+servis **açılışta, adıyla ve komutuyla** reddeder (ImportError değil):
+`RAG_LOCAL_VENV` + `provision_local_stack.sh` mesajda geçer. `/ready` de
+`saglayici.yerel_yigin` alanında "yok" / "provisioned … tag=… python=…" bildirir.
+
+**DİKKAT — RAM (dürüst uyarı):** yerel modda BGE-M3 + reranker ~4,5 GB ister ve
+7,6 GiB'lik sunucu bunu backend+postgres+frontend+chatbot ile PAYLAŞIR. Yani
+yerel mod bu kutuda "diğer servisleri kapat" modudur; API modu (varsayılan) 1,1–2,6 GB.
 
 ### Neden API seçeneği var
 
@@ -193,7 +247,9 @@ GPU'yu isteyen **tek** parça rerank. Uzak servise taşınırsa CPU yeter.
 
 ### API'ye geçmenin ölçülmüş bedelleri
 
-Bunlar sessizce yaşanmaz; kod açılışta uyarır ya da durdurur.
+Bunlar sessizce yaşanmaz; kod açılışta uyarır ya da durdurur. **API yolu artık
+dağıtım varsayılanıdır** (`Containerfile` ENV) — yani aşağıdaki bedeller
+üretimde geçerlidir; yerel yola dönüş iki satırdır (yukarıda).
 
 1. **Sparse vektör kaybolur.** BGE-M3 dense + sparse'ı tek geçişte üretir;
    hibrit retrieval üç ayağa dayanır (dense + BM25 + sparse). OpenAI-uyumlu

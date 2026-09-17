@@ -1,0 +1,8 @@
+# DEĞERLENDİRME (src/eval) — yalnız geliştirme/CI; KONTEYNER İMGESİNE GİRMEZ.
+#
+# Neden ayrı: `src/eval/{runner,judge}.py` dışında hiçbir modül bunu okumaz;
+# servis yolu (src/service → retrieve/generate/guard) deepeval'a dokunmaz.
+# Küçük imge kararı (2026-09-17): varsayılan imge yalnız servis yolunu taşır.
+#
+#   pip install -r requirements.txt -r requirements-local.txt -r requirements-eval.txt
+deepeval>=1.0        # kalite metrikleri (faithfulness, answer relevancy/correctness)

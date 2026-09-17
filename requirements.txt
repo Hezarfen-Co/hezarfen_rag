@@ -1,16 +1,20 @@
 # hezarfen_rag bağımlılıkları  (kurulum: python -m venv .venv && .venv/Scripts/pip install -r requirements.txt)
 #
+# ÜÇ DOSYA (küçük imge kararı, 2026-09-17 — ölçüm: PROJECT_STATE §11.2):
+#   requirements.txt         servis yolu: TAM VE HAFİF. Konteynerin VARSAYILAN
+#                            (küçük) imgesi bunu kurar.
+#   requirements-local.txt   YEREL MODEL yığını (torch + FlagEmbedding) — imaja
+#                            yalnız `--build-arg WITH_LOCAL_MODELS=1` ile girer.
+#   requirements-eval.txt    yalnız src/eval (DeepEval) — imaja HİÇ girmez.
+# Geliştirme/ölçüm makinesi üçünü de kurar:
+#   pip install -r requirements.txt -r requirements-local.txt -r requirements-eval.txt
+#
 # Maliyet modülü (src/pricing, src/providers/deepseek, src/costlog): SIFIR harici
 # bağımlılık — yalnız Python stdlib. Aşağısı ingest + RAG içindir.
 
-# --- PyTorch (embedding için) ---
-# Bu satır ortamdan bağımsız taban spec'tir: konteyner CPU wheel'i (Containerfile),
-# yerel geliştirme GPU wheel'i kurar; ikisi de bu spec'i karşılar.
-#   Yerel GPU (RTX 4060, CUDA 12.4) — requirements'tan SONRA açıkça kur:
-#     .venv/Scripts/pip install torch==2.6.0 --index-url https://download.pytorch.org/whl/cu124
-#   (NOT: buraya --extra-index-url cu124 koymayın — pip PyPI'nin daha yüksek +cpu
-#    wheel'ini seçip GPU'yu atlıyor. Doğrulandı: 2.14.0+cpu geldi.)
-torch>=2.6
+# --- PyTorch / yerel gomme modeli (#96) ---
+# TASINDI: requirements-local.txt (torch + FlagEmbedding). Varsayilan imge
+# bunlari KURMAZ; API saglayici yolu torch'u hic import etmez.
 
 # --- Kaynak derleyici (src/ingest — Faz 0) ---
 pymupdf>=1.27          # native PDF parse (metin blok + koordinat)
@@ -18,7 +22,7 @@ pdfplumber>=0.11       # tablo tespiti (Faz 0.3c)
 numpy>=1.26
 
 # --- Embedding / retrieval (Faz 1) ---
-FlagEmbedding>=1.3     # BGE-M3 (dense + sparse), çok dilli
+# FlagEmbedding>=1.3 -> requirements-local.txt (yerel gomme modeli).
 qdrant-client>=1.9     # vektör store (Faz 1.3)
 rank-bm25>=0.2         # lexical retrieval / BM25 (Faz 1.3)
 
@@ -26,8 +30,7 @@ rank-bm25>=0.2         # lexical retrieval / BM25 (Faz 1.3)
 pytesseract>=0.3       # Tesseract sarmalayıcı (tesseract binary + tur.traineddata ayrı gerekir)
 Pillow>=10.0           # görüntü işleme (OCR + VLM render)
 
-# --- Değerlendirme (src/eval — DeepEval + DeepSeek hakem) ---
-deepeval>=1.0          # kalite metrikleri (faithfulness, answer relevancy/correctness)
+# --- Değerlendirme (src/eval) -> requirements-eval.txt (yalnız geliştirme/CI) ---
 
 # --- Servis (Faz — src/service/http_app.py, backend-hazır HTTP) ---
 fastapi>=0.110         # HTTP endpoint (API-CONTRACT.md)

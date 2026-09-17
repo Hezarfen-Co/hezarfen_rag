@@ -90,7 +90,12 @@ class ComposeTests(unittest.TestCase):
         self.assertIn("start_period", self.y)
 
     def test_data_is_mounted_because_the_image_excludes_it(self):
-        self.assertIn("./data:/app/data", self.y)
+        """Korpus İMGEYE girmez; host'tan /app/data'ya bağlanır. Yer artık bir
+        filo anahtarı (`HEZARFEN_DATA_VOLUME`, HEZARFEN_NET ile aynı desen):
+        varsayılanı `./data` kalır, yani anahtarsız kurulum eskisi gibi çalışır.
+        """
+        self.assertRegex(self.y,
+                         r"\$\{HEZARFEN_DATA_VOLUME:-\./data\}:/app/data")
         self.assertIn("data/", _oku(".containerignore"))
 
     def test_book_path_points_at_the_mount(self):

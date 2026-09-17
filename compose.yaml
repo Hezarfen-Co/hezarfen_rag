@@ -3,13 +3,14 @@
 # RAG, backend'in paylaşılan ağına (hezarfen_backend_default) bağlanır.
 #
 # Dağıtım varsayılanlarının tek kaynağı Containerfile'ın ENV bloğudur (HF_HOME,
-# HOST, PORT). Buradaki `environment:` bloğu YALNIZ cihaza özel korpus
-# seçimini (BOOK_PATH/SINIF/DERS) taşır; sırlar ve operatöre ait her şey
-# hezarfen_rag.env dosyasından gelir — konteynere `env_file:` ile, kompoze
-# interpolasyonuna ortam değişkeni olarak (unit: `EnvironmentFile=`, deploy:
-# operatör dosyasını satır satır ortama alma; compose'a giden TEK `--env-file`
-# deploy sahipli stack.env'dir — bkz. deploy/hezarfen_rag_compose.service).
-# Sunucuda ~/hezarfen_rag/hezarfen_rag.env (şablon: depodaki .env.example).
+# HOST, PORT, RAG_EMBED_PROVIDER/RAG_RERANK_PROVIDER). Buradaki `environment:`
+# bloğu YALNIZ cihaza özel korpus seçimini (BOOK_PATH/SINIF/DERS) taşır; sırlar
+# ve operatöre ait her şey hezarfen_rag.env dosyasından gelir — konteynere
+# `env_file:` ile, kompoze interpolasyonuna ortam değişkeni olarak (unit:
+# `EnvironmentFile=`, deploy: operatör dosyasını satır satır ortama alma;
+# compose'a giden TEK `--env-file` deploy sahipli stack.env'dir — bkz.
+# deploy/hezarfen_rag_compose.service). Sunucuda ~/hezarfen_rag/hezarfen_rag.env
+# (şablon: deploy/hezarfen_rag.env.example).
 #
 # Kullanım (backend ayaktayken):
 #   podman compose --profile product up -d --build          (CPU)
@@ -22,6 +23,21 @@
 # `resolve_extends` içinde `KeyError: '_deps'` ile ÇÖKÜYOR (ölçüldü:
 # `podman compose --profile gpu config`). Anchor aynı tekrarı yapmadan aynı
 # sonucu verir.
+#
+# ZARF (envelope) — TEK KAYNAK. Deploy betiği (.github/workflows/main.yml)
+# kapasite eşiğini BURADAN okur (awk), tests/unit/test_providers_deploy.py iki
+# değerin ölçülmüş zarfla ve dokümanla uyuştuğunu doğrular. Sayıyı ikinci kez
+# yazmak, model-çağından kalma 12 GB eşiğinin sessizce geri gelmesi demekti.
+#
+#   mem_limit_mb — konteynerin RAM tavanı (ürün profili). AYNI ZAMANDA deploy
+#                  kapısıdır: host MemAvailable en az bu kadar olmalı, çünkü
+#                  kap tavanına kadar çıkabilmeli (koşan stack'in kullandığı
+#                  bellek MemAvailable'dan zaten düşülmüştür).
+#   disk_min_gb  — deploy kapısı: imaj + rollback için önceki imaj + korpus.
+x-rag-envelope:
+  mem_limit_mb: 3072
+  disk_min_gb: 8
+
 x-rag-common: &rag-common
   build:
     context: .
@@ -31,6 +47,12 @@ x-rag-common: &rag-common
     - path: hezarfen_rag.env
       required: false
   environment:
+    # KÖPRÜ (hab/2) ANAHTARLARI BURADA YOKTUR ve OLMAMALIDIR: `AI_*` bir
+    # interpolasyon değil KONTEYNER ortamıdır, yukarıdaki `env_file:` ile gelir
+    # (sunucuda hezarfen_rag.env → şablon: deploy/hezarfen_rag.env.example;
+    # laptopta .env.example). Buraya `${AI_...:-...}` yazmak onları hem
+    # ikinci kez tanımlar hem de operatör değerini compose varsayılanına
+    # düşürebilirdi. Taşıma + boot politikası: docs/BACKEND-INTEGRATION.md §4.2.
     # Korpus seçimi: bu üçü CİHAZA özel (hangi kitap işleniyor). Dağıtım yolu
     # operatör değerlerini İKİ KANALDAN verir: unit'te `EnvironmentFile=`
     # (systemd), deploy'da operatör dosyasını satır satır ortama alma — çünkü
@@ -38,14 +60,34 @@ x-rag-common: &rag-common
     # (podman_compose.py:2941-2946, :2559) ve iki dosyalı çağrı operatör
     # dosyasını sessizce düşürürdü (bkz. deploy/hezarfen_rag_compose.service).
     # Laptopta dosya yokken aşağıdaki varsayılan geçerlidir.
-    BOOK_PATH: ${BOOK_PATH:-/app/data/lise/10/biyoloji/kitap.pdf}
+    #
+    # DİKKAT — OKUL SEGMENTİ ZORUNLU (kiracılık, b2ba173): düzen
+    # `<root>/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`. Eski 4 parçalı
+    # varsayılan (`/app/data/lise/10/...`) sessizce bir okula atfetmek yerine
+    # AÇIK hata verir (src/service/multi.py:65-81, test:
+    # tests/unit/test_tenant_multischool.py:271). Okul adı gerçek slug'dır.
+    # Yol KONTEYNER içidir (korpus /app/data'ya bağlanır).
+    BOOK_PATH: ${BOOK_PATH:-/app/data/okul-a/lise/10/biyoloji/kitap.pdf}
     SINIF: ${SINIF:-10}
     DERS: ${DERS:-biyoloji}
   ports:
     - "127.0.0.1:8000:8000"        # yalnız yerel; dışa açmak bilinçli olmalı
   volumes:
-    - rag-models:/models           # model cache kalıcı (BGE-M3 + reranker ~2,3 GB × 2)
-    - ./data:/app/data:ro,z        # korpus; imgeye GİRMEZ (.containerignore)
+    # API yolu (dağıtım varsayılanı) model İNDİRMEZ.
+    - rag-models:/models           # HF ağırlıkları (yerel yola geçilirse burada kalır)
+    # YEREL YIĞIN EKLENTİ VOLUME'U (küçük imge kararı): imge torch/FlagEmbedding
+    # TAŞIMAZ; bağımlılıklar bu volume'ün İÇİNDEKİ venv'de durur (RAG_LOCAL_VENV)
+    # ve servis onu `sys.path`e ekler. Mount HER ZAMAN durur (boş volume zararsız)
+    # — böylece yerel yola geçmek YALNIZ .env değişikliğidir:
+    #   bash deploy/provision_local_stack.sh   (bir kez)
+    #   .env: RAG_*_PROVIDER=local, RAG_LOCAL_VENV=/local-stack/venv,
+    #         RAG_LOCAL_MODELS_DIR=/models
+    #   systemctl --user restart hezarfen_rag_compose    (workflow/derleme YOK)
+    # Salt-okunur: sağlama ayrı bir konteyner koşusunda yazar (podman run -v).
+    - rag-local:/local-stack:ro,z
+    # Korpus: cihaza özel HOST dizini (imgeye GİRMEZ, .containerignore).
+    # HEZARFEN_NET gibi bir filo anahtarı: korpus başka yerdeyse operatör yazar.
+    - ${HEZARFEN_DATA_VOLUME:-./data}:/app/data:ro,z
     - rag-cost:/cost               # maliyet defteri (restart'ta kaybolmasın)
   healthcheck:
     # `/health` liveness'tır: süreç ayakta mı. Hazır olup olmadığı `/ready`de
@@ -66,6 +108,13 @@ services:
     image: localhost/hezarfen_rag:${HEZARFEN_TAG:-current}
     container_name: hezarfen_rag
     profiles: ["product"]            # otomatik kalkmaz; backend hazır olunca çalıştır
+    # ZARF TAVANI (x-rag-envelope.mem_limit_mb = 3072). Bayt olarak yazıldı:
+    # `3g` bu sağlayıcıda ONDALIK 3×10^9 bayt (2,86 GiB) demek olurdu ve
+    # ölçülen zarfın (2,6 GB) üstünde yalnız 0,26 GB baş bırakırdı.
+    # Ölçülen: API gömme + API rerank ile 3×10k chunk ≈ 2,6 GB; tek korpus
+    # ≈ 1,1 GB (torch import ~0,4 GB dahil, PROJECT_STATE §11.2). Yerel/GPU
+    # profili kendi ölçülmüş zarfına sahip DEĞİL, bu yüzden tavansız kalır.
+    mem_limit: 3221225472
 
   # #96 (EXP-018) — GPU SERVISI. Ölçüm: CPU rerank 95,9 s / uçtan uca ~96 s
   # (kapı O-05 p50 <= 6 s GEÇİLEMEZ); GPU rerank 1,9 s / p50 4,96 s (GEÇİLİR).
@@ -94,6 +143,7 @@ services:
 volumes:
   rag-models:
   rag-cost:
+  rag-local:                      # yerel yığın (venv) — bkz. deploy/provision_local_stack.sh
 
 networks:
   backend_net:

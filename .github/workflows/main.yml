@@ -12,20 +12,25 @@
 #                      `/ready` kapılarını geçir, olmazsa önceki tag'e dön.
 #
 # ⚠️ DEPLOY SADECE ELLE (workflow_dispatch) KOŞAR — bilinçli:
-#   RAG servisi torch + BGE-M3 + reranker ister (~4,5 GB model, birkaç GB RAM)
-#   ve GPU'suz bir makinede rerank 95,9 s / uçtan uca ~96 s sürer; ürün kapısı
-#   O-05 p50 <= 6 s'dir. Yani aynı sunucuda backend+postgres+frontend+chatbot
-#   koşarken bu servisi otomatik başlatmak, canlı stack'i RAM için sıkıştırıp
-#   karşılığında ürün kapısını geçmeyen bir servis verir. Kapıyı açmadan önce
-#   deploy işi RAM (>= 12 GB boşta) ve disk (>= 20 GB) ön kontrolü yapar ve
-#   yetmezse NEDENİYLE birlikte reddeder.
+#   Servis, aynı sunucuda koşan backend+postgres+frontend+chatbot'un YANINA
+#   eklenir; kapasite ön kontrolü olmadan otomatik başlatmak canlı stack'i RAM
+#   için sıkıştırırdı. Gömme ve rerank artık UZAK API'de (dağıtım varsayılanı
+#   = api) → yerel modeller (~4,5 GB) indirilmez; ölçülen zarf torch ~0,4 GB +
+#   0,53 GB/10k chunk = 1,1 GB (tek korpus) … 2,6 GB (3 korpus), bkz.
+#   PROJECT_STATE §11.2. Deploy işi eşiği compose.yaml'daki `x-rag-envelope`
+#   bloğundan OKUR — tek kaynak; sayıyı buraya ikinci kez yazmak, model
+#   çağından kalma 12 GB eşiğinin sessizce geri gelmesi demekti.
+#   Operatör yerel yola (RAG_EMBED_PROVIDER=local) dönerse zarf büyür ve
+#   GPU'suz makinede rerank 95,9 s sürer: ürün kapısı O-05 p50 <= 6 s GEÇİLMEZ
+#   — o yapılandırma için eşiği sunucuya elle yükseltmek gerekir.
 #
 # Bir seferlik ön koşullar (workflow'un erişimi dışında):
 #   * repo secret'ları SSH_PRIVATE_KEY / SSH_HOST / SSH_USER;
 #   * sunucuda `loginctl enable-linger <user>`;
 #   * sunucuda podman + bir compose sağlayıcı;
-#   * operatörün ~/hezarfen_rag/hezarfen_rag.env dosyası (şablon: .env.example)
-#     ve ~/hezarfen_rag/data/ korpusu (imgeye girmez, salt-okunur bağlanır).
+#   * operatörün ~/hezarfen_rag/hezarfen_rag.env dosyası
+#     (şablon: deploy/hezarfen_rag.env.example) ve ~/hezarfen_rag/data/
+#     korpusu (imgeye girmez, salt-okunur bağlanır).
 
 name: VPS deploy
 
@@ -51,8 +56,10 @@ env:
   ENV_FILE_NAME: hezarfen_rag.env
   # Servisin portu (imaj ENV'i ile aynı; kapı bu portu yoklar).
   PORT: "8000"
-  # Kapı bütçesi: `/ready` model + korpus kurulumunu bekler. Soğuk model
-  # volume'unda ilk koşu ~4,5 GB indirir; bu yüzden cömert.
+  # Kapı bütçesi: `/ready` boru hattının kurulmasını bekler. API sağlayıcı
+  # yolunda (dağıtım varsayılanı) model İNDİRİLMEZ; korpus kurulumu uzak gömme
+  # çağrılarıyla saniyeler sürer. Bütçe yine cömert: operatör `local` seçerse
+  # soğuk model volume'u GB'larca indirir (ölçüldü: ~4,5 GB).
   READY_TIMEOUT: "900"
 
 jobs:
@@ -89,11 +96,16 @@ jobs:
         with:
           python-version: "3.11"
       # CPU tekerleği: CI'da GPU yok ve GPU imajı ~2,5 GB daha büyük.
+      # Testler ÜÇ listeyi de ister: servis yolu (requirements.txt), yerel model
+      # yığını (requirements-local.txt) ve eval (requirements-eval.txt — yalnız
+      # CI/geliştirme; imaja girmez).
       - name: Install dependencies (CPU torch)
         run: |
           set -euo pipefail
           pip install --no-cache-dir "torch>=2.6" --index-url https://download.pytorch.org/whl/cpu
-          pip install --no-cache-dir --requirement requirements.txt
+          pip install --no-cache-dir --requirement requirements.txt \
+                                          --requirement requirements-local.txt \
+                                          --requirement requirements-eval.txt
 
       # Bozuk bir build sunucuya ASLA ulaşmamalı: ölçüm kapıları ve regresyon
       # süiti burada koşar. Ortam gerektiren testler (korpus, OCR dil verisi,
@@ -112,6 +124,31 @@ jobs:
         run: |
           set -euo pipefail
           docker build -f Containerfile -t localhost/hezarfen_rag:$GITHUB_SHA .
+
+      # VARSAYILAN İMGE KÜÇÜK MÜ (kullanıcı kararı 2026-09-17): yerel yığın
+      # (torch/FlagEmbedding/ağırlıklar) İMAJA GİRMEZ; yerel yol bir EKLENTİ
+      # VOLUME'u ile açılır (deploy/provision_local_stack.sh). Bu iddialar
+      # imajın kendisinde ölçülür (runner'da torch KURULU, yani runner'da
+      # ölçmek yanıltıcı olurdu).
+      - name: Prove the default image is API-only and refuses `local` cleanly
+        run: |
+          set -euo pipefail
+          img=localhost/hezarfen_rag:$GITHUB_SHA
+          docker run --rm "$img" python -c "import importlib.util, sys; sys.exit(1 if importlib.util.find_spec('torch') else 0)"
+          common=(--env RAG_ALLOW_UNCALIBRATED_ABSTAIN=1 --env LLM_API_KEY=ci)
+          docker run --rm "${common[@]}" \
+            --env RAG_EMBED_PROVIDER=api --env RAG_EMBED_API_BASE=https://ornek/v1 \
+            --env RAG_EMBED_MODEL=m --env RAG_EMBED_API_KEY=k \
+            --env RAG_RERANK_PROVIDER=api --env RAG_RERANK_API_URL=https://ornek/rerank \
+            --env RAG_RERANK_MODEL=m --env RAG_RERANK_API_KEY=k \
+            "$img" python -m src.service.preflight
+          if docker run --rm "${common[@]}" --env RAG_EMBED_PROVIDER=local \
+               --env RAG_RERANK_PROVIDER=local "$img" python -m src.service.preflight; then
+            echo "local secimi kucuk imgede GECMEMELIYDI" >&2; exit 1
+          fi
+          docker run --rm "${common[@]}" --env RAG_EMBED_PROVIDER=local \
+            --env RAG_RERANK_PROVIDER=local "$img" python -m src.service.preflight 2>&1 \
+            | grep -q 'provision_local_stack.sh'
 
       - name: Stage the release bundle
         run: |
@@ -223,7 +260,7 @@ jobs:
           cd -- "$deploy_path"
 
           if [ ! -f "$env_file" ]; then
-            echo "missing $env_file — create it (0600) from the repo's .env.example" >&2
+            echo "missing $env_file — create it (0600) from the repo's deploy/hezarfen_rag.env.example" >&2
             exit 1
           fi
           chmod 0600 -- "$env_file"
@@ -252,14 +289,26 @@ jobs:
             export "$anahtar=$deger"
           done < "$env_file"
 
-          # KAPASİTE ÖN KONTROLÜ — ölçülmüş gereksinim: modeller ~4,5 GB disk,
-          # çalışma anında birkaç GB RAM. Yetmezse OOM ile canlı stack'i
-          # düşürmek yerine burada, nedeniyle birlikte reddet.
+          # KAPASİTE ÖN KONTROLÜ — EŞİKLER TEK KAYNAKTAN: compose.yaml'daki
+          # `x-rag-envelope`. Ölçülmüş zarf (API sağlayıcı yolu): torch ~0,4 GB
+          # + 0,53 GB/10k chunk = 1,1 GB (tek korpus) … 2,6 GB (3 korpus);
+          # mem_limit_mb aynı zamanda host RAM eşiğidir (kap tavanına kadar
+          # çıkabilmeli). Diskte imaj + rollback için ÖNCEKİ imaj da durur.
+          # Blok okunamazsa kapı ölçülemez: sessizce devam etmek yerine reddet.
+          envelope_kaynak="compose.yaml"
+          mem_limit_mb=$(awk '/^x-rag-envelope:/{f=1} f&&/^[[:space:]]+mem_limit_mb:/{print $2; exit}' "$envelope_kaynak")
+          disk_min_gb=$(awk '/^x-rag-envelope:/{f=1} f&&/^[[:space:]]+disk_min_gb:/{print $2; exit}' "$envelope_kaynak")
+          case "${mem_limit_mb}:${disk_min_gb}" in
+            *[!0-9:]*|:*|*:)
+              echo "compose.yaml: x-rag-envelope okunamadi (mem_limit_mb=${mem_limit_mb} disk_min_gb=${disk_min_gb}); kapasite kapisi olculemez -> deploy reddedildi" >&2
+              exit 1
+              ;;
+          esac
           avail_mb=$(awk '/MemAvailable/ {print int($2/1024)}' /proc/meminfo)
           disk_gb=$(df -BG --output=avail "$deploy_path" | tail -1 | tr -dc '0-9')
-          if [ "$avail_mb" -lt 12000 ] || [ "$disk_gb" -lt 20 ]; then
-            echo "refusing to deploy: ${avail_mb} MB RAM available (need >= 12000) and ${disk_gb} GB disk (need >= 20)." >&2
-            echo 'torch + BGE-M3 + reranker need ~4.5 GB of models plus a few GB of RSS; on a GPU-less host the rerank alone measured 95.9 s (product gate O-05 wants p50 <= 6 s).' >&2
+          if [ "$avail_mb" -lt "$mem_limit_mb" ] || [ "$disk_gb" -lt "$disk_min_gb" ]; then
+            echo "refusing to deploy: ${avail_mb} MB RAM available (need >= ${mem_limit_mb}) and ${disk_gb} GB disk (need >= ${disk_min_gb})." >&2
+            echo "envelope from compose.yaml x-rag-envelope; with API providers the local models (~4.5 GB) never enter the image (a 'local' provider selection needs its own, larger envelope and a GPU)." >&2
             exit 1
           fi
 
@@ -362,26 +411,32 @@ jobs:
           # satir basi + en az bir karakter -- bos deger eslesmez.
           container_env=$(podman inspect -f '{{range .Config.Env}}{{println .}}{{end}}' hezarfen_rag)
           eksik=0
-          for ad in LLM_API_KEY BOOK_PATH; do
+          for ad in LLM_API_KEY BOOK_PATH RAG_EMBED_PROVIDER RAG_RERANK_PROVIDER; do
             if ! printf '%s\n' "$container_env" | grep -qE "^${ad}=."; then
               echo "container env: $ad yok ya da BOS -- operator dosyasi compose'a ulasmamis" >&2
               eksik=1
             fi
           done
-          op_book=$(sed -n 's/^BOOK_PATH=//p' "$env_file" | tail -1)
-          if [ -n "$op_book" ]; then
-            got_book=$(printf '%s\n' "$container_env" | sed -n 's/^BOOK_PATH=//p' | tail -1)
-            if [ "$got_book" != "$op_book" ]; then
-              echo "container BOOK_PATH operatorunkiyle AYNI DEGIL -- operator degeri interpolasyona girmemis. (Operator dosyasinda satir-ici '#' yorumu varsa systemd de onu degerin parcasi yapar; bkz. unit notu.)" >&2
+          # Saglayici SECIMI de operator kararidir: iki kanaldan biri duserse
+          # konteyner imaj ENV varsayilanina (api) duser ve operator "yerel
+          # sectim" sanir. (Secilen saglayici `api` iken anahtar eksikse servis
+          # ACILISTA reddeder -- src/service/preflight.py; o halde /ready kapisi
+          # ve istenirse `podman logs` tam nedeni gosterir.)
+          for ad in BOOK_PATH RAG_EMBED_PROVIDER RAG_RERANK_PROVIDER; do
+            op_val=$(sed -n "s/^${ad}=//p" "$env_file" | tail -1)
+            [ -n "$op_val" ] || continue
+            got_val=$(printf '%s\n' "$container_env" | sed -n "s/^${ad}=//p" | tail -1)
+            if [ "$got_val" != "$op_val" ]; then
+              echo "container $ad operatorunkiyle AYNI DEGIL -- operator degeri interpolasyona girmemis. (Operator dosyasinda satir-ici '#' yorumu varsa systemd de onu degerin parcasi yapar; bkz. unit notu.)" >&2
               eksik=1
             fi
-          fi
+          done
           if [ "$eksik" -ne 0 ]; then
             echo 'the operator env did not reach the container; rolling back' >&2
             rollback
             exit 1
           fi
-          echo 'ok: operator degiskenleri konteynerde (LLM_API_KEY dolu, BOOK_PATH operatorunkiyle ayni)'
+          echo 'ok: operator degiskenleri konteynerde (LLM_API_KEY dolu, BOOK_PATH + saglayici secimi operatorunkiyle ayni)'
           echo 'hezarfen_rag_compose is up and ready'
           REMOTE
 

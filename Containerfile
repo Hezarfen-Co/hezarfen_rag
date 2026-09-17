@@ -20,37 +20,39 @@ RUN apt-get update \
  && apt-get install -y --no-install-recommends curl \
  && rm -rf /var/lib/apt/lists/*
 
-# #96 (EXP-018) — TORCH DEĞİŞKENİ SEÇİLEBİLİR.
+# KÜÇÜK VARSAYILAN İMGE (kullanıcı kararı 2026-09-17): yerel model yığını
+# (torch + FlagEmbedding + ağırlıklar) İMAJA HİÇ GİRMEZ. Varsayılan imge yalnız
+# servis yolunu taşır ve API sağlayıcılarıyla çalışır.
 #
-# Önceki hâl CPU torch'u SABİT kuruyordu. Ölçüldü (RTX 4060, 10/biyoloji,
-# gerçek /rag/chat):
+# YEREL YOL SİLİNMEDİ — EKLENTİ VOLUME OLARAK TAKILIR (imgeyi yeniden derlemeden
+# .env'den seçilir):
+#   * yerel bağımlılıklar volume İÇİNDEKİ bir venv'de yaşar (RAG_LOCAL_VENV)
+#   * ağırlıklar aynı/sibling volume'da (RAG_LOCAL_MODELS_DIR → HF_HOME)
+#   * sağlama (tek komut, idempotent): deploy/provision_local_stack.sh
+#   * seçim: RAG_EMBED_PROVIDER=local + RAG_RERANK_PROVIDER=local, sonra
+#     `systemctl --user restart hezarfen_rag_compose` — workflow YOK, derleme YOK.
+# Sağlanmamış volume ile `local` seçilirse servis AÇILIŞTA reddeder
+# (src/service/preflight.py) — ImportError traceback'i değil, adı söylenen hata.
 #
-#            | rerank (40 aday) | uçtan uca p50
-#   CPU      |      95,9 s      |     96 s
-#   GPU      |       1,9 s      |   **4,96 s**
-#
-# Kapı O-05 p50 <= 6 s istiyor: CPU'da GEÇİLEMEZ, GPU'da GEÇİLİYOR. Yani imgeyi
-# CPU torch'a sabitlemek, ürünü okul demosunda interaktif OLMAYAN tek
-# yapılandırmaya kilitlemek demekti.
-#
-# VARSAYILAN CPU KALDI — GPU imgesi ~2,5 GB daha büyük ve çalışması için ana
-# makinede NVIDIA Container Toolkit ŞART (bkz. compose.yaml). GPU'suz bir
-# makinede cu130 tekerleği kurmak yalnız yer kaplar.
-#
-#   CPU (varsayılan):
-#     podman build -t hezarfen-rag:cpu .
-#   GPU:
-#     podman build --build-arg TORCH_INDEX=https://download.pytorch.org/whl/cu130 \
-#                  -t hezarfen-rag:gpu .
+# Yerel yetenekli imge isteyen (eski davranış) için build arg KALDIRILMADI:
+#   podman build --build-arg WITH_LOCAL_MODELS=1 [--build-arg TORCH_INDEX=...] .
+# (VPS'te önerilen yol volume'dur: imge CI'dan gelir, yeniden derleme gerekmez.)
+ARG WITH_LOCAL_MODELS=0
 ARG TORCH_INDEX=https://download.pytorch.org/whl/cpu
 
 # TIRNAK ŞART — bkz. yukarıdaki OPS-17 notu.
-COPY requirements.txt .
-RUN pip install --no-cache-dir "torch>=2.6" --index-url "${TORCH_INDEX}" \
- && pip install --no-cache-dir -r requirements.txt \
+COPY requirements.txt requirements-local.txt .
+RUN pip install --no-cache-dir -r requirements.txt \
+ && if [ "$WITH_LOCAL_MODELS" = "1" ]; then \
+      pip install --no-cache-dir "torch>=2.6" --index-url "${TORCH_INDEX}" \
+      && pip install --no-cache-dir -r requirements-local.txt; \
+    fi \
  && test ! -e /app/=2.6      # yönlendirme çöpü oluşmadığını DOĞRULA \
- && python -c "import torch, sys; \
-print('torch', torch.__version__, 'cuda-build:', torch.version.cuda); \
+ && python -c "import sys; \
+try: \
+    import torch; print('torch', torch.__version__, 'cuda-build:', torch.version.cuda); \
+except ModuleNotFoundError: \
+    print('torch YOK — kucuk imge (API saglayici yolu)'); \
 sys.exit(0)"
 
 COPY src ./src
@@ -60,10 +62,20 @@ COPY src ./src
 # (Korpus seçimi — BOOK_PATH/SINIF/DERS — compose.yaml'da interpolasyon
 # varsayılanı olarak durur: cihaza özel oldukları için dağıtım dosyasından
 # gelirler.)
+#
+# SAĞLAYICI VARSAYILANI = api (deploy lane, 2026-09-17). Gerekçe ölçülmüş:
+# yerel yol 7,6 GiB'lik VPS'e sığmıyor (BGE-M3 ~2,2 GB + reranker ~1,0 GB
+# indirme + GPU'suz makinede rerank 95,9 s; kapı O-05 p50 ≤ 6 s). API yolu
+# zarfı: torch ~0,4 GB + 0,53 GB/10k chunk → 1,1-2,6 GB (PROJECT_STATE §11.2).
+# Operatör yerel yola dönmek isterse bu iki anahtarı `local` yapar; kod içi
+# fabrika varsayılanı (src/embed/provider.py) DEĞİŞMEZ — ölçülmüş kalite
+# sayıları yerel yola aittir ve eval koşuları env'siz çalışır.
 ENV HF_HOME=/models \
     PYTHONUNBUFFERED=1 \
     HOST=0.0.0.0 \
-    PORT=8000
+    PORT=8000 \
+    RAG_EMBED_PROVIDER=api \
+    RAG_RERANK_PROVIDER=api
 
 EXPOSE 8000
 
