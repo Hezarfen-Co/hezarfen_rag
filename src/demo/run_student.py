@@ -14,6 +14,7 @@ import sys
 import time
 
 from ..guard.roles import Role, RoleContext, can_access
+from ..guard.tenant import PUBLIC_SCHOOL
 from ..bridge.client import FakeReader
 from ..bridge.student import build_context
 from .scenario import build_scenario, write
@@ -27,7 +28,7 @@ def _pipeline(sinif: str, ders: str):
     kitap = os.path.join("data", "lise", sinif, ders, "kitap.pdf")
     if not os.path.isfile(kitap):
         raise SystemExit(f"kitap yok: {kitap}")
-    return build_service(kitap, sinif=sinif, ders=ders)
+    return build_service(kitap, school=PUBLIC_SCHOOL, sinif=sinif, ders=ders)
 
 
 def main() -> None:

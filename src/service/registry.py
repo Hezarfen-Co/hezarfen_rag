@@ -35,15 +35,23 @@ import threading
 from dataclasses import dataclass, field
 
 from .handler import scope_pairs
+from ..guard.tenant import TenantError, normalize_school, require_owner
 
 
 @dataclass(frozen=True)
 class CorpusKey:
+    """Bir korpusun kimliği: SAHİBİ + (sınıf, ders).
+
+    Sahip (`school`) kiracılık boyutudur ve ZORUNLUDUR: okul-scoped ya da hiç.
+    Bu boyut olmadan iki okulun aynı (sınıf, ders) korpusu TEK anahtara düşer
+    ve biri ötekini ezerdi — ölçülen tek-kiracılı şekil buydu.
+    """
+    school: str
     sinif: str
     ders: str
 
     def __str__(self) -> str:
-        return f"{self.sinif}/{self.ders}"
+        return f"{self.school}/{self.sinif}/{self.ders}"
 
 
 @dataclass
@@ -69,9 +77,14 @@ class CorpusRegistry:
         self.max_corpora = int(max_corpora or 0)
 
     # -- kayıt -----------------------------------------------------------
-    def register(self, service, *, sinif: str | None = None,
-                 ders: str | None = None):
-        """Bir korpusu deftere ekler. Sınıf/ders verilmezse servisten okunur."""
+    def register(self, service, *, school: str | None = None,
+                 sinif: str | None = None, ders: str | None = None):
+        """Bir korpusu deftere ekler. Okul/sınıf/ders verilmezse SERVİSTEN
+        okunur (`service.school`, `service.doc.sinif`, `service.ders`).
+
+        Okul ZORUNLUDUR: ne açık argüman ne de servisin kendi damgası varsa
+        kayıt reddedilir — sahipsiz bir korpus hiçbir okura açılamaz
+        (bkz. `guard/tenant.py`)."""
         s = sinif if sinif is not None else getattr(
             getattr(service, "doc", None), "sinif", None)
         d = ders if ders is not None else (
@@ -79,7 +92,12 @@ class CorpusRegistry:
             or getattr(getattr(service, "doc", None), "ders", None))
         if not s or not d:
             raise ValueError("korpus sinif/ders bilgisi olmadan kaydedilemez")
-        anahtar = CorpusKey(str(s), str(d))
+        sahip = school if school is not None else getattr(service, "school", None)
+        if sahip is None:
+            raise ValueError(
+                "korpus okulu olmadan kaydedilemez: servis `school` damgası "
+                "taşımıyor ve açık `school` verilmedi")
+        anahtar = CorpusKey(require_owner(sahip), str(s), str(d))
         with self._lock:
             if (self.max_corpora and anahtar not in self._services
                     and len(self._services) >= self.max_corpora):
@@ -89,16 +107,23 @@ class CorpusRegistry:
             self._services[anahtar] = service
         return anahtar
 
-    def unregister(self, sinif: str, ders: str) -> bool:
+    def unregister(self, sinif: str, ders: str, *, school: str | None = None) -> bool:
         with self._lock:
-            return self._services.pop(CorpusKey(str(sinif), str(ders)),
-                                      None) is not None
+            return self._services.pop(
+                CorpusKey(require_owner(school), str(sinif), str(ders)),
+                None) is not None
 
     # -- yönlendirme -----------------------------------------------------
-    def get(self, sinif: str | None, ders: str | None):
+    def get(self, sinif: str | None, ders: str | None, *, school=None):
+        """Okurun okuluna göre korpus. Okul istekten gelir ve TAM
+        eşleşme aranır; okulsuz okur (`school=None`) hiçbir korpus görmez
+        (okul yokluğu "hepsi" demek değildir)."""
         if not sinif or not ders:
             return None
-        return self._services.get(CorpusKey(str(sinif), str(ders)))
+        okur = normalize_school(school)
+        if not okur:                       # okulsuz okur → görünür korpus yok
+            return None
+        return self._services.get(CorpusKey(okur, str(sinif), str(ders)))
 
     def resolve(self, req: dict):
         """İsteği bir korpusa yönlendirir. Döner: `(service, reason)`.
@@ -106,13 +131,23 @@ class CorpusRegistry:
         `service` None ise `reason` neden bulunamadığını söyler:
           `no_corpus`        — o sınıf/ders için korpus yüklü değil
           `corpus_ambiguous` — hedef belirlenemedi (rol tek ders taşımıyor)
+          `unknown_school`   — isteğin okulu geçersiz/ayrılmış
 
         **YÖNLENDİRME YETKİLENDİRME DEĞİLDİR.** Burada yalnız "hangi kitap"
         sorusu cevaplanır; "bu öğrenci o kitabı görebilir mi" sorusunu
         `guard/roles.can_access` cevaplar ve servis onu ayrıca uygular. İkisini
         karıştırmak, rolün istediği dersi seçmesine izin vermek demek olurdu —
         SEC-01'in tam olarak bu şekli ölçülmüştü.
-        """
+
+        **KİRACILIK İSE YÖNLENDİRMENİN PARÇASIDIR**: korpus, isteğin okuluyla
+        TAM eşleşmeyle anahtarlanır. Okul istekte yoksa `school_required`,
+        geçersiz/ayrılmışsa `unknown_school` — ikisi de fail-closed."""
+        try:
+            okur = normalize_school(req.get("school"))
+        except TenantError:
+            return None, "unknown_school"
+        if not okur:
+            return None, "school_required"
         rol = req.get("role") or {}
         raw_scope = req.get("scope")
         # YENİ rag.chat biçimi: `scope` bir (sınıf,ders) ÇİFT listesidir. Eski
@@ -122,13 +157,14 @@ class CorpusRegistry:
             if len(pairs) == 1:
                 sinif, ders = pairs[0]
             else:
-                yuklu = [(s, d) for (s, d) in pairs if self.get(s, d) is not None]
+                yuklu = [(s, d) for (s, d) in pairs
+                         if self.get(s, d, school=okur) is not None]
                 if len(yuklu) == 1:
                     sinif, ders = yuklu[0]
                 else:
                     # Birden çok aday: hedef belirsiz. Tahmin yanlış kitap demek.
                     return None, "corpus_ambiguous"
-            svc = self.get(sinif, ders)
+            svc = self.get(sinif, ders, school=okur)
             return (svc, "") if svc is not None else (None, "no_corpus")
         scope = raw_scope if isinstance(raw_scope, dict) else {}
         sinif = scope.get("sinif") or rol.get("sinif")
@@ -141,13 +177,14 @@ class CorpusRegistry:
             elif len(dersler) > 1:
                 # Birden çok ders: hedef belirsiz. Tahmin etmek yanlış kitaptan
                 # cevap üretmek demek olurdu.
-                mevcut = [d for d in dersler if self.get(sinif, d) is not None]
+                mevcut = [d for d in dersler
+                          if self.get(sinif, d, school=okur) is not None]
                 if len(mevcut) == 1:
                     ders = mevcut[0]
                 else:
                     return None, "corpus_ambiguous"
 
-        svc = self.get(sinif, ders)
+        svc = self.get(sinif, ders, school=okur)
         return (svc, "") if svc is not None else (None, "no_corpus")
 
     # -- gözlem ----------------------------------------------------------

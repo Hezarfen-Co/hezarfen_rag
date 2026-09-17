@@ -30,6 +30,7 @@ class _Gen:
 
 class _Svc:
     def __init__(self, sinif, ders, n=0):
+        self.school = "okul-a"
         self.doc = _Doc(sinif, ders)
         self.ders = ders
         self.generator = _Gen(n)
@@ -41,12 +42,12 @@ class RegistrationTests(unittest.TestCase):
 
     def test_register_reads_scope_from_the_service(self):
         k = self.r.register(_Svc("10", "biyoloji"))
-        self.assertEqual(k, CorpusKey("10", "biyoloji"))
+        self.assertEqual(k, CorpusKey("okul-a", "10", "biyoloji"))
         self.assertEqual(len(self.r), 1)
 
     def test_explicit_scope_wins(self):
         k = self.r.register(_Svc("10", "biyoloji"), sinif="11", ders="fizik")
-        self.assertEqual(str(k), "11/fizik")
+        self.assertEqual(str(k), "okul-a/11/fizik")
 
     def test_scopeless_service_is_refused(self):
         """Sınıf/ders bilinmeden kayıt, sessizce yanlış yönlendirme demektir."""
@@ -64,8 +65,8 @@ class RegistrationTests(unittest.TestCase):
 
     def test_unregister(self):
         self.r.register(_Svc("10", "biyoloji"))
-        self.assertTrue(self.r.unregister("10", "biyoloji"))
-        self.assertFalse(self.r.unregister("10", "biyoloji"))
+        self.assertTrue(self.r.unregister("10", "biyoloji", school="okul-a"))
+        self.assertFalse(self.r.unregister("10", "biyoloji", school="okul-a"))
         self.assertEqual(len(self.r), 0)
 
     def test_corpus_limit_is_a_deliberate_valve(self):
@@ -93,24 +94,24 @@ class RoutingTests(unittest.TestCase):
         self.r.register(self.fiz)
 
     def test_scope_selects_the_corpus(self):
-        svc, _ = self.r.resolve({"scope": {"sinif": "10", "ders": "fizik"}})
+        svc, _ = self.r.resolve({"school": "okul-a", "scope": {"sinif": "10", "ders": "fizik"}})
         self.assertIs(svc, self.fiz)
 
     def test_single_subject_role_is_unambiguous(self):
         svc, _ = self.r.resolve(
-            {"role": {"role": "student", "sinif": "10", "ders_list": ["biyoloji"]}})
+            {"school": "okul-a", "role": {"role": "student", "sinif": "10", "ders_list": ["biyoloji"]}})
         self.assertIs(svc, self.bio)
 
     def test_options_ders_is_honoured(self):
         svc, _ = self.r.resolve(
-            {"role": {"sinif": "10", "ders_list": ["biyoloji", "fizik"]},
+            {"school": "okul-a", "role": {"sinif": "10", "ders_list": ["biyoloji", "fizik"]},
              "options": {"ders": "fizik"}})
         self.assertIs(svc, self.fiz)
 
     def test_multi_subject_role_without_a_target_is_ambiguous(self):
         """Tahmin etmek yanlış kitaptan cevap üretmek demek olurdu."""
         svc, sebep = self.r.resolve(
-            {"role": {"sinif": "10", "ders_list": ["biyoloji", "fizik"]}})
+            {"school": "okul-a", "role": {"sinif": "10", "ders_list": ["biyoloji", "fizik"]}})
         self.assertIsNone(svc)
         self.assertEqual(sebep, "corpus_ambiguous")
 
@@ -119,12 +120,12 @@ class RoutingTests(unittest.TestCase):
         belirsizlik yoktur."""
         r = CorpusRegistry()
         r.register(self.bio)
-        svc, _ = r.resolve({"role": {"sinif": "10",
+        svc, _ = r.resolve({"school": "okul-a", "role": {"sinif": "10",
                                      "ders_list": ["biyoloji", "fizik", "kimya"]}})
         self.assertIs(svc, self.bio)
 
     def test_unknown_corpus_is_reported_not_guessed(self):
-        svc, sebep = self.r.resolve({"scope": {"sinif": "12", "ders": "biyoloji"}})
+        svc, sebep = self.r.resolve({"school": "okul-a", "scope": {"sinif": "12", "ders": "biyoloji"}})
         self.assertIsNone(svc)
         self.assertEqual(sebep, "no_corpus")
 
@@ -140,7 +141,7 @@ class RoutingTests(unittest.TestCase):
         """Kapsam istemciden gelir; yönlendirme onu KABUL EDER ama yetki
         kararı ayrıdır. Bu test sınırı kayda geçirir: kayıt defteri rol
         kontrolü YAPMAZ, servis yapar (SEC-01)."""
-        svc, _ = self.r.resolve({"scope": {"sinif": "10", "ders": "fizik"},
+        svc, _ = self.r.resolve({"school": "okul-a", "scope": {"sinif": "10", "ders": "fizik"},
                                  "role": {"role": "student", "sinif": "10",
                                           "ders_list": ["biyoloji"]}})
         self.assertIs(svc, self.fiz, "yönlendirme kapsamı izlemeli")
@@ -158,14 +159,14 @@ class StatsTests(unittest.TestCase):
         s = r.stats()
         self.assertEqual(s.corpora, 2)
         self.assertEqual(s.chunks, 350)
-        self.assertEqual(s.detail["10/fizik"], 250)
+        self.assertEqual(s.detail["okul-a/10/fizik"], 250)
 
     def test_keys_are_sorted_and_stable(self):
         r = CorpusRegistry()
         for d in ("fizik", "biyoloji", "kimya"):
             r.register(_Svc("10", d))
         self.assertEqual([str(k) for k in r.keys()],
-                         ["10/biyoloji", "10/fizik", "10/kimya"])
+                         ["okul-a/10/biyoloji", "okul-a/10/fizik", "okul-a/10/kimya"])
 
 
 class ThreadSafetyTests(unittest.TestCase):

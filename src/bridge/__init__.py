@@ -8,8 +8,10 @@ Kaynak: `hezarfen_backend/src/ai/protocol.rs` (hab/2), `src/ai/chat.rs`,
 from .contract import (AI_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY, ApiRequest,
                        BlobRequest, ChatReplyPayload, ChatRequestPayload, ChatTurn,
                        RagFile, RagIndexPayload)
+from .dispatch import Dispatcher
 from .student import StudentContext, build_context
 
 __all__ = ["AI_CHAT_CAPABILITY", "AI_RAG_INDEX_CAPABILITY", "ApiRequest",
            "BlobRequest", "ChatReplyPayload", "ChatRequestPayload", "ChatTurn",
-           "RagFile", "RagIndexPayload", "StudentContext", "build_context"]
+           "RagFile", "RagIndexPayload", "StudentContext", "build_context",
+           "Dispatcher"]

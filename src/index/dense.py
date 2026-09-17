@@ -41,12 +41,16 @@ class DenseIndex:
                             else QdrantClient(":memory:"))
         return self._client
 
-    def build(self, ids, vectors, payloads=None, *, doc_id: str = "",
-              source_version: str = ""):
+    def build(self, ids, vectors, payloads=None, *, school,
+              doc_id: str = "", source_version: str = ""):
         """Koleksiyonu SIFIRDAN kurar (var olanı siler).
 
         `doc_id`/`source_version` her noktanın payload'ına yazılır — `delete()`
         ve `upsert()` bunlar olmadan çalışamaz (bkz. `delete` docstring'i).
+
+        `school` ZORUNLUDUR ve varsayılanı YOKTUR (bkz. `guard/tenant.py`):
+        sahipsiz yazma bir hata, "public bir satır" değil. Paylaşılan müfredat
+        bile `PUBLIC_SCHOOL` ile açıkça sahiplenilir.
         """
         from qdrant_client.models import Distance, VectorParams
         c = self._c()
@@ -61,7 +65,7 @@ class DenseIndex:
         )
         self._ids = []
         self._next_id = 0
-        self.upsert(ids, vectors, payloads, doc_id=doc_id,
+        self.upsert(ids, vectors, payloads, school=school, doc_id=doc_id,
                     source_version=source_version)
         return self
 
@@ -79,15 +83,20 @@ class DenseIndex:
     # nottan alinti yapan cevaplar uretilmeye DEVAM EDER. KVKK silme
     # yukumlulugu de imkansiz hale gelir.
 
-    def upsert(self, ids, vectors, payloads=None, *, doc_id: str = "",
-               source_version: str = ""):
+    def upsert(self, ids, vectors, payloads=None, *, school,
+               doc_id: str = "", source_version: str = ""):
         """Var olan koleksiyona EKLER/GUNCELLER — silmez.
 
         Ayni `chunk_id` yeniden gelirse eski nokta silinip yenisi yazilir
         (id'ler sirali tamsayi oldugu icin dogal bir upsert anahtari yok;
         chunk_id filtresiyle silip ekliyoruz).
-        """
+
+        `school` (ZORUNLU) her noktanin payload'ina yazilir: koleksiyon
+        korpus-omru boyunca de-okunur (kalici/sunucu Qdrant'ta paylasilir) ve
+        okuma tarafi ancak bu damgayla kapsamlanabilir."""
         from qdrant_client.models import PointStruct
+        from ..guard.tenant import require_owner
+        sahip = require_owner(school)
         c = self._c()
         vectors = np.asarray(vectors, dtype=np.float32)
         if len(vectors) == 0:
@@ -101,7 +110,7 @@ class DenseIndex:
             self.delete_chunks(yeniden)
         pts = []
         for i, (cid, v) in enumerate(zip(ids, vectors)):
-            pl = {"chunk_id": cid}
+            pl = {"chunk_id": cid, "school": sahip}
             if doc_id:
                 pl["doc_id"] = doc_id
             if source_version:
@@ -162,11 +171,28 @@ class DenseIndex:
         return {p.payload.get("doc_id") for p in self._scroll()
                 if p.payload.get("doc_id")}
 
-    def search(self, query_vec, top_k: int = 20):
-        """(chunk_id, skor) listesi, skor azalan. Skor = cosine (dense normalize)."""
+    def search(self, query_vec, top_k: int = 20, *, school=None):
+        """(chunk_id, skor) listesi, skor azalan. Skor = cosine (dense normalize).
+
+        `school` = OKURUN okulu (istekten). Kapsam TAM EŞİTLİKTİR: yalnız o
+        okulun satırları döner; başka bir okulunki de damgasız (eski) satır da
+        dönmez. Okulsuz okur (`school=None`) HİÇBİR satır görmez — okul yokluğu
+        "hepsi" demek değildir (bkz. guard/tenant.py).
+
+        Kapsam SÜZGEÇLE ifade edilir, `limit` sonrası kırpmayla DEĞİL: aksi
+        hâlde yabancı okulun satırları `top_k`yı doldurup kendi okulunun
+        sonuçlarını dışarıda bırakırdı."""
+        from qdrant_client.models import FieldCondition, Filter, MatchValue
+        from ..guard.tenant import visible_owners
         c = self._c()
         q = np.asarray(query_vec, dtype=np.float32).tolist()
-        res = c.query_points(self.collection, query=q, limit=top_k).points
+        sahipler = sorted(visible_owners(school))
+        if not sahipler:                      # okulsuz okur → hiçbir satır yok
+            return []
+        flt = Filter(must=[FieldCondition(key="school",
+                                          match=MatchValue(value=sahipler[0]))])
+        res = c.query_points(self.collection, query=q, limit=top_k,
+                             query_filter=flt).points
         return [(p.payload["chunk_id"], float(p.score)) for p in res]
 
     def __len__(self):

@@ -80,6 +80,11 @@ class ChatRequest(BaseModel):
     # GERİYE UYUMLU çalışır). Kısa liste; çift başına sınır ders adıyla aynı.
     scope: list[ScopePairModel] | None = Field(default=None, max_length=200)
     options: ChatOptions = Field(default_factory=ChatOptions)
+    # KİRACI (tenancy): isteğin okulu. Üretimde bu alanı backend doldurur
+    # (hab/2 çerçevesinin `school`'u — bkz. bridge/), HTTP yüzeyi ise backend'in
+    # ARKASINDA çalışır. Verilmezse yalnız paylaşılan müfredat görünür: hiçbir
+    # okulun içeriği okulsuz bir isteğe açılmaz (fail-closed, bkz. guard/tenant.py).
+    school: str | None = Field(default=None, max_length=64)
 
 
 class ScopeModel(BaseModel):
@@ -93,11 +98,13 @@ class ScopeModel(BaseModel):
 class SummarizeRequest(BaseModel):
     scope: ScopeModel
     role: RoleModel | None = None
+    school: str | None = Field(default=None, max_length=64)   # kiracı (bkz. ChatRequest)
 
 
 class QuestionsRequest(BaseModel):
     scope: ScopeModel
     role: RoleModel | None = None
+    school: str | None = Field(default=None, max_length=64)   # kiracı (bkz. ChatRequest)
     n: int = Field(default=5, ge=1, le=20)
     difficulty: str = Field(default="orta", max_length=16)
     seed_question: str | None = Field(default=None, max_length=500)
@@ -534,15 +541,22 @@ class SharedModels:
             return self._response_cache
 
 
-def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str = "",
+def build_service(book_path: str, *, school, sinif: str, ders: str,
+                  corpus_version: str = "",
                   ocr: bool = False, vlm: bool = False,
                   include_parents: bool | None = None,
                   shared: "SharedModels | None" = None):
     """Gerçek pipeline'ı kurup RagService döndürür (ağır: PDF parse + BGE modelleri +
     indeks). main()/üretim için. corpus_version cache anahtarına girer (#30).
 
+    `school` ZORUNLUDUR ve varsayılanı yoktur: korpusun SAHİBİdir (paylaşılan
+    müfredat için `PUBLIC_SCHOOL`). Sahipsiz kurulan bir korpus, bir okulun
+    kitabını herkese açabilirdi (bkz. guard/tenant.py).
+
     `include_parents`: parent chunk'lar `chunks_by_id`'ye girsin mi (yani
     `rerank_select` parent genisletmesi ETKIN olsun mu). None -> env varsayilani."""
+    from ..guard.tenant import require_owner
+    sahip = require_owner(school)
     require_cuda_or_fail()        # #96: sessizce CPU'ya dusme
     if include_parents is None:
         include_parents = INCLUDE_PARENTS_DEFAULT
@@ -579,10 +593,11 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
     # çağrıldığında korpus iki kez kodlanıyordu. Gerçek kitapla ölçüldü
     # (10-biyoloji, 327 chunk, GPU): iki geçiş 8,4 s -> tek geçiş 3,9 s (%53).
     vecs, sparse = emb.embed_both(texts, batch_size=16)
-    meta = {c.chunk_id: {"sinif": sinif, "ders": ders} for c in children}
-    retr = HybridRetriever(emb, DenseIndex(dim=1024).build(ids, vecs),
-                           BM25Index().build(ids, texts),
-                           SparseIndex().build(ids, sparse),
+    meta = {c.chunk_id: {"sinif": sinif, "ders": ders, "school": sahip}
+            for c in children}
+    retr = HybridRetriever(emb, DenseIndex(dim=1024).build(ids, vecs, school=sahip),
+                           BM25Index().build(ids, texts, school=sahip),
+                           SparseIndex().build(ids, sparse, school=sahip),
                            meta=meta)
     # #83: cache YALNIZ acik yol ve corpus_version varsa kurulur.
     if shared is not None:
@@ -625,7 +640,7 @@ def build_service(book_path: str, *, sinif: str, ders: str, corpus_version: str 
                     corpus_version=cv, require_role=True,   # STRICT: rolsüz istek fail-closed
                     response_cache=response_cache, rewriter=rewriter)
     return RagService(gen, doc=doc, summarizer=Summarizer(),
-                      question_gen=QuestionGenerator(), ders=ders)
+                      question_gen=QuestionGenerator(), ders=ders, school=sahip)
 
 
 def _yapilandirma_uyarilari() -> list[str]:
@@ -699,8 +714,10 @@ class _LazyService:
 
 
 def _c_parse(spec):
-    from .multi import _parse
-    return _parse(spec)
+    """Isıtma hedefi: `okul/sinif/ders` (iki parçalıysa bu örnek zaten okula
+    sabitlenmiştir — bkz. MultiCorpusService `school=`)."""
+    from .multi import _parcalar
+    return _parcalar(spec)
 
 
 def create_app_with_warmup():
@@ -728,14 +745,16 @@ def create_app_with_warmup():
     # modda ürün yalnız birine cevap veriyor. Okul demosunda öğrenci kimyaya
     # geçtiği anda "kaynaklarda bulunamadı" alır; bu RAG hatası gibi görünür
     # ama o korpus hiç yüklü değildir.
-    from .multi import (CORPORA, WARM_ON_START, MultiCorpusService,
-                        discover)
+    from .multi import CORPORA, WARM_ON_START, MultiCorpusService, spec_label
     if CORPORA:
-        specs = ([tuple(x) for x in discover()] if CORPORA == ["all"]
-                 else list(CORPORA))
-        multi = MultiCorpusService(specs)
-        print(f"[http] cok-korpus: {len(multi.known())} ders "
-              f"({', '.join(f'{a}/{b}' for a, b in multi.known()[:6])}"
+        # `RAG_CORPORA` OKUL ADI TAŞIMAZ: girdileri yalnız DERS SÜZGECİdir
+        # ("all" = süzgeç yok). Okullar —ve korpusları— DİSKTEN keşfedilir
+        # (`data/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`); "hangi okullar var"
+        # sorusu bir env değişkeniyle cevaplanmaz (bkz. guard/tenant.py).
+        specs = [] if CORPORA == ["all"] else list(CORPORA)
+        multi = MultiCorpusService(specs, discover_tenants_=True)
+        print(f"[http] cok-korpus: {len(multi.known())} korpus "
+              f"({', '.join(spec_label(k) for k in multi.known()[:6])}"
               f"{' ...' if len(multi.known()) > 6 else ''})", flush=True)
         # Korpuslar TEMBEL kurulur; istenirse acilista isitilir. Hepsini
         # acilista kurmak ~12 dk sagir servis demekti (tek kitap GPU'da 47,6 s)
@@ -761,7 +780,13 @@ def create_app_with_warmup():
         import time as _t
         t0 = _t.time()
         try:
-            service.ata(build_service(book, sinif=sinif, ders=ders))
+            # BOOK_PATH tek-korpus modu: korpusun SAHİBİ (okul) yoldan okunur —
+            # `<...>/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`. Sahipsiz korpus
+            # diye bir şey olmadığı için düzen bozuksa açıkça hata verilir
+            # (bkz. multi.school_from_book_path).
+            from .multi import school_from_book_path
+            service.ata(build_service(book, school=school_from_book_path(book),
+                                      sinif=sinif, ders=ders))
             print(f"[http] pipeline hazır ({_t.time() - t0:.1f}s)", flush=True)
         except Exception as e:                   # noqa: BLE001
             service.hata = f"{type(e).__name__}: {e}"

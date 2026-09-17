@@ -32,15 +32,15 @@ class SparseIndexTests(unittest.TestCase):
     def test_dot_product_ranking(self):
         ids = ["a", "b", "c"]
         docs = [{"1": 0.5, "2": 0.3}, {"2": 0.9, "3": 0.1}, {"4": 1.0}]
-        idx = SparseIndex().build(ids, docs)
-        top = idx.search({"2": 1.0, "3": 0.5}, top_k=3)
+        idx = SparseIndex().build(ids, docs, school="okul-a")
+        top = idx.search({"2": 1.0, "3": 0.5}, top_k=3, school="okul-a")
         self.assertEqual(top[0][0], "b")                    # 0.9+0.05=0.95
         self.assertAlmostEqual(top[0][1], 0.95, places=5)
         self.assertEqual(top[-1][0], "c")                   # ortak yok → 0
 
     def test_str_int_keys_normalized(self):
-        idx = SparseIndex().build(["a"], [{1: 0.5, 2: 0.5}])   # int anahtar
-        top = idx.search({"1": 1.0}, top_k=1)                  # str anahtar sorgu
+        idx = SparseIndex().build(["a"], [{1: 0.5, 2: 0.5}], school="okul-a")   # int anahtar
+        top = idx.search({"1": 1.0}, top_k=1, school="okul-a")                  # str anahtar sorgu
         self.assertAlmostEqual(top[0][1], 0.5, places=5)
 
 

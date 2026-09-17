@@ -163,6 +163,7 @@ class CrossTenantLeakTests(unittest.TestCase):
 
         class _Svc:
             def __init__(self, s, d):
+                self.school = "okul-a"
                 self.doc, self.ders = _Doc(s, d), d
                 self.generator = type("G", (), {"chunks_by_id": {}})()
 
@@ -177,6 +178,7 @@ class CrossTenantLeakTests(unittest.TestCase):
 
         class _Svc:
             def __init__(self, s, d):
+                self.school = "okul-a"
                 self.doc, self.ders = _Doc(s, d), d
                 self.generator = type("G", (), {"chunks_by_id": {}})()
                 self.label = f"{s}/{d}"
@@ -188,7 +190,7 @@ class CrossTenantLeakTests(unittest.TestCase):
 
         def ask(i):
             d = f"ders{i % 10}"
-            svc, _ = r.resolve({"scope": {"sinif": "10", "ders": d}})
+            svc, _ = r.resolve({"school": "okul-a", "scope": {"sinif": "10", "ders": d}})
             if svc is None or svc.label != f"10/{d}":
                 with lock:
                     wrong.append(d)

@@ -28,16 +28,21 @@ DEFAULT_TTL_SECONDS = 3600.0  # 1 saat — config edilebilir (ResponseCache(ttl=
 
 def canonical_key(*, query: str, role: str = "", model: str = "", top_n: int = 0,
                   candidate_n: int = 0, ders: str = "", corpus_version: str = "",
-                  extra: dict | None = None) -> str:
+                  school: str = "", extra: dict | None = None) -> str:
     """Cevabı etkileyebilecek parametreleri deterministik JSON'a çevirip sha256'la.
     `sort_keys=True` -> alan sırası anahtarı etkilemez; yalnız DEĞERLER etkiler.
     `corpus_version` (AUDIT EXP-007 #30/M2): kaynak yeniden-indekslenince (doc_id/
     source_version değişince) anahtar da değişsin → re-ingest sonrası TTL boyunca
-    ESKİ cevap/atıf dönmesin. Boş "" ise davranış öncekiyle aynı."""
+    ESKİ cevap/atıf dönmesin. Boş "" ise davranış öncekiyle aynı.
+
+    `school` (kiracılık, 2026-09-17): okulun içeriği başka bir okula ASLA
+    dönmemeli — cevap + atıflar okula bağlı olduğu için anahtar da okula bağlı
+    olmak ZORUNDA. Bu alan olmadan iki okulun aynı sorusu TEK anahtara düşer ve
+    `cache_hit` cevabı okullar arası taşır (tek süreç = çok okul)."""
     payload = {
         "query": query, "role": role, "model": model,
         "top_n": top_n, "candidate_n": candidate_n, "ders": ders,
-        "corpus_version": corpus_version,
+        "corpus_version": corpus_version, "school": school,
         "extra": extra or {},
     }
     blob = json.dumps(payload, sort_keys=True, ensure_ascii=True)
@@ -55,18 +60,20 @@ class ResponseCache:
 
     def get(self, *, query: str, role: str = "", model: str = "", top_n: int = 0,
            candidate_n: int = 0, ders: str = "", corpus_version: str = "",
-           extra: dict | None = None):
+           school: str = "", extra: dict | None = None):
         key = canonical_key(query=query, role=role, model=model, top_n=top_n,
                             candidate_n=candidate_n, ders=ders,
-                            corpus_version=corpus_version, extra=extra)
+                            corpus_version=corpus_version, school=school,
+                            extra=extra)
         return self.backend.get(key)
 
     def set(self, answer, *, query: str, role: str = "", model: str = "", top_n: int = 0,
            candidate_n: int = 0, ders: str = "", corpus_version: str = "",
-           extra: dict | None = None) -> None:
+           school: str = "", extra: dict | None = None) -> None:
         key = canonical_key(query=query, role=role, model=model, top_n=top_n,
                             candidate_n=candidate_n, ders=ders,
-                            corpus_version=corpus_version, extra=extra)
+                            corpus_version=corpus_version, school=school,
+                            extra=extra)
         self.backend.set(key, answer, ttl=self.ttl)
 
     @property

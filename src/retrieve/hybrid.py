@@ -18,24 +18,34 @@ class HybridRetriever:
         self.bm25 = bm25
         self.sparse = sparse
         self.rrf_k = rrf_k
-        # Opsiyonel {chunk_id: {"sinif":..., "ders":...}} — kasa izolasyonu için.
-        # None ise filtre uygulanmaz (tek-kasa/backward-compat).
+        # Opsiyonel {chunk_id: {"sinif":..., "ders":..., "school":...}} — kasa
+        # izolasyonu + kiracılık için. None ise filtre uygulanmaz
+        # (tek-kasa/backward-compat).
         self.meta = meta
 
-    def _allowed(self, cid, role_ctx) -> bool:
-        """Kasa izolasyonu: chunk'ın sinif/ders'i role_ctx'in erişebileceği kapsamda mı.
+    def _allowed(self, cid, role_ctx, school=None) -> bool:
+        """KASA İZOLASYONU + KİRACILIK: chunk'ın sınıf/ders'i role_ctx'in
+        erişebileceği kapsamda mı VE sahibi okur okuluna görünür mü.
         meta'da olmayan chunk -> no-leak DENY (bilinmeyen kaynak erişilemez)."""
         from src.guard import can_access
+        from src.guard.tenant import content_visible
         m = self.meta.get(cid) if self.meta else None
         if m is None:
             return False
+        # Damgasız (eski) satır erişilemez: hiçbir okula atfedilmez.
+        if not content_visible(m.get("school"), school):
+            return False
+        if role_ctx is None:
+            return True
         return can_access(role_ctx, sinif=m.get("sinif"), ders=m.get("ders"))
 
     def retrieve(self, query: str, top_k: int = 20,
                  dense_k: int = 40, bm25_k: int = 40, sparse_k: int = 30,
-                 role_ctx=None):
+                 role_ctx=None, school=None):
         """Sorgu → RRF-birleştirilmiş (chunk_id, rrf_skoru) top_k. `role_ctx` verilirse
         KASA İZOLASYONU: yetkisiz sınıf/ders chunk'ları elenir (trim'den ÖNCE).
+        `school` = OKURUN okulu (istekten gelir): paylaşılan müfredat + o okulun
+        içeriği görünür, başka bir okulunki ASLA (bkz. guard/tenant.py).
 
         FAIL-CLOSED: `role_ctx` verildi AMA `meta` yoksa → boş liste döner (sızıntıdansa
         hiç sonuç vermek yeğ; rol-filtresi istendiği hâlde uygulanamıyorsa açık bırakma).
@@ -45,11 +55,13 @@ class HybridRetriever:
         if role_ctx is not None and self.meta is None:
             return []                                            # fail-closed (bkz. docstring)
         qv = self.embedder.embed([query])[0]
-        rankings = [self.dense.search(qv, dense_k), self.bm25.search(query, bm25_k)]
+        rankings = [self.dense.search(qv, dense_k, school=school),
+                    self.bm25.search(query, bm25_k, school=school)]
         if self.sparse is not None:
             qs = self.embedder.embed_sparse([query])[0]
-            rankings.append(self.sparse.search(qs, sparse_k))
+            rankings.append(self.sparse.search(qs, sparse_k, school=school))
         fused = rrf_fuse(rankings, k=self.rrf_k, top_k=None)     # tümü (trim sonra)
-        if role_ctx is not None:                                 # meta burada garanti var
-            fused = [(cid, s) for cid, s in fused if self._allowed(cid, role_ctx)]
+        if self.meta is not None:                                # kiracılık her zaman
+            fused = [(cid, s) for cid, s in fused
+                     if self._allowed(cid, role_ctx, school)]
         return fused[:top_k]

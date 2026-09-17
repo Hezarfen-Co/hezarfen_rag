@@ -18,12 +18,12 @@ class DenseRecallTests(unittest.TestCase):
         d, n, k = 1024, 500, 20
         vecs = _unit_vectors(n, d, seed=1)
         ids = [f"c{i}" for i in range(n)]
-        idx = DenseIndex(dim=d).build(ids, vecs)
+        idx = DenseIndex(dim=d).build(ids, vecs, school="okul-a")
 
         recalls = []
         for qi in range(0, n, 15):                      # ~34 sorgu
             q = vecs[qi]
-            ann = {cid for cid, _ in idx.search(q, top_k=k)}
+            ann = {cid for cid, _ in idx.search(q, top_k=k, school="okul-a")}
             exact = {cid for cid, _ in exact_topk(q, vecs, ids, top_k=k)}
             recalls.append(len(ann & exact) / k)
         mean_recall = float(np.mean(recalls))
@@ -33,15 +33,15 @@ class DenseRecallTests(unittest.TestCase):
         d, n = 1024, 50
         vecs = _unit_vectors(n, d, seed=2)
         ids = [f"c{i}" for i in range(n)]
-        idx = DenseIndex(dim=d).build(ids, vecs)
-        top = idx.search(vecs[7], top_k=1)
+        idx = DenseIndex(dim=d).build(ids, vecs, school="okul-a")
+        top = idx.search(vecs[7], top_k=1, school="okul-a")
         self.assertEqual(top[0][0], "c7")
         self.assertAlmostEqual(top[0][1], 1.0, places=3)
 
     def test_dim_mismatch_raises(self):
         idx = DenseIndex(dim=1024)
         with self.assertRaises(ValueError):
-            idx.build(["a"], np.zeros((1, 8), dtype=np.float32))
+            idx.build(["a"], np.zeros((1, 8), dtype=np.float32), school="okul-a")
 
 
 class BM25TurkishTests(unittest.TestCase):
@@ -59,8 +59,8 @@ class BM25TurkishTests(unittest.TestCase):
             "DNA nükleotidlerden oluşan çift sarmaldır.",
             "Mitoz hücre bölünmesi evreleri.",
         ]
-        idx = BM25Index().build(ids, texts)
-        top = idx.search("nükleotid DNA sarmal", top_k=3)
+        idx = BM25Index().build(ids, texts, school="okul-a")
+        top = idx.search("nükleotid DNA sarmal", top_k=3, school="okul-a")
         self.assertEqual(top[0][0], "b")                 # en ilgili belge
         self.assertGreater(top[0][1], 0.0)
 
@@ -69,8 +69,8 @@ class BM25TurkishTests(unittest.TestCase):
         # (küçük korpusta IDF≈0 olmasın diye birkaç ilgisiz belge ekli)
         ids = ["x", "y", "d1", "d2", "d3"]
         texts = ["", "geçerli metin burada", "fotosentez", "mitoz", "dna sarmal"]
-        idx = BM25Index().build(ids, texts)
-        top = idx.search("metin", top_k=5)
+        idx = BM25Index().build(ids, texts, school="okul-a")
+        top = idx.search("metin", top_k=5, school="okul-a")
         self.assertEqual(top[0][0], "y")
 
 

@@ -30,12 +30,18 @@ class BM25Index:
         self._ids: list[str] = []
         self._texts: list[str] = []
         self._docs: list[str] = []             # her chunk'ın KAYNAĞI (#76)
+        self._schools: list[str] = []          # her chunk'ın SAHİBİ (kiracılık)
         self._built = False
 
-    def build(self, ids, texts, *, doc_id: str = ""):
+    def build(self, ids, texts, *, school, doc_id: str = ""):
+        """Koleksiyonu kurar. `school` ZORUNLU ve varsayılansızdır: sahipsiz
+        yazma bir hata, "public satır" değil (bkz. `guard/tenant.py`)."""
+        from src.guard.tenant import require_owner
+        sahip = require_owner(school)
         self._ids = list(ids)
         self._texts = list(texts)
         self._docs = [doc_id] * len(self._ids)
+        self._schools = [sahip] * len(self._ids)
         self._built = True
         return self._rebuild()
 
@@ -52,10 +58,13 @@ class BM25Index:
     # bagli), bu yuzden her degisiklikte indeks yeniden kurulur. Bu bilincli:
     # dogru sonuc yavas olmaktan iyidir ve BM25 kurulumu (saniyenin altinda)
     # embed'in yaninda ihmal edilebilir.
-    def add(self, ids, texts, *, doc_id: str = ""):
-        self._ids.extend(ids)
+    def add(self, ids, texts, *, school, doc_id: str = ""):
+        from src.guard.tenant import require_owner
+        yeni = list(ids)
+        self._ids.extend(yeni)
         self._texts.extend(texts)
-        self._docs.extend([doc_id] * len(list(ids)))
+        self._docs.extend([doc_id] * len(yeni))
+        self._schools.extend([require_owner(school)] * len(yeni))
         self._built = True
         return self._rebuild()
 
@@ -68,14 +77,21 @@ class BM25Index:
         self._ids = [self._ids[i] for i in tut]
         self._texts = [self._texts[i] for i in tut]
         self._docs = [self._docs[i] for i in tut]
+        self._schools = [self._schools[i] for i in tut]
         self._rebuild()
         return silinen
 
     def doc_ids(self) -> set:
         return {d for d in self._docs if d}
 
-    def search(self, query, top_k: int = 20):
-        """(chunk_id, bm25_skoru) listesi, skor azalan. Boş indeks/sorgu → []."""
+    def search(self, query, top_k: int = 20, *, school=None):
+        """(chunk_id, bm25_skoru) listesi, skor azalan. Boş indeks/sorgu → [].
+
+        `school` = okurun okulu; kapsam dışı satırlar ATILIR.
+        DÜRÜST SINIR: skorlar tüm koleksiyonun IDF'iyle hesaplanır — yabancı
+        okul satırları atıldıktan sonra IDF yeniden uydurulmaz. Tek korpus
+        örneği zaten tek okul taşır; bu süzgeç paylaşılan/kalıcı bir
+        koleksiyonun sınırıdır."""
         if not self._built:
             raise RuntimeError("önce build() çağır")
         if self._bm25 is None:                 # boş korpus build edildi → sonuç yok
@@ -84,8 +100,13 @@ class BM25Index:
         if not toks:                           # boş/whitespace/simgesiz sorgu → çöp sonuç verme
             return []
         scores = self._bm25.get_scores(toks)
-        order = np.argsort(-scores)[:top_k]
-        return [(self._ids[i], float(scores[i])) for i in order]
+        order = [i for i in np.argsort(-scores) if self._visible(i, school)]
+        return [(self._ids[i], float(scores[i])) for i in order[:top_k]]
+
+    def _visible(self, i: int, school) -> bool:
+        from src.guard.tenant import content_visible
+        owner = self._schools[i] if i < len(self._schools) else None
+        return content_visible(owner, school)
 
     def __len__(self):
         return len(self._ids)

@@ -16,7 +16,10 @@ Bu dosya üç şeyi sabitler:
 import threading
 import unittest
 
-from src.service.multi import MultiCorpusService, _parse, book_path, discover
+from src.service.multi import (MultiCorpusService, _parse, book_path,
+                               discover)
+
+_OKUL = "okul-a"
 
 
 class _Doc:
@@ -60,7 +63,8 @@ def _svc(specs=("10/biyoloji", "10/kimya", "10/fizik"), gecikme=0.0,
             time.sleep(gecikme)
         return _FakeService(sinif, ders)
 
-    s = MultiCorpusService(specs, shared=object(), builder=_builder)
+    s = MultiCorpusService(specs, school=_OKUL, shared=object(),
+                           builder=_builder)
     # Dosya varlığı kontrolünü aş: bu testler YOLU değil YÖNLENDİRMEYİ ölçüyor.
     s._specs = {k: __file__ for k in s._specs}
     return s
@@ -75,7 +79,7 @@ def _bekle(s, sinif, ders, timeout=5.0):
     import time
     son = time.time() + timeout
     while time.time() < son:
-        if s.registry.get(str(sinif), str(ders)) is not None:
+        if s.registry.get(str(sinif), str(ders), school=_OKUL) is not None:
             return True
         if (str(sinif), str(ders)) in s._load_errors:
             return False
@@ -91,32 +95,32 @@ ROL_COK = {"role": "student", "sinif": "10",
 class RoutingTests(unittest.TestCase):
     def test_scope_selects_the_corpus(self):
         s = _svc(); s.warm()
-        out = s.chat({"query": "s", "scope": {"sinif": "10", "ders": "kimya"},
+        out = s.chat({"school": _OKUL, "query": "s", "scope": {"sinif": "10", "ders": "kimya"},
                       "role": ROL_COK})
         self.assertEqual(out["text"], "10/kimya")
 
     def test_single_subject_role_needs_no_scope(self):
         s = _svc(); s.warm()
-        self.assertEqual(s.chat({"query": "s", "role": ROL_BIO})["text"],
+        self.assertEqual(s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})["text"],
                          "10/biyoloji")
 
     def test_options_ders_is_honoured(self):
         s = _svc(); s.warm()
-        out = s.chat({"query": "s", "role": ROL_COK,
+        out = s.chat({"school": _OKUL, "query": "s", "role": ROL_COK,
                       "options": {"ders": "fizik"}})
         self.assertEqual(out["text"], "10/fizik")
 
     def test_multi_subject_without_target_is_ambiguous_not_guessed(self):
         """Tahmin etmek YANLIŞ KİTAPTAN cevap üretmek demek olurdu."""
         s = _svc(); s.warm()
-        out = s.chat({"query": "s", "role": ROL_COK})
+        out = s.chat({"school": _OKUL, "query": "s", "role": ROL_COK})
         self.assertTrue(out["abstained"])
         self.assertEqual(out["reason"], "corpus_ambiguous")
 
     def test_unknown_corpus_is_a_typed_refusal(self):
         """Sessiz bir 'bulunamadı' RAG hatası gibi okunur; ayrı sebep şart."""
         s = _svc(); s.warm()
-        out = s.chat({"query": "s",
+        out = s.chat({"school": _OKUL, "query": "s",
                       "role": {"role": "student", "sinif": "10",
                                "ders_list": ["muzik"]}})
         self.assertEqual(out["reason"], "no_corpus")
@@ -134,23 +138,23 @@ class RoutingTests(unittest.TestCase):
     def test_refusal_has_the_full_contract(self):
         """Backend her durumda AYNI alanları bekler (API-CONTRACT)."""
         _s = _svc(); _s.warm()
-        out = _s.chat({"query": "s", "role": ROL_COK})
+        out = _s.chat({"school": _OKUL, "query": "s", "role": ROL_COK})
         for alan in ("text", "abstained", "reason", "citations",
                      "used_source_ids", "cost_usd", "cache_hit"):
             self.assertIn(alan, out, alan)
 
     def test_refusal_costs_nothing(self):
         _s = _svc(); _s.warm()
-        self.assertEqual(_s.chat({"query": "s", "role": ROL_COK})["cost_usd"],
+        self.assertEqual(_s.chat({"school": _OKUL, "query": "s", "role": ROL_COK})["cost_usd"],
                          0.0)
 
     def test_summary_and_questions_route_too(self):
         s = _svc(); s.warm()
         self.assertEqual(
-            s.summarize({"scope": {"sinif": "10", "ders": "kimya"},
+            s.summarize({"school": _OKUL, "scope": {"sinif": "10", "ders": "kimya"},
                          "role": ROL_COK})["text"], "kimya")
         self.assertFalse(
-            s.generate_questions({"scope": {"sinif": "10", "ders": "fizik"},
+            s.generate_questions({"school": _OKUL, "scope": {"sinif": "10", "ders": "fizik"},
                                   "role": ROL_COK})["abstained"])
 
     def test_routing_is_not_authorization(self):
@@ -159,7 +163,7 @@ class RoutingTests(unittest.TestCase):
         onu KALDIRMAZ. İkisini karıştırmak, rolün istediği dersi seçmesine
         izin vermek olurdu (SEC-01)."""
         s = _svc(); s.warm()
-        out = s.chat({"query": "s", "scope": {"sinif": "10", "ders": "fizik"},
+        out = s.chat({"school": _OKUL, "query": "s", "scope": {"sinif": "10", "ders": "fizik"},
                       "role": ROL_BIO})
         self.assertEqual(out["text"], "10/fizik", "yonlendirme kapsami izlemeli")
         from src.guard.roles import Role, RoleContext, can_access
@@ -184,7 +188,7 @@ class LazyLoadingTests(unittest.TestCase):
         **HTTP 504** alıyordu. Öğrenci kimyaya geçince zaman aşımı görüyordu.
         Artık hemen tipli bir "hazırlanıyor" cevabı döner."""
         s = _svc(gecikme=0.2)
-        out = s.chat({"query": "s", "role": ROL_BIO})
+        out = s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         self.assertTrue(out["abstained"])
         self.assertEqual(out["reason"], "service_warming_up")
         self.assertTrue(out["text"].strip())
@@ -199,7 +203,7 @@ class LazyLoadingTests(unittest.TestCase):
 
         s = _svc()
         s._build = _builder
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
         self.assertEqual(sayac, [("10", "biyoloji")])
 
@@ -213,10 +217,10 @@ class LazyLoadingTests(unittest.TestCase):
 
         s = _svc()
         s._build = _builder
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         self.assertTrue(_bekle(s, "10", "biyoloji"))
         for _ in range(5):
-            out = s.chat({"query": "s", "role": ROL_BIO})
+            out = s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         self.assertEqual(len(sayac), 1)
         self.assertFalse(out["abstained"], "kurulu korpus hala bekletiyor")
 
@@ -242,7 +246,7 @@ class LazyLoadingTests(unittest.TestCase):
 
         def sor():
             bariyer.wait(timeout=10)
-            s.chat({"query": "s", "role": ROL_BIO})
+            s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
 
         ths = [threading.Thread(target=sor) for _ in range(8)]
         for t in ths:
@@ -268,21 +272,21 @@ class LazyLoadingTests(unittest.TestCase):
             deneme.append((sinif, ders))
             raise RuntimeError("bozuk pdf")
 
-        s = MultiCorpusService(["10/biyoloji"], shared=object(),
+        s = MultiCorpusService(["10/biyoloji"], school=_OKUL, shared=object(),
                                builder=_patlar)
         s._specs = {k: __file__ for k in s._specs}
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
         for _ in range(4):
-            out = s.chat({"query": "s", "role": ROL_BIO})
+            out = s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         self.assertEqual(len(deneme), 1, "bozuk korpus tekrar tekrar deneniyor")
         self.assertEqual(out["reason"], "no_corpus")
 
     def test_missing_file_is_not_an_exception(self):
         """Yapılandırmada yazan ama diskte olmayan kitap, çökme değil red."""
-        s = MultiCorpusService(["10/olmayan-ders"], shared=object(),
+        s = MultiCorpusService(["10/olmayan-ders"], school=_OKUL, shared=object(),
                                builder=lambda *a, **k: _FakeService("10", "x"))
-        out = s.chat({"query": "s",
+        out = s.chat({"school": _OKUL, "query": "s",
                       "role": {"role": "student", "sinif": "10",
                                "ders_list": ["olmayan-ders"]}})
         self.assertEqual(out["reason"], "no_corpus")
@@ -293,9 +297,10 @@ class LazyLoadingTests(unittest.TestCase):
         import json
         def _patlar(*a, **k):
             raise RuntimeError("bozuk")
-        s = MultiCorpusService(["10/biyoloji"], shared=object(), builder=_patlar)
+        s = MultiCorpusService(["10/biyoloji"], school=_OKUL, shared=object(),
+                               builder=_patlar)
         s._specs = {k: __file__ for k in s._specs}
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
         json.dumps(s.status())
 
@@ -308,29 +313,30 @@ class StatusTests(unittest.TestCase):
         d = s.status()
         self.assertEqual(len(d["bilinen"]), 3)
         self.assertEqual(d["yuklu"], [])
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
-        self.assertEqual(s.status()["yuklu"], ["10/biyoloji"])
+        self.assertEqual(s.status()["yuklu"], [f"{_OKUL}/10/biyoloji"])
 
     def test_load_errors_are_surfaced(self):
         def _patlar(*a, **k):
             raise RuntimeError("bozuk")
-        s = MultiCorpusService(["10/biyoloji"], shared=object(), builder=_patlar)
+        s = MultiCorpusService(["10/biyoloji"], school=_OKUL, shared=object(),
+                               builder=_patlar)
         s._specs = {k: __file__ for k in s._specs}
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
-        self.assertIn("10/biyoloji", s.status()["hatalar"])
+        self.assertIn(f"{_OKUL}/10/biyoloji", s.status()["hatalar"])
 
     def test_corpus_limit_is_a_deliberate_valve(self):
         """#75 çözülene kadar RSS korpus sayısıyla lineer büyür; sessizce
         belleği tüketmektense açıkça reddetmek yeğdir."""
         s = _svc()
         s.registry.max_corpora = 1
-        s.chat({"query": "s", "role": ROL_BIO})
+        s.chat({"school": _OKUL, "query": "s", "role": ROL_BIO})
         _bekle(s, "10", "biyoloji")
-        s.chat({"query": "s", "options": {"ders": "kimya"}, "role": ROL_COK})
+        s.chat({"school": _OKUL, "query": "s", "options": {"ders": "kimya"}, "role": ROL_COK})
         _bekle(s, "10", "kimya")
-        out = s.chat({"query": "s", "options": {"ders": "kimya"},
+        out = s.chat({"school": _OKUL, "query": "s", "options": {"ders": "kimya"},
                       "role": ROL_COK})
         self.assertEqual(out["reason"], "no_corpus",
                          "sinir asilinca istisna sizdi (500) ya da sessizce gecti")
@@ -346,11 +352,11 @@ class DiscoveryTests(unittest.TestCase):
         self.assertEqual(bulunan, sorted(bulunan), "sira deterministik olmali")
 
     def test_book_path_shape(self):
-        self.assertTrue(book_path("10", "kimya").endswith(
-            "10/kimya/kitap.pdf"))
+        yol = book_path("10", "kimya", school=_OKUL)
+        self.assertTrue(yol.endswith(f"{_OKUL}/lise/10/kimya/kitap.pdf"), yol)
 
     def test_bad_spec_is_refused(self):
-        for bozuk in ("bozuk", "", "10/", "/biyoloji", "a/b/c"):
+        for bozuk in ("bozuk", "", "10/", "/biyoloji", "Okul A/10/biyoloji", "a/b/c/d"):
             with self.subTest(bozuk=bozuk):
                 with self.assertRaises(ValueError):
                     _parse(bozuk)
@@ -422,7 +428,7 @@ class SerialBuildTests(unittest.TestCase):
         s = _svc()
         s._build = _builder
         for ders in ("biyoloji", "kimya", "fizik"):
-            s.chat({"query": "s", "options": {"ders": ders}, "role": ROL_COK})
+            s.chat({"school": _OKUL, "query": "s", "options": {"ders": ders}, "role": ROL_COK})
         for ders in ("biyoloji", "kimya", "fizik"):
             _bekle(s, "10", ders, timeout=10)
         self.assertEqual(en_fazla[0], 1,
@@ -434,16 +440,16 @@ class SerialBuildTests(unittest.TestCase):
         ders kurulurken de cevap verebilmeli."""
         import time
         s = _svc()
-        s.warm([("10", "biyoloji")])
+        s.warm([("okul-a", "10", "biyoloji")])
 
         def _yavas(yol, *, sinif, ders, shared=None, **kw):
             time.sleep(0.3)
             return _FakeService(sinif, ders)
 
         s._build = _yavas
-        s.chat({"query": "s", "options": {"ders": "kimya"}, "role": ROL_COK})
+        s.chat({"school": _OKUL, "query": "s", "options": {"ders": "kimya"}, "role": ROL_COK})
         t0 = time.perf_counter()
-        out = s.chat({"query": "s", "options": {"ders": "biyoloji"},
+        out = s.chat({"school": _OKUL, "query": "s", "options": {"ders": "biyoloji"},
                       "role": ROL_COK})
         gecen = time.perf_counter() - t0
         self.assertFalse(out["abstained"])

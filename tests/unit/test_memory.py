@@ -93,7 +93,7 @@ class _RecordingRetriever:
         self._hits = hits
         self.last_query = None
 
-    def retrieve(self, query, top_k=20):
+    def retrieve(self, query, top_k=20, school=None):
         self.last_query = query
         return self._hits[:top_k]
 

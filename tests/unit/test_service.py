@@ -187,11 +187,11 @@ class ScopePairTests(unittest.TestCase):
         500'e düşmemeli)."""
         from src.service.registry import CorpusRegistry
         r = CorpusRegistry()
-        r.register(object(), sinif="10", ders="biyoloji")
-        svc, sebep = r.resolve({"scope": [{"sinif": "10", "ders": "biyoloji"}]})
+        r.register(object(), school="okul-a", sinif="10", ders="biyoloji")
+        svc, sebep = r.resolve({"school": "okul-a", "scope": [{"sinif": "10", "ders": "biyoloji"}]})
         self.assertIsNotNone(svc)
         self.assertEqual(sebep, "")
-        svc2, sebep2 = r.resolve({"scope": [{"sinif": "10", "ders": "kimya"}]})
+        svc2, sebep2 = r.resolve({"school": "okul-a", "scope": [{"sinif": "10", "ders": "kimya"}]})
         self.assertIsNone(svc2)
         self.assertEqual(sebep2, "no_corpus")
 

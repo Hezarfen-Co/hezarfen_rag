@@ -13,6 +13,7 @@ from ..budget import BudgetGate, check_request_size
 from ..observability.trace import RequestTrace, redact, write_trace
 from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
+from ..guard.tenant import TenantError, normalize_school
 
 
 def scope_pairs(scope) -> list:
@@ -123,6 +124,8 @@ BUDGET_TEXT = ("Bugünkü kullanım sınırına ulaşıldı. Yarın tekrar "
                "deneyebilirsin.")
 SCOPE_TEXT = ("Seçtiğin bölüm bir seferde özetlenemeyecek kadar geniş. "
               "Daha dar bir aralık seçer misin?")
+TENANT_TEXT = ("Bu istek bir okula bağlanamadı; kaynaklar açılamıyor. Lütfen "
+               "tekrar dene ya da öğretmenine haber ver.")
 
 
 def _budget_denied(karar, kind: str = "chat") -> dict:
@@ -174,7 +177,8 @@ class RagService:
     benzer-soru (question_gen). Bileşenler enjekte edilir (index/model paylaşılır)."""
 
     def __init__(self, generator, *, doc=None, summarizer=None, question_gen=None,
-                 ders: str = "", budget: BudgetGate | None = None):
+                 ders: str = "", budget: BudgetGate | None = None,
+                 school: str | None = None):
         self.generator = generator
         # #79 (EXP-010/OPS-05): maliyet tavanı. `costlog.record()` yalnız
         # YAZIYORDU; hiçbir çağıran dönüş değerine bakıp reddetmiyordu.
@@ -183,6 +187,11 @@ class RagService:
         self.summarizer = summarizer
         self.question_gen = question_gen
         self.ders = ders
+        # Bu servis örneğinin korpus SAHİBİ (kiracılık boyutu): paylaşılan
+        # müfredat için PUBLIC_SCHOOL, bir okulunki için o okulun slug'ı.
+        # Kayıt defteri anahtarına girer; istek başına okur okulu ise
+        # `chat()` içinde istekten okunur (bkz. guard/tenant.py).
+        self.school = school
 
     # ------------------------------------------------------------------ /rag/chat
     def chat(self, req: dict) -> dict:
@@ -190,8 +199,22 @@ class RagService:
         if not query:
             return {"text": "", "abstained": True, "reason": "empty_query",
                     "citations": [], "used_source_ids": [], "cost_usd": 0.0, "cache_hit": False}
+        # KİRACILIK: okul istekten gelir ve burada doğrulanır. Geçersiz/ayrılmış
+        # bir değer 500'e değil TİPLİ bir redde düşmelidir (bkz. guard/tenant.py);
+        # doğrulanmış değer aşağıya (retrieval + cache anahtarı) geçer.
+        try:
+            school = normalize_school(req.get("school"))
+        except TenantError:
+            return {"text": TENANT_TEXT, "abstained": True,
+                    "reason": "unknown_school", "citations": [],
+                    "used_source_ids": [], "invalid_citations": [],
+                    "cost_usd": 0.0, "cache_hit": False}
         role_ctx = _role_ctx(req.get("role"), req.get("scope"))
-        karar = self.budget.check(user=req.get("user"), tenant=req.get("tenant"))
+        # Maliyet tavanı KİRACI bazlıdır: `tenant` burada okuldur (okul yoksa
+        # eski `tenant` alanı). Bir okulun harcaması başka bir okulun tavanını
+        # yemesin diye sayaç anahtarı okula bağlanır.
+        karar = self.budget.check(user=req.get("user"),
+                                  tenant=school or req.get("tenant"))
         if not karar.allowed:
             return _budget_denied(karar, "chat")
         opts = req.get("options") or {}
@@ -210,7 +233,8 @@ class RagService:
                 query, history=req.get("history"),
                 top_n=int(opts.get("top_n", 6)),
                 candidate_n=int(opts.get("candidate_n", 40)),
-                role_ctx=role_ctx, trace=trace)
+                role_ctx=role_ctx, trace=trace,
+                school=school)
         except LlmUnavailable:
             trace.event("error", kind="llm_unavailable")
             write_trace(trace)

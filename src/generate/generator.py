@@ -27,6 +27,7 @@ from dataclasses import dataclass, field, replace
 
 from .. import costlog
 from ..guard import check_input, check_output
+from ..guard.tenant import TenantError, normalize_school
 from ..pricing import Usage, cost_usd as pricing_cost_usd
 from ..providers.deepseek import DeepSeek
 from ..rerank.pipeline import rerank_select
@@ -393,11 +394,19 @@ class Generator:
 
     def answer(self, query: str, *, history=None, top_n: int = 6, candidate_n: int = 40,
                max_tokens: int = 700, temperature: float = 0.2, trace=None,
-               role_ctx=_USE_INIT_ROLE) -> GroundedAnswer:
+               role_ctx=_USE_INIT_ROLE, school=None) -> GroundedAnswer:
         # trace (opsiyonel, #18): karar izi + adım süreleri. None ise ek maliyet YOK.
         def _tr(name, **m):
             if trace is not None:
                 trace.event(name, **m)
+        # KİRACILIK: `school` OKURUN okuludur (istekten gelir). Retrieval'ı ve
+        # cache anahtarını kapsamlar; geçersiz/ayrılmış bir değer burada
+        # fail-closed reddedilir (500 değil, tipli bir `unknown_school`).
+        try:
+            school = normalize_school(school)
+        except TenantError:
+            _tr("decision", stage="tenant", abstained=True, reason="unknown_school")
+            return self._abstain("unknown_school")
         # role_ctx istek-başına override (#2 servis çok-kiracılı): verilmezse __init__'teki
         # kullanılır (mevcut davranış). Verilirse retrieval + kasa izolasyonu + cache
         # anahtarı O role'e göre → tek Generator örneği farklı rollere hizmet edebilir.
@@ -470,6 +479,7 @@ class Generator:
                                 model=getattr(self.deepseek, "model", ""),
                                 top_n=top_n, candidate_n=candidate_n, ders=self.ders,
                                 corpus_version=self.corpus_version,
+                                school=school or "",
                                 extra={"max_tokens": max_tokens,
                                        "temperature": temperature})
             cached = self.response_cache.get(**cache_kwargs)
@@ -480,13 +490,14 @@ class Generator:
                     reason=cached.reason, cache_hit=True)
                 return replace(cached, cache_hit=True, cost_usd=0.0, latency_s=0.0)
 
-        # KASA İZOLASYONU: role_ctx varsa retriever'a geçir (yetkisiz sınıf/ders
-        # elenir, bkz. src/retrieve/hybrid.py). role_ctx yoksa eski çağrı (stub/
-        # tek-kasa backward-compat).
+        # KASA İZOLASYONU + KİRACILIK: role_ctx varsa retriever'a geçir
+        # (yetkisiz sınıf/ders elenir, bkz. src/retrieve/hybrid.py); `school`
+        # her zaman geçir (paylaşılan müfredat + okurun kendi korpusu).
         if eff_role is not None:
-            hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=eff_role)
+            hits = self.retriever.retrieve(q, top_k=candidate_n, role_ctx=eff_role,
+                                           school=school)
         else:
-            hits = self.retriever.retrieve(q, top_k=candidate_n)
+            hits = self.retriever.retrieve(q, top_k=candidate_n, school=school)
         contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
         _tr("retrieve", n_hits=len(hits), n_contexts=len(contexts),

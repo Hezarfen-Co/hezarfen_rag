@@ -165,6 +165,77 @@ class RagIndexReply:
         return {"files": [f.to_wire() for f in self.files]}
 
 
+# ---------------------------------------------------------------- rag.chat
+# Backend'in RAG'e ÖZEL yeteneği (chatbot'un `chat.reply`'inden AYRI; otorite:
+# hezarfen_backend README `## AI bridge (QUIC)` → `### The rag.chat capability`).
+# `asker_role` AYRI bir alandır: servis rolü buradan okur (bkz. API-CONTRACT
+# §0.2(a) — eskiden `asker_role` → `role` eşlemesi YOKTU; artık `bridge/
+# dispatch.py` yapar).
+
+@dataclass
+class RagChatRequestPayload:
+    message: str
+    asker: str
+    asker_role: str
+    scope: list["RagScopePair"] = field(default_factory=list)
+    history: list[ChatTurn] = field(default_factory=list)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagChatRequestPayload":
+        return cls(message=d["message"], asker=str(d.get("asker") or ""),
+                   asker_role=str(d.get("asker_role") or ""),
+                   scope=[RagScopePair.from_wire(p) for p in d.get("scope", [])],
+                   history=[ChatTurn(**t) for t in d.get("history", [])])
+
+    def to_wire(self) -> dict:
+        return {"message": self.message, "asker": self.asker,
+                "asker_role": self.asker_role,
+                "scope": [p.to_wire() for p in self.scope],
+                "history": [t.to_wire() for t in self.history]}
+
+
+@dataclass
+class RagCitation:
+    """`rag.chat` yanıtındaki tıklanabilir kaynak (backend `RagCitation`)."""
+    n: int
+    doc_id: str
+    pages: list = field(default_factory=list)
+    span_ids: list = field(default_factory=list)
+    ders: str | None = None
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagCitation":
+        return cls(n=int(d.get("n") or 0), doc_id=str(d.get("doc_id") or ""),
+                   pages=list(d.get("pages") or []),
+                   span_ids=list(d.get("span_ids") or []),
+                   ders=d.get("ders"))
+
+    def to_wire(self) -> dict:
+        return {"n": self.n, "doc_id": self.doc_id, "pages": list(self.pages),
+                "span_ids": list(self.span_ids), "ders": self.ders}
+
+
+@dataclass
+class RagChatReplyPayload:
+    text: str
+    abstained: bool = False
+    reason: str = ""
+    citations: list[RagCitation] = field(default_factory=list)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagChatReplyPayload":
+        return cls(text=str(d.get("text") or ""),
+                   abstained=bool(d.get("abstained", False)),
+                   reason=str(d.get("reason") or ""),
+                   citations=[RagCitation.from_wire(c)
+                              for c in d.get("citations", [])])
+
+    def to_wire(self) -> dict:
+        return {"text": self.text, "abstained": self.abstained,
+                "reason": self.reason,
+                "citations": [c.to_wire() for c in self.citations]}
+
+
 # ----------------------------------------------------- scope (sınıf/ders ÇİFTİ)
 
 @dataclass
@@ -242,6 +313,87 @@ class ApiError(Exception):
     Koşup 404 dönen bir API çağrısı hata DEĞİLDİR — o `outcome:"ok"` içinde
     kendi durum koduyla gelir (backend'in kendi ifadesi).
     """
+
+
+# ------------------------------------------- backend -> servis (hab/2 Request)
+
+class BridgeFrameError(Exception):
+    """Çerçeve okunamıyor (protocol.rs `FrameError::Malformed`)."""
+
+    def __init__(self, message: str, code: str = "malformed"):
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.message = message
+
+
+@dataclass
+class BridgeRequest:
+    """Backend'in AÇTIĞI akışta okunan tek çalışma birimi (`protocol.rs::Request`).
+
+    Okul İKİ YÖNDE de taşınır: burada ZORUNLUDUR ve cevap onu AYNEN yazar.
+    Backend'in kendi kuralı: *"Every request frame names its school by slug,
+    and every answer echoes it … A frame without a `school` is `malformed` …
+    there is no default and no fallback."* Bu yüzden `from_wire` okulsuz
+    çerçeveyi reddeder — varsayılan bir okul YOKTUR (bkz. guard/tenant.py).
+    """
+    id: str
+    school: str
+    capability: str
+    deadline_ms: int = 0
+    payload: dict = field(default_factory=dict)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "BridgeRequest":
+        if not isinstance(d, dict):
+            raise BridgeFrameError("çerçeve bir JSON nesnesi değil")
+        okul = d.get("school")
+        if okul is None or not str(okul).strip():
+            raise BridgeFrameError("`school` ZORUNLU (varsayılan/fallback yok)")
+        for ad in ("id", "capability"):
+            if not str(d.get(ad) or "").strip():
+                raise BridgeFrameError(f"`{ad}` zorunlu")
+        govde = d.get("payload")
+        return cls(id=str(d["id"]), school=str(okul),
+                   capability=str(d["capability"]),
+                   deadline_ms=int(d.get("deadline_ms") or 0),
+                   payload=govde if isinstance(govde, dict) else {})
+
+    def to_wire(self) -> dict:
+        return {"id": self.id, "school": self.school,
+                "capability": self.capability, "deadline_ms": self.deadline_ms,
+                "payload": self.payload}
+
+
+@dataclass
+class BridgeResponse:
+    """Servisin tek cevabı (`protocol.rs::Response`). `school` İSTEĞİN AYNISI.
+
+    `status` "ok" ya da "err"; `err` bir *işlenmiş* hatadır (kötü girdi, model
+    reddi). Servis isteğin ortasında ölürse akış düşer — o taşıma hatasıdır,
+    buraya girmez."""
+    id: str
+    school: str
+    status: str = "ok"
+    payload: dict | None = None
+    code: str = ""
+    message: str = ""
+
+    @classmethod
+    def ok(cls, req: "BridgeRequest", payload: dict) -> "BridgeResponse":
+        return cls(id=req.id, school=req.school, status="ok", payload=payload)
+
+    @classmethod
+    def err(cls, req: "BridgeRequest", code: str,
+            message: str) -> "BridgeResponse":
+        return cls(id=req.id, school=req.school, status="err", code=code,
+                   message=message)
+
+    def to_wire(self) -> dict:
+        if self.status == "ok":
+            return {"status": "ok", "id": self.id, "school": self.school,
+                    "payload": self.payload if self.payload is not None else {}}
+        return {"status": "err", "id": self.id, "school": self.school,
+                "code": self.code, "message": self.message}
 
 
 def decode_api_response(frame: dict) -> tuple[int, object]:
