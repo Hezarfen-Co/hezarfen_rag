@@ -30,6 +30,25 @@ kapsam "10-biyoloji **VEYA** okul-satranç" olabilir ve düzleştirme yanlış b
 çalışmaya devam eder, ancak `scope` çift listesi VERİLİRSE o tercih edilir
 (`bridge/contract.py`: `RagScopePair`; `guard/roles.can_access`).
 
+### 0.2 Bilinen açıklar (2026-09-17, kapatılmadı)
+
+**(a) `asker_role` → `role` eşlemesi henüz yok.** Backend `rag.chat`'te soranın
+rolünü AYRI bir `asker_role` alanında gönderir (`RagChatRequestPayload`); bu
+deponun handler'ı rol adını `role` sözlüğünden okur (`{\"role\": \"student\"}`).
+HTTP gövdesinde `role` modeli dolduğu için sorun yoktur, ama QUIC köprüsü
+`RagChatRequestPayload`'ı HAM geçirirse `asker_role` rol adına çevrilmezse
+erişim fail-closed reddedilir. Köprü istemcisi yazılınca `asker_role` →
+`role.role` eşlemesi ORADA yapılmalıdır (transport henüz yazılmadı).
+
+**(b) Sınıfsız korpus yönlendirilemiyor.** `scope` çiftindeki `sinif` boş/None
+olabilir (okul kulübü/etüt) ve yetki katmanı bunu destekler
+(`can_access` tam-çift eşleşmesi). ANCAK yönlendirme katmanı korpusları hâlâ
+`(str sinif, str ders)` ile anahtarlar (`src/service/registry.py`,
+`src/service/multi.py`); `(None, ders)` çifti bu yüzden **`no_corpus`** döner.
+Kapatmak için korpus anahtarının sınıfsız bir sentinel (`\"\"` ya da ayrı bir
+anahtar alanı) kabul etmesi ve `book_path`/keşif mantığının sınıfsız dizini
+bulması gerekir — bu wave'de YAPILMADI.
+
 ## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
 
 Denetimde (OPS-16) şu tespit edildi: bu sözleşme backend'e *"kaynak yükleme/
