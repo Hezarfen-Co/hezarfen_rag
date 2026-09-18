@@ -24,6 +24,24 @@
 #   GPU'suz makinede rerank 95,9 s sürer: ürün kapısı O-05 p50 <= 6 s GEÇİLMEZ
 #   — o yapılandırma için eşiği sunucuya elle yükseltmek gerekir.
 #
+# TWO TEST PATHS — the default is the full one (same shape as hezarfen_backend):
+#
+#   DEFAULT   Push it and let GitHub do everything: suite, image, bundle,
+#             artifact. This is also the recovery path when the local machine
+#             is unavailable.
+#   SPECIAL   Prove the suite on your own machine first (scripts/gate-local.sh
+#             — ~32 s here). The suite currently HANGS on the runner: run
+#             35297989416 sat at 7% for 73 minutes until it was cancelled by
+#             hand, so this lane is the fast one. The script prints (or, with
+#             --amend, appends) a `Local-Gate: <tree> (<n> passed, <t>s)`
+#             trailer; the "Decide test gate" step verifies it against
+#             HEAD^{tree} and only then skips the runner suite — CI still
+#             builds the image, proves it API-only, stages and uploads.
+#             A stale or copy-pasted trailer silently falls back to running
+#             the suite, so the fallback costs time, never verification.
+#             Opt the pre-push hook in per clone:
+#                 git config core.hooksPath .githooks
+#
 # Bir seferlik ön koşullar (workflow'un erişimi dışında):
 #   * repo secret'ları SSH_PRIVATE_KEY / SSH_HOST / SSH_USER;
 #   * sunucuda `loginctl enable-linger <user>`;
@@ -39,7 +57,19 @@ on:
     branches:
       - main
   # Deploy'un TEK kapısı — yukarıdaki başlık yorumuna bakın.
+  # `tests` is the escape hatch of the manual door: auto/skip redeploy the
+  # newest green artifact (the suite is not paid again), force builds and
+  # tests the dispatched ref first and deploys that fresh artifact.
   workflow_dispatch:
+    inputs:
+      tests:
+        description: "Run the test suite on this run? auto/skip redeploy the newest green artifact; force builds and tests the dispatched ref first."
+        type: choice
+        options:
+          - auto
+          - skip
+          - force
+        default: auto
 
 # Deploy serileştirmesi işin kendisinde: yeni bir push, uçuştaki VPS değişimine
 # dokunmadan bayat Validate/Build'i iptal edebilmeli.
@@ -83,7 +113,10 @@ jobs:
 
   build:
     name: Build and test
-    if: github.event_name == 'push'
+    # Pushes always build (and, by default, test). A manual redeploy reuses the
+    # newest green artifact instead of paying the suite again, unless the
+    # dispatch asks for `tests: force`, which builds and tests this ref.
+    if: github.event_name == 'push' || github.event.inputs.tests == 'force'
     runs-on: ubuntu-24.04
     concurrency:
       group: ci-${{ github.workflow }}-${{ github.ref }}-build
@@ -95,11 +128,53 @@ jobs:
         uses: actions/setup-python@v5
         with:
           python-version: "3.11"
+      # ── Which test path this run takes ──────────────────────────────────
+      # SPECIAL: a commit carrying a self-consistent `Local-Gate:` trailer was
+      # already through the suite on the developer's machine
+      # (scripts/gate-local.sh prints it; --amend appends it), so this run
+      # only builds, packs and uploads.
+      # Verified, never trusted: the trailer's tree must equal HEAD^{tree}, so
+      # a stale or copy-pasted trailer silently falls back to running the
+      # suite. The log always says which branch was taken, and why.
+      # Trailer shape: `Local-Gate: <40-hex tree> (<n> passed, <t>s)`.
+      - name: Decide test gate
+        id: gate
+        run: |
+          set -euo pipefail
+          # Only reaches here on a push, or a dispatch with tests=force (the
+          # job-level `if` skips the other dispatch modes) — and force means
+          # the caller explicitly asked for the suite.
+          mode='${{ github.event.inputs.tests }}'
+          tree=$(git rev-parse HEAD^{tree})
+          if [ "$mode" = force ]; then
+            echo "workflow_dispatch tests=force ⇒ running the suite on this ref"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+            exit 0
+          fi
+          claim=$(git log -1 --format=%B \
+            | sed -n 's/^Local-Gate: \([0-9a-f]\{40\}\) (\(.*\))$/\1|\2/p' \
+            | tail -1)
+          if [ -z "$claim" ]; then
+            echo "no Local-Gate trailer on $(git rev-parse --short HEAD) ⇒ running the suite (the default path)"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          elif [ "${claim%%|*}" != "$tree" ]; then
+            echo "local gate claims tree ${claim%%|*}; actual tree $tree ⇒ running tests anyway"
+            echo "skip=false" >> "$GITHUB_OUTPUT"
+          else
+            echo "local gate trailer matches tree $tree ⇒ skipping the suite (${claim#*|})"
+            echo "skip=true" >> "$GITHUB_OUTPUT"
+          fi
+
       # CPU tekerleği: CI'da GPU yok ve GPU imajı ~2,5 GB daha büyük.
       # Testler ÜÇ listeyi de ister: servis yolu (requirements.txt), yerel model
       # yığını (requirements-local.txt) ve eval (requirements-eval.txt — yalnız
       # CI/geliştirme; imaja girmez).
+      # The runner's pip environment exists ONLY to run the suite: the image
+      # builds its dependencies inside the Containerfile, and the API-only
+      # proof runs them inside the image. Skipped when the local gate already
+      # proved the suite.
       - name: Install dependencies (CPU torch)
+        if: steps.gate.outputs.skip != 'true'
         run: |
           set -euo pipefail
           pip install --no-cache-dir "torch>=2.6" --index-url https://download.pytorch.org/whl/cpu
@@ -112,11 +187,39 @@ jobs:
       # model indirmesi) KENDİLERİ atlar ve nedenini yazar; ağır
       # integration/e2e koşumları model indirdiği için CI kapısı DEĞİLDİR —
       # bkz. README "CI deploy".
+      # `timeout --foreground 600` (10 min) bounds the step at the shell level,
+      # unbuffered and unpiped: what pytest printed up to the kill survives.
+      # 600 s is measured, not guessed — every green run's Test step took 41 s
+      # (35248848296, 35246056805, 35235114053, `pip install pytest` included),
+      # so this is ~15x the worst green, and it turns a stall from the hours it
+      # has actually burned (73 min stuck at 7% on 35297989416, 3 h 20 min on
+      # 35283445041) into ten minutes. `-u` is what keeps the progress line
+      # flowing into the log while the suite runs.
+      # faulthandler is the layer that NAMES the hang: after 120 s inside a
+      # single test (4x this machine's whole-suite 32 s, 3x the whole green CI
+      # step) it dumps every thread's traceback and exits 1. Core pytest, so no
+      # extra install and no plugin that could change the suite's semantics.
       - name: Test
+        if: steps.gate.outputs.skip != 'true'
         run: |
           set -euo pipefail
           pip install --no-cache-dir pytest
-          python -m pytest tests/unit -q
+          timeout --foreground 600 \
+            python -u -m pytest tests/unit -q \
+              -o faulthandler_timeout=120 -o faulthandler_exit_on_timeout=True
+
+      # Always *within the test path*, including when the step above was
+      # killed: the discriminator. Disk or memory starvation shows here; a
+      # pytest process still standing after `timeout` returns is the signature
+      # of a kill the kernel could not deliver.
+      - name: Stall diagnostics
+        if: always() && steps.gate.outputs.skip != 'true'
+        run: |
+          echo '=== df -h / ==='; df -h / || true
+          echo '=== free -m ==='; free -m || true
+          echo '=== nproc ==='; nproc || true
+          echo '=== surviving pytest processes ==='
+          ps -eo pid,etimes,stat,cmd | grep '[p]ytest' || echo none
 
       # Laptop ve CI aynı Containerfile'ı kullanır: ENV bloğu ne diyorsa o
       # gönderilir, ayrı bir CI ikizi yok.
@@ -186,8 +289,12 @@ jobs:
       (needs.build.result == 'skipped' || needs.build.result == 'success')
     runs-on: ubuntu-24.04
     steps:
-      # Elle deploy, BUILD işi yeşil olan en yeni koşuyu alır.
+      # Elle deploy, BUILD işi yeşil olan en yeni koşuyu alır — ama yalnız bu
+      # koşuda build YOKSA: `tests: force` ile dispatch edildiğinde bu koşunun
+      # kendi taze artefaktı kullanılır (aşağıdaki adım), yoksa build edilen
+      # imaj hiçbir yere gitmezdi.
       - name: Find the newest green build
+        if: needs.build.result == 'skipped'
         env:
           GH_TOKEN: ${{ github.token }}
         run: |
@@ -207,12 +314,21 @@ jobs:
           echo "run_id=$run_id" >> "$GITHUB_ENV"
 
       - name: Fetch the green release
+        if: needs.build.result == 'skipped'
         uses: actions/download-artifact@v4
         with:
           name: release
           path: stage
           run-id: ${{ env.run_id }}
           github-token: ${{ github.token }}
+
+      # tests=force: the artifact this very run built and gated.
+      - name: Fetch this run's release
+        if: needs.build.result == 'success'
+        uses: actions/download-artifact@v4
+        with:
+          name: release
+          path: stage
 
       - name: Check the release is complete
         run: |
