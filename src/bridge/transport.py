@@ -20,10 +20,11 @@ ayrılır:
    ayrı bir çift yönlü akışta `BlobRequest` → `BlobResponse` başlığı → tam
    `size` HAM bayt olarak okunur (`read_blob`; şekil `protocol.rs:25-31`).
    `rag.chat` hâlâ okul verisi istemez: kapsamı çerçeve taşır.
-2. **Yetenekler.** İlan edilen küme `rag.chat` + `rag.index`tir
-   (`ADVERTISED_CAPABILITIES`). Dispatcher `chat.reply`ı da KARŞILAR (backend
-   yollarsa cevaplanır) ama onu İLAN ETMEYİZ: o yetenek chatbot'undur ve ilan
-   etmek sohbet trafiğini RAG'e yönlendirmeye davetiye olurdu.
+2. **Yetenekler.** İlan edilen küme `rag.chat` + `rag.index` + `rag.summarize` +
+   `rag.questions`tur (`ADVERTISED_CAPABILITIES`). Dispatcher `chat.reply`ı da
+   KARŞILAR (backend yollarsa cevaplanır) ama onu İLAN ETMEYİZ: o yetenek
+   chatbot'undur ve ilan etmek sohbet trafiğini RAG'e yönlendirmeye davetiye
+   olurdu.
 3. **Redler tiplidir.** Kayıt reddi (`unauthorized`, `unsupported_protocol`)
    loglanır; süreç ÇIKMAZ.
 4. **`rag.index` SUNULUR.** Gövdesi `bridge/dispatch.py` → `service/notes_index.py`;
@@ -73,7 +74,8 @@ from aioquic.quic.events import ConnectionTerminated, QuicEvent, StreamDataRecei
 
 from .contract import (AI_ALPN, AI_IDLE_TIMEOUT_SECS, AI_KEEPALIVE_SECS,
                        AI_MAX_CONCURRENT_PER_WORKER, AI_RAG_CHAT_CAPABILITY,
-                       AI_RAG_INDEX_CAPABILITY, CERTIFICATE_PATH,
+                       AI_RAG_INDEX_CAPABILITY, AI_RAG_QUESTIONS_CAPABILITY,
+                       AI_RAG_SUMMARIZE_CAPABILITY, CERTIFICATE_PATH,
                        GREETING_TIMEOUT_SECS, BridgeFrameError, FrameStream,
                        HandshakeRejected, build_hello, encode_frame,
                        parse_greeting)
@@ -272,7 +274,8 @@ def build_quic_configuration(settings: Settings, cert_pem: str) -> QuicConfigura
 #: KÜMESİDİR: `chat.reply`ı dispatcher karşılar ama ilan ETMEYİZ (o yetenek
 #: chatbot'undur; ilan etmek backend'in sohbet trafiğini RAG'e yönlendirmesine
 #: davetiye olurdu).
-ADVERTISED_CAPABILITIES = (AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY)
+ADVERTISED_CAPABILITIES = (AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY,
+                           AI_RAG_SUMMARIZE_CAPABILITY, AI_RAG_QUESTIONS_CAPABILITY)
 
 
 def advertised(dispatcher: Dispatcher) -> tuple[str, ...]:

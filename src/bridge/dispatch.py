@@ -23,7 +23,8 @@ zorlamak taşımanın/servis katmanının işidir; sessizce "uyulmuş" sayılmaz
 from __future__ import annotations
 
 from .contract import (AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY,
-                       AI_RAG_INDEX_CAPABILITY, BridgeFrameError, BridgeRequest,
+                       AI_RAG_INDEX_CAPABILITY, AI_RAG_QUESTIONS_CAPABILITY,
+                       AI_RAG_SUMMARIZE_CAPABILITY, BridgeFrameError, BridgeRequest,
                        BridgeResponse)
 
 # `rag.index` is served end to end: the payload is parsed, every attachment is
@@ -43,7 +44,8 @@ class Dispatcher:
         #: Yoksa ekler okunamaz ve notun kendi metni yine indekslenir.
         self.blob_reader = None
         self.capabilities = tuple(capabilities or (
-            AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY))
+            AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY,
+            AI_RAG_SUMMARIZE_CAPABILITY, AI_RAG_QUESTIONS_CAPABILITY))
 
     # -- tel biçimi düzeyi ------------------------------------------------
     def handle(self, frame: dict) -> dict | None:
@@ -72,6 +74,10 @@ class Dispatcher:
             return self._rag_index(req, okul)
         if req.capability == AI_RAG_CHAT_CAPABILITY:
             return BridgeResponse.ok(req, self._rag_chat(req, okul))
+        if req.capability == AI_RAG_SUMMARIZE_CAPABILITY:
+            return BridgeResponse.ok(req, self._rag_summarize(req, okul))
+        if req.capability == AI_RAG_QUESTIONS_CAPABILITY:
+            return BridgeResponse.ok(req, self._rag_questions(req, okul))
         if req.capability == AI_CHAT_CAPABILITY:
             return BridgeResponse.ok(req, self._chat(req, okul))
         return BridgeResponse.err(
@@ -116,6 +122,9 @@ class Dispatcher:
         (`role.role`) — bkz. API-CONTRACT §0.2(a). Rol yoksa servis zaten
         fail-closed reddeder (`role_required`)."""
         from .contract import ChatRequestPayload, RagChatRequestPayload
+        if req.capability in (AI_RAG_SUMMARIZE_CAPABILITY,
+                              AI_RAG_QUESTIONS_CAPABILITY):
+            return self._govde_kapsam(req, okul)
         if req.capability == AI_RAG_CHAT_CAPABILITY:
             p = RagChatRequestPayload.from_wire(req.payload)
             return {"query": p.message, "user": p.asker or None,
@@ -143,6 +152,62 @@ class Dispatcher:
                                    span_ids=list(c.get("span_ids") or []),
                                    ders=c.get("ders"))
                        for c in (cevap.get("citations") or [])],
+        ).to_wire()
+
+    def _govde_kapsam(self, req: BridgeRequest, okul: str) -> dict:
+        """`rag.summarize`/`rag.questions` servis isteği — `rag.chat`ten AYRI.
+
+        NEDEN `role` `sinif`/`ders_list` taşır: servisin `_scope_denied`'ı bu
+        iki yolda `_role_ctx(role)`'ü ÇİFT listesi OLMADAN çağırır, yani
+        `can_access` doğrudan `role.sinif` + `role.ders_list` okur
+        (handler.py:45-110). `rag.chat` farklıdır (kapsamı çift listesidir).
+        """
+        from .contract import (RagQuestionsRequestPayload,
+                               RagSummarizeRequestPayload)
+        if req.capability == AI_RAG_QUESTIONS_CAPABILITY:
+            p = RagQuestionsRequestPayload.from_wire(req.payload)
+            ek = {"n": p.n, "difficulty": p.difficulty,
+                  "seed_question": p.seed_question}
+        else:
+            p = RagSummarizeRequestPayload.from_wire(req.payload)
+            ek = {}
+        return {"scope": p.scope.to_wire(), "user": p.asker or None,
+                "role": ({"role": p.asker_role, "sinif": p.scope.sinif,
+                          "ders_list": [p.scope.ders]} if p.asker_role else None),
+                "school": okul, "deadline_ms": req.deadline_ms, **ek}
+
+    def _rag_summarize(self, req: BridgeRequest, okul: str) -> dict:
+        """`rag.summarize` → servis `summarize()` → backend'in `RagSummarizeReplyPayload`i."""
+        from .contract import RagSummarizeReplyPayload, RagSummaryCitation
+        cevap = self.service.summarize(self._govde(req, okul))
+        return RagSummarizeReplyPayload(
+            text=str(cevap.get("text") or ""),
+            abstained=bool(cevap.get("abstained", False)),
+            reason=str(cevap.get("reason") or ""),
+            citations=[RagSummaryCitation(n=int(c.get("n") or 0),
+                                          span_ids=list(c.get("span_ids") or []),
+                                          pages=list(c.get("pages") or []))
+                       for c in (cevap.get("citations") or [])],
+            scope_pages=list(cevap.get("scope_pages") or []),
+            hierarchical=bool(cevap.get("hierarchical", False)),
+        ).to_wire()
+
+    def _rag_questions(self, req: BridgeRequest, okul: str) -> dict:
+        """`rag.questions` → servis `generate_questions()` → backend DTO'su.
+
+        Soru satırının anahtarları servisin kendi sözlüğüdür (`soru`/`cevap`/
+        `zorluk`) ve AYNEN taşınır; yeniden adlandırma backend'in işidir."""
+        from .contract import RagQuestion, RagQuestionsReplyPayload
+        cevap = self.service.generate_questions(self._govde(req, okul))
+        return RagQuestionsReplyPayload(
+            items=[RagQuestion(soru=str(i.get("soru") or ""),
+                               cevap=str(i.get("cevap") or ""),
+                               zorluk=str(i.get("zorluk") or ""))
+                   for i in (cevap.get("items") or [])],
+            abstained=bool(cevap.get("abstained", False)),
+            reason=str(cevap.get("reason") or ""),
+            span_ids=list(cevap.get("span_ids") or []),
+            pages=list(cevap.get("pages") or []),
         ).to_wire()
 
     def _chat(self, req: BridgeRequest, okul: str) -> dict:

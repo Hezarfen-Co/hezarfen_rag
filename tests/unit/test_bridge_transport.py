@@ -26,9 +26,21 @@ CEVAP = {"text": "Hücre, canlıların temel yapı birimidir.",
          "citations": [{"n": 1, "doc_id": "DOC-1", "pages": [12],
                         "span_ids": ["s1"], "ders": "biyoloji"}]}
 
+#: Kanonik özet yanıtı (kapsam-adresli, tek atımlık).
+OZET = {"text": "# Hücre\n- Canlının temel birimi [1].",
+        "abstained": False, "reason": "",
+        "citations": [{"n": 1, "span_ids": ["s1"], "pages": [16, 17]}],
+        "scope_pages": [16, 17], "hierarchical": True}
+
+#: Kanonik soru yanıtı — satır anahtarları SERVİSİN sözlüğüdür (soru/cevap/zorluk).
+SORULAR = {"items": [{"soru": "Hücre nedir?", "cevap": "Temel yapı birimi.",
+                      "zorluk": "orta"}],
+           "abstained": False, "reason": "", "span_ids": ["s1"], "pages": [16]}
+
 
 class _SahteServis:
-    """`Dispatcher`ın beklediği tek şey: `chat(req)`. Çağrıları kaydeder."""
+    """`Dispatcher`ın beklediği şey: `chat`/`summarize`/`generate_questions`.
+    Çağrıları kaydeder."""
 
     def __init__(self) -> None:
         self.cagrilar: list[dict] = []
@@ -36,6 +48,14 @@ class _SahteServis:
     def chat(self, req: dict) -> dict:
         self.cagrilar.append(req)
         return dict(CEVAP)
+
+    def summarize(self, req: dict) -> dict:
+        self.cagrilar.append(req)
+        return dict(OZET)
+
+    def generate_questions(self, req: dict) -> dict:
+        self.cagrilar.append(req)
+        return dict(SORULAR)
 
 
 def _olu_port() -> int:
@@ -102,7 +122,8 @@ class KopruTasimaTestleri(unittest.TestCase):
                     self.assertEqual(hello["service"], "rag")
                     self.assertEqual(hello["token"], bridge.token)
                     self.assertEqual(hello["capabilities"],
-                                     ["rag.chat", "rag.index"])
+                                     ["rag.chat", "rag.index",
+                                      "rag.summarize", "rag.questions"])
                     # Backend 1..=64 arasına kırpar; ilan edilen değer bu
                     # aralıkta olmalı, yoksa sessizce kırpılırdı.
                     self.assertTrue(1 <= hello["max_concurrent"] <= 64)
@@ -149,6 +170,91 @@ class KopruTasimaTestleri(unittest.TestCase):
                     self.assertEqual(gelen["role"], {"role": "student"})
                     self.assertEqual(gelen["scope"],
                                      [{"sinif": "10", "ders": "biyoloji"}])
+            finally:
+                await bridge.stop()
+
+        asyncio.run(senaryo())
+
+    def test_rag_ozet_tek_atimlik_kapsam_ve_rol_eslenir_cevap_yankilanir(self):
+        """`rag.summarize` tek atımlıktır: istek kapsam NESNESİ + rol taşır
+        (`sinif`/`ders_list`, `rag.chat`in çift listesi DEĞİL), cevap
+        `text`/`citations`/`scope_pages`/`hierarchical` alanlarıyla döner.
+
+        Rol eşlemesi düşerse (`role` içinde `sinif`/`ders_list` olmazsa) servis
+        `_scope_denied` ile reddederdi; kapsam düşerse `pages` kaybolur ve
+        gerçek boru hattı `empty_scope` dönerdi."""
+
+        async def senaryo() -> None:
+            bridge = FakeBridge()
+            await bridge.start()
+            servis = _SahteServis()
+            try:
+                async with _calisan_kopru(bridge, servis):
+                    await bridge.wait_for_worker(timeout=10)
+                    cevap = await bridge.call(
+                        "rag.summarize", "okul-a",
+                        {"scope": {"sinif": "10", "ders": "biyoloji",
+                                   "pages": [16, 17], "span_ids": [],
+                                   "scope_label": "DNA"},
+                         "asker": "U-1", "asker_role": "teacher"})
+                    self.assertEqual(cevap["status"], "ok")
+                    self.assertEqual(cevap["school"], "okul-a")
+                    self.assertTrue(cevap["id"].startswith("FAKEREQ"))
+                    self.assertEqual(cevap["payload"]["text"], OZET["text"])
+                    self.assertEqual(cevap["payload"]["scope_pages"], [16, 17])
+                    self.assertTrue(cevap["payload"]["hierarchical"])
+                    self.assertEqual(cevap["payload"]["citations"][0],
+                                     {"n": 1, "span_ids": ["s1"], "pages": [16, 17]})
+                    gelen = servis.cagrilar[-1]
+                    self.assertEqual(gelen["school"], "okul-a")
+                    self.assertEqual(gelen["user"], "U-1")
+                    self.assertEqual(gelen["role"],
+                                     {"role": "teacher", "sinif": "10",
+                                      "ders_list": ["biyoloji"]})
+                    self.assertEqual(gelen["scope"]["pages"], [16, 17])
+                    self.assertEqual(gelen["scope"]["scope_label"], "DNA")
+                    self.assertEqual(gelen["scope"]["sinif"], "10")
+            finally:
+                await bridge.stop()
+
+        asyncio.run(senaryo())
+
+    def test_rag_sorular_n_ve_difficulty_ile_gider_soru_anahtarlari_aynen_doner(self):
+        """`rag.questions` üç ek alan taşır (`n`/`difficulty`/`seed_question`)
+        ve cevap satırları SERVİSİN sözlüğüyle (`soru`/`cevap`/`zorluk`) AYNEN
+        döner — bir backend DTO'su değil, tel biçimidir."""
+
+        async def senaryo() -> None:
+            bridge = FakeBridge()
+            await bridge.start()
+            servis = _SahteServis()
+            try:
+                async with _calisan_kopru(bridge, servis):
+                    await bridge.wait_for_worker(timeout=10)
+                    cevap = await bridge.call(
+                        "rag.questions", "okul-a",
+                        {"scope": {"sinif": "10", "ders": "biyoloji",
+                                   "pages": [16], "span_ids": [],
+                                   "scope_label": "DNA"},
+                         "asker": "U-2", "asker_role": "student",
+                         "n": 3, "difficulty": "zor", "seed_question": "tohum"})
+                    self.assertEqual(cevap["status"], "ok")
+                    self.assertEqual(cevap["school"], "okul-a")
+                    self.assertEqual(cevap["payload"]["items"],
+                                     [{"soru": "Hücre nedir?",
+                                       "cevap": "Temel yapı birimi.",
+                                       "zorluk": "orta"}])
+                    self.assertEqual(cevap["payload"]["span_ids"], ["s1"])
+                    self.assertEqual(cevap["payload"]["pages"], [16])
+                    gelen = servis.cagrilar[-1]
+                    self.assertEqual(gelen["school"], "okul-a")
+                    self.assertEqual(gelen["user"], "U-2")
+                    self.assertEqual(gelen["n"], 3)
+                    self.assertEqual(gelen["difficulty"], "zor")
+                    self.assertEqual(gelen["seed_question"], "tohum")
+                    self.assertEqual(gelen["role"],
+                                     {"role": "student", "sinif": "10",
+                                      "ders_list": ["biyoloji"]})
             finally:
                 await bridge.stop()
 

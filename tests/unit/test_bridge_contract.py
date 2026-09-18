@@ -18,12 +18,18 @@ import unittest
 from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_ALPN,
                                   AI_MAX_CONCURRENT_PER_WORKER, AI_MAX_FRAME_BYTES,
                                   AI_PROTOCOL, AI_RAG_CHAT_CAPABILITY,
-                                  AI_RAG_INDEX_CAPABILITY, ApiError, ApiRequest,
+                                  AI_RAG_INDEX_CAPABILITY,
+                                  AI_RAG_QUESTIONS_CAPABILITY,
+                                  AI_RAG_SUMMARIZE_CAPABILITY, ApiError, ApiRequest,
                                   ASSIGNABLE_ROLES, BlobRequest, ChatReplyPayload,
                                   ChatRequestPayload, ChatTurn, FrameStream,
                                   FrameTooLarge, HandshakeRejected, RagFile,
                                   RagIndexPayload, RagIndexReply,
-                                  RagIndexReplyFile, RagScopePair,
+                                  RagIndexReplyFile, RagQuestion,
+                                  RagQuestionsReplyPayload,
+                                  RagQuestionsRequestPayload, RagScope,
+                                  RagScopePair, RagSummarizeReplyPayload,
+                                  RagSummarizeRequestPayload, RagSummaryCitation,
                                   build_hello, decode_api_response, encode_frame,
                                   parse_greeting)
 
@@ -33,6 +39,8 @@ class YetenekAdlariTests(unittest.TestCase):
         self.assertEqual(AI_CHAT_CAPABILITY, "chat.reply")
         self.assertEqual(AI_RAG_INDEX_CAPABILITY, "rag.index")
         self.assertEqual(AI_RAG_CHAT_CAPABILITY, "rag.chat")
+        self.assertEqual(AI_RAG_SUMMARIZE_CAPABILITY, "rag.summarize")
+        self.assertEqual(AI_RAG_QUESTIONS_CAPABILITY, "rag.questions")
 
     def test_protocol_name(self):
         self.assertEqual(AI_PROTOCOL, "hab/2")
@@ -87,6 +95,80 @@ class RagIndexTelBicimiTests(unittest.TestCase):
         self.assertEqual(RagScopePair.from_wire({"sinif": "", "ders": "satranc"}).to_wire(),
                          {"sinif": None, "ders": "satranc"})
         self.assertEqual(RagScopePair.from_wire({"ders": "satranc"}).sinif, None)
+
+
+class RagOzetSoruTelBicimiTests(unittest.TestCase):
+    """`rag.summarize` + `rag.questions` tel biçimi — `rag.chat`ten AYRI.
+
+    Kapsam tek bir NESNEdir (çift listesi değil); soru satırının anahtarları
+    servisin kendi sözlüğüdür (`soru`/`cevap`/`zorluk`). Anahtar adları
+    değişirse backend sessizce boş kalır; bu yüzden sabitlenir."""
+
+    def test_scope_keys_match_the_contract(self):
+        s = RagScope(ders="biyoloji", sinif="10", pages=[16, 17],
+                     span_ids=[], scope_label="DNA")
+        self.assertEqual(s.to_wire(), {"sinif": "10", "ders": "biyoloji",
+                                       "pages": [16, 17], "span_ids": [],
+                                       "scope_label": "DNA"})
+        self.assertEqual(RagScope.from_wire({"sinif": "", "ders": "satranc"}).sinif,
+                         None)
+
+    def test_summarize_request_keys(self):
+        p = RagSummarizeRequestPayload.from_wire({
+            "scope": {"sinif": "10", "ders": "biyoloji", "pages": [16],
+                      "span_ids": [], "scope_label": "DNA"},
+            "asker": "U-1", "asker_role": "teacher"})
+        self.assertEqual(p.to_wire(), {
+            "scope": {"sinif": "10", "ders": "biyoloji", "pages": [16],
+                      "span_ids": [], "scope_label": "DNA"},
+            "asker": "U-1", "asker_role": "teacher"})
+
+    def test_questions_request_defaults_and_keys(self):
+        """`n`/`difficulty`nin varsayılanları vardır; eksik gövde
+        `n=5`/`difficulty="orta"`ya düşer ve `seed_question` `None`'dır."""
+        p = RagQuestionsRequestPayload.from_wire({
+            "scope": {"ders": "biyoloji", "pages": [16]},
+            "asker": "U-1", "asker_role": "student"})
+        self.assertEqual(p.n, 5)
+        self.assertEqual(p.difficulty, "orta")
+        self.assertIsNone(p.seed_question)
+        self.assertEqual(p.to_wire()["seed_question"], None)
+
+    def test_summarize_reply_keys(self):
+        r = RagSummarizeReplyPayload(
+            text="özet", citations=[RagSummaryCitation(n=1, span_ids=["s1"],
+                                                       pages=[16, 17])],
+            scope_pages=[16, 17], hierarchical=True)
+        self.assertEqual(r.to_wire(), {
+            "text": "özet", "abstained": False, "reason": "",
+            "citations": [{"n": 1, "span_ids": ["s1"], "pages": [16, 17]}],
+            "scope_pages": [16, 17], "hierarchical": True})
+
+    def test_refusal_dicts_parse_with_missing_optionals(self):
+        """Servisin red sözlükleri BÜTÜN opsiyonel anahtarları taşımaz
+        (`_refused` soru reddi yalnız items/span_ids/pages taşır). Katı bir
+        ayrıştırma bu karelerde patlardı; `from_wire` tolere etmelidir."""
+        ozet = RagSummarizeReplyPayload.from_wire({
+            "text": "", "abstained": True, "reason": "empty_scope"})
+        self.assertTrue(ozet.abstained)
+        self.assertEqual(ozet.citations, [])
+        self.assertEqual(ozet.scope_pages, [])
+        self.assertFalse(ozet.hierarchical)
+
+        soru = RagQuestionsReplyPayload.from_wire(
+            {"items": [], "span_ids": [], "pages": []})
+        self.assertEqual(soru.items, [])
+        self.assertFalse(soru.abstained)
+        self.assertEqual(soru.reason, "")
+
+    def test_questions_reply_mirrors_service_keys_verbatim(self):
+        r = RagQuestionsReplyPayload.from_wire({
+            "items": [{"soru": "s", "cevap": "c", "zorluk": "zor"}],
+            "abstained": False, "reason": "", "span_ids": ["s1"], "pages": [16]})
+        self.assertEqual(r.to_wire()["items"],
+                         [{"soru": "s", "cevap": "c", "zorluk": "zor"}])
+        self.assertEqual(RagQuestion.from_wire({}).to_wire(),
+                         {"soru": "", "cevap": "", "zorluk": ""})
 
 
 class ChatTelBicimiTests(unittest.TestCase):

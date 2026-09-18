@@ -30,6 +30,8 @@ from dataclasses import dataclass, field, asdict
 AI_CHAT_CAPABILITY = "chat.reply"
 AI_RAG_INDEX_CAPABILITY = "rag.index"
 AI_RAG_CHAT_CAPABILITY = "rag.chat"      # RAG'e özel kutu (chatbot'tan AYRI)
+AI_RAG_SUMMARIZE_CAPABILITY = "rag.summarize"  # kapsamı özetle (tek atımlık)
+AI_RAG_QUESTIONS_CAPABILITY = "rag.questions"  # kapsamdan N soru üret (tek atımlık)
 AI_PROTOCOL = "hab/2"
 
 # --- taşıma sabitleri (el sıkışma + çerçeveleme) ---------------------------
@@ -273,6 +275,185 @@ class RagChatReplyPayload:
         return {"text": self.text, "abstained": self.abstained,
                 "reason": self.reason,
                 "citations": [c.to_wire() for c in self.citations]}
+
+
+# ------------------------------------- rag.summarize + rag.questions (tek atım)
+# `rag.chat`'ten AYRI: iplik YOK, saklama YOK, SSE YOK. İstemci TEK bir
+# (ders, isteğe bağlı sınıf) + sayfa/span aralığı adlandırır ve YAPITı bekler
+# (bir özet / bir dizi alıştırma sorusu). Kapsam `rag.chat`teki çift listesi
+# DEĞİL, tek bir kapsam nesnesidir ve korpusu tam olarak o nesne seçer.
+
+@dataclass
+class RagScope:
+    """Özet/soru kapsamı — TEK korpusa adreslenir.
+
+    `sinif=None` = sınıfa bağlı OLMAYAN korpus (okul kulübü / etüt).
+    `pages`/`span_ids` boş olabilir; servis o zaman `empty_scope` ile
+    fail-closed reddeder. Normalde ikisinden yalnız BİRİ kullanılır.
+    """
+    ders: str
+    sinif: str | None = None
+    pages: list = field(default_factory=list)
+    span_ids: list = field(default_factory=list)
+    scope_label: str = ""
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagScope":
+        s = d.get("sinif")
+        return cls(ders=str(d.get("ders") or ""),
+                   sinif=(str(s) if s not in (None, "") else None),
+                   pages=list(d.get("pages") or []),
+                   span_ids=list(d.get("span_ids") or []),
+                   scope_label=str(d.get("scope_label") or ""))
+
+    def to_wire(self) -> dict:
+        return {"sinif": self.sinif, "ders": self.ders,
+                "pages": list(self.pages), "span_ids": list(self.span_ids),
+                "scope_label": self.scope_label}
+
+
+@dataclass
+class RagSummarizeRequestPayload:
+    """Backend'in `rag.summarize` için gönderdiği gövde."""
+    scope: RagScope
+    asker: str = ""
+    asker_role: str = ""
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagSummarizeRequestPayload":
+        return cls(scope=RagScope.from_wire(d.get("scope") or {}),
+                   asker=str(d.get("asker") or ""),
+                   asker_role=str(d.get("asker_role") or ""))
+
+    def to_wire(self) -> dict:
+        return {"scope": self.scope.to_wire(), "asker": self.asker,
+                "asker_role": self.asker_role}
+
+
+@dataclass
+class RagQuestionsRequestPayload:
+    """Backend'in `rag.questions` için gönderdiği gövde — `rag.summarize` + üç alan."""
+    scope: RagScope
+    asker: str = ""
+    asker_role: str = ""
+    n: int = 5
+    difficulty: str = "orta"
+    seed_question: str | None = None
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagQuestionsRequestPayload":
+        return cls(scope=RagScope.from_wire(d.get("scope") or {}),
+                   asker=str(d.get("asker") or ""),
+                   asker_role=str(d.get("asker_role") or ""),
+                   n=int(d.get("n") or 5),
+                   difficulty=str(d.get("difficulty") or "orta"),
+                   seed_question=d.get("seed_question"))
+
+    def to_wire(self) -> dict:
+        return {"scope": self.scope.to_wire(), "asker": self.asker,
+                "asker_role": self.asker_role, "n": self.n,
+                "difficulty": self.difficulty, "seed_question": self.seed_question}
+
+
+@dataclass
+class RagSummaryCitation:
+    """`rag.summarize` yanıtındaki kanıt (backend `RagSummaryCitation`)."""
+    n: int
+    span_ids: list = field(default_factory=list)
+    pages: list = field(default_factory=list)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagSummaryCitation":
+        return cls(n=int(d.get("n") or 0),
+                   span_ids=list(d.get("span_ids") or []),
+                   pages=list(d.get("pages") or []))
+
+    def to_wire(self) -> dict:
+        return {"n": self.n, "span_ids": list(self.span_ids),
+                "pages": list(self.pages)}
+
+
+@dataclass
+class RagSummarizeReplyPayload:
+    """Servisin `rag.summarize`'e döndürdüğü gövde.
+
+    `from_wire` EKSİK opsiyonel anahtarlara TOLERANSLIDIR: servisin red
+    sözlükleri (`_refused`/`_budget_denied`/`_llm_unavailable`) bazı alanları
+    hiç taşımaz; katı bir ayrıştırma bu karelerde patlardı.
+    """
+    text: str = ""
+    abstained: bool = False
+    reason: str = ""
+    citations: list[RagSummaryCitation] = field(default_factory=list)
+    scope_pages: list = field(default_factory=list)
+    hierarchical: bool = False
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagSummarizeReplyPayload":
+        return cls(text=str(d.get("text") or ""),
+                   abstained=bool(d.get("abstained", False)),
+                   reason=str(d.get("reason") or ""),
+                   citations=[RagSummaryCitation.from_wire(c)
+                              for c in (d.get("citations") or [])],
+                   scope_pages=list(d.get("scope_pages") or []),
+                   hierarchical=bool(d.get("hierarchical", False)))
+
+    def to_wire(self) -> dict:
+        return {"text": self.text, "abstained": self.abstained,
+                "reason": self.reason,
+                "citations": [c.to_wire() for c in self.citations],
+                "scope_pages": list(self.scope_pages),
+                "hierarchical": self.hierarchical}
+
+
+@dataclass
+class RagQuestion:
+    """`rag.questions` yanıtındaki tek soru.
+
+    Anahtarlar SERVİSİN kendi sözlüğüdür (`soru`/`cevap`/`zorluk`) — tıpkı
+    `rag.chat`in kendi sözlüğünü yansıtması gibi. Yeniden adlandırılmaz;
+    backend DTO'su (question/answer/difficulty) eşlemeyi kendi tarafında yapar.
+    """
+    soru: str
+    cevap: str
+    zorluk: str
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagQuestion":
+        return cls(soru=str(d.get("soru") or ""),
+                   cevap=str(d.get("cevap") or ""),
+                   zorluk=str(d.get("zorluk") or ""))
+
+    def to_wire(self) -> dict:
+        return {"soru": self.soru, "cevap": self.cevap, "zorluk": self.zorluk}
+
+
+@dataclass
+class RagQuestionsReplyPayload:
+    """Servisin `rag.questions`'a döndürdüğü gövde.
+
+    Red sözlüğü yalnız `items`/`span_ids`/`pages` taşır (abstained/reason
+    atlanabilir) — `from_wire` bunu tolere eder.
+    """
+    items: list[RagQuestion] = field(default_factory=list)
+    abstained: bool = False
+    reason: str = ""
+    span_ids: list = field(default_factory=list)
+    pages: list = field(default_factory=list)
+
+    @classmethod
+    def from_wire(cls, d: dict) -> "RagQuestionsReplyPayload":
+        return cls(items=[RagQuestion.from_wire(i)
+                          for i in (d.get("items") or [])],
+                   abstained=bool(d.get("abstained", False)),
+                   reason=str(d.get("reason") or ""),
+                   span_ids=list(d.get("span_ids") or []),
+                   pages=list(d.get("pages") or []))
+
+    def to_wire(self) -> dict:
+        return {"items": [i.to_wire() for i in self.items],
+                "abstained": self.abstained, "reason": self.reason,
+                "span_ids": list(self.span_ids), "pages": list(self.pages)}
 
 
 # ----------------------------------------------------- scope (sınıf/ders ÇİFTİ)

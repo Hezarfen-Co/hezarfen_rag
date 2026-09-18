@@ -135,6 +135,62 @@ Silme/indeksleme mantığı hazır (`src/corpus/deletion.py`) ama HTTP yüzeyi
 köprü sözleşmesine bağlı (#95) — backend RAG'ı QUIC köprüsüyle çağırıyor,
 HTTP ile değil. Köprü yeteneği tanımlanınca eklenecek.
 
+### 0.4 `rag.summarize` + `rag.questions` — tek atımlık, kapsam-adresli yetenekler (2026-09-18)
+
+İki yeni köprü yeteneği backend'e eklendi; ikisi de `rag.chat`ten AYRI bir biçim
+taşır. **`rag.chat` iplik-bağlıdır** (202 + poll + SSE), kapsamı bir `(sınıf, ders)`
+ÇİFT LİSTESİdir ve cevap bir mesaj satırına düşer. **Bu ikisi TEK ATIMLIKTIR**:
+senkron; sunucu iki yönlü akışta cevabı BEKLER — iplik yok, saklama yok, SSE yok.
+Kapsam tek bir KORPUSA adreslenir: istemci bir `(ders, isteğe bağlı sınıf)` +
+sayfa/span aralığı adlandırır ve YAPITı (özet / alıştırma soruları) bekler
+(`bridge/contract.py`: `RagScope`).
+
+**İstek gövdeleri (backend → RAG):**
+```jsonc
+// rag.summarize
+{ "scope": {"sinif": "10", "ders": "biyoloji", "pages": [16, 17],
+            "span_ids": [], "scope_label": "DNA"},
+  "asker": "<backend user id key>", "asker_role": "teacher" }
+
+// rag.questions — aynı gövde + üç alan
+{ "scope": { ... },
+  "asker": "...", "asker_role": "student",
+  "n": 5, "difficulty": "orta", "seed_question": null }
+```
+`sinif` sınıfsız korpus için `null`'dır (kulüp/etüt). `pages`/`span_ids` boş
+olabilir; servis o zaman `empty_scope` ile fail-closed reddeder. Normalde
+ikisinden yalnız BİRİ kullanılır.
+
+**Yanıt gövdeleri (RAG → backend):**
+```jsonc
+// rag.summarize
+{ "text": "# DNA ...", "abstained": false, "reason": "",
+  "citations": [{"n": 1, "span_ids": ["..."], "pages": [16, 17]}],
+  "scope_pages": [16, 17], "hierarchical": true }
+
+// rag.questions — satır anahtarları SERVİSİN sözlüğüdür (backend DTO'su değil)
+{ "items": [{"soru": "...", "cevap": "...", "zorluk": "orta"}],
+  "abstained": false, "reason": "", "span_ids": [], "pages": [] }
+```
+`rag.questions` satır anahtarları servisin kendi sözlüğüdür (`soru`/`cevap`/
+`zorluk`) — tıpkı `rag.chat`in kendi sözlüğünü yansıtması gibi. Yeniden
+adlandırılmaz; backend HTTP DTO'su (question/answer/difficulty) eşlemeyi kendi
+tarafında yapar. `cost_usd` servis sözlüğünde vardır ama TELİN parçası DEĞİLDİR.
+
+**Red biçimleri:** red kurucuları (`handler.py::_unknown_school`/
+`_budget_denied`/`_llm_unavailable`; korpus yönlendirme reddi
+`service/multi.py::_refused`) `abstained: true` + bir `reason` taşır ve
+`citations`/`scope_pages`/`items` gibi
+alanları BOŞ bırakır (bazı anahtarlar hiç yoktur — `from_wire` bunu tolere eder).
+`role_required`/`scope_mismatch` backend'in KÖTÜ bir istek kurduğunu gösterir:
+backend bunu kendi hatası saymalıdır (502 + hata günlüğü), `rag.chat` ile aynı
+kural. Diğer her `abstained` nedeni HTTP **200** + `abstained: true` olarak döner.
+
+**Rol eşlemesi (dağıtıcıda):** servisin `_scope_denied`'ı bu iki yolda
+`_role_ctx(role)`'ü ÇİFT listesi OLMADAN çağırır; bu yüzden `bridge/dispatch.py`
+`role`'ü `{"role": asker_role, "sinif": scope.sinif, "ders_list": [scope.ders]}`
+biçiminde kurar (`rag.chat`in çift listesinden AYRI — handler.py:45-110).
+
 ## 1. POST /rag/chat — kaynakla konuşma (soru-cevap)
 
 **İstek:**
