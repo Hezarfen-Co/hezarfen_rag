@@ -229,29 +229,52 @@ jobs:
           docker build -f Containerfile -t localhost/hezarfen_rag:$GITHUB_SHA .
 
       # VARSAYILAN İMGE KÜÇÜK MÜ (kullanıcı kararı 2026-09-17): yerel yığın
-      # (torch/FlagEmbedding/ağırlıklar) İMAJA GİRMEZ; yerel yol bir EKLENTİ
+      # (torch/FlagEmbedding/ağırlıklar) İMAĞA GİRMEZ; yerel yol bir EKLENTİ
       # VOLUME'u ile açılır (deploy/provision_local_stack.sh). Bu iddialar
       # imajın kendisinde ölçülür (runner'da torch KURULU, yani runner'da
       # ölçmek yanıltıcı olurdu).
+      # Every assertion here is an EXIT CODE or a CAPTURED STRING, never a
+      # pipeline's status: a refusal is *supposed* to exit non-zero
+      # (src/service/preflight.py -> `return 2` / `SystemExit(2)`), so the old
+      # `docker run … 2>&1 | grep -q …` under `set -o pipefail` handed that 2
+      # back as the STEP's own status and killed a check that had actually
+      # passed (job 35303767476, exit 2, with the expected line in the log).
+      # Capturing first keeps the two facts separable — the message is asserted
+      # on $local_out, the code on $local_rc.
       - name: Prove the default image is API-only and refuses `local` cleanly
         run: |
           set -euo pipefail
           img=localhost/hezarfen_rag:$GITHUB_SHA
+          # 1. torch must be ABSENT inside the image: `python -c` exits 1 when it
+          #    is present, and that non-zero code IS the assertion.
           docker run --rm "$img" python -c "import importlib.util, sys; sys.exit(1 if importlib.util.find_spec('torch') else 0)"
           common=(--env RAG_ALLOW_UNCALIBRATED_ABSTAIN=1 --env LLM_API_KEY=ci)
+
+          # 2. the shipped default (api) must come up green: exit 0 is the assertion.
           docker run --rm "${common[@]}" \
             --env RAG_EMBED_PROVIDER=api --env RAG_EMBED_API_BASE=https://ornek/v1 \
             --env RAG_EMBED_MODEL=m --env RAG_EMBED_API_KEY=k \
             --env RAG_RERANK_PROVIDER=api --env RAG_RERANK_API_URL=https://ornek/rerank \
             --env RAG_RERANK_MODEL=m --env RAG_RERANK_API_KEY=k \
             "$img" python -m src.service.preflight
-          if docker run --rm "${common[@]}" --env RAG_EMBED_PROVIDER=local \
-               --env RAG_RERANK_PROVIDER=local "$img" python -m src.service.preflight; then
-            echo "local secimi kucuk imgede GECMEMELIYDI" >&2; exit 1
+
+          # 3. `local` must REFUSE — asserted twice, and neither assertion can be
+          #    fooled by the other: the code must be non-zero, the message must
+          #    name the provisioning script.
+          local_env=(--env RAG_EMBED_PROVIDER=local --env RAG_RERANK_PROVIDER=local)
+          local_rc=0
+          local_out=$(docker run --rm "${common[@]}" "${local_env[@]}" "$img" \
+            python -m src.service.preflight 2>&1) || local_rc=$?
+          printf '%s\n' "$local_out"
+          if [ "$local_rc" -eq 0 ]; then
+            echo "local secimi kucuk imgede GECMEMELIYDI (exit 0)" >&2
+            exit 1
           fi
-          docker run --rm "${common[@]}" --env RAG_EMBED_PROVIDER=local \
-            --env RAG_RERANK_PROVIDER=local "$img" python -m src.service.preflight 2>&1 \
-            | grep -q 'provision_local_stack.sh'
+          if ! printf '%s\n' "$local_out" | grep -q 'provision_local_stack.sh'; then
+            echo "ret metni saglama betigini adiyla soylemiyor (exit $local_rc)" >&2
+            exit 1
+          fi
+          echo "kucuk imge dogrulandi: torch yok; api yolu yesil; local yolu exit $local_rc ile ret + ret metni saglama betigini adiyla soyluyor"
 
       - name: Stage the release bundle
         run: |
