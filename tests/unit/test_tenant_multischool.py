@@ -21,7 +21,7 @@ import numpy as np
 from src.bridge.contract import (AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY,
                                  AI_RAG_INDEX_CAPABILITY, BridgeFrameError,
                                  BridgeRequest)
-from src.bridge.dispatch import Dispatcher, INDEX_UNWIRED
+from src.bridge.dispatch import Dispatcher
 from src.cache.response_cache import canonical_key
 from src.guard.tenant import (TenantError, content_visible, normalize_school,
                               require_owner, visible_owners)
@@ -319,11 +319,15 @@ class BridgeEchoTests(unittest.TestCase):
         self.assertEqual(out["code"], "invalid_school")
         self.assertEqual(out["school"], "Okul A")
 
-    def test_rag_index_is_refused_until_the_transport_exists(self):
+    def test_rag_index_is_served_and_a_bad_body_is_refused_typed(self):
+        """`rag.index` SUNULUR (BL-010 kapandı): gövdesi eksik çerçeve tipli
+        reddedilir, okul yine AYNEN eko edilir. Gövdesi tam olduğunda yol
+        `Dispatcher(indexer=...)` ile uçtan uca koşar
+        (`tests/unit/test_bridge_transport.py::RagIndexBlobAkisiTestleri`)."""
         out = Dispatcher(self._Svc()).handle(self._cerceve(
             capability=AI_RAG_INDEX_CAPABILITY, payload={}))
         self.assertEqual(out["status"], "err")
-        self.assertEqual(out["code"], INDEX_UNWIRED)
+        self.assertEqual(out["code"], "malformed")
         self.assertEqual(out["school"], A)
 
     def test_unknown_capability_is_refused(self):

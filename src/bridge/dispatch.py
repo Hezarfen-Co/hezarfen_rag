@@ -26,18 +26,22 @@ from .contract import (AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY,
                        AI_RAG_INDEX_CAPABILITY, BridgeFrameError, BridgeRequest,
                        BridgeResponse)
 
-#: Bu depo `rag.index`i HENÜZ sunamaz: dizin yazımı ek dosya BAYTLARINI
-#: (`BlobRequest`) ve korpus yönlendirmesini ister; taşıma yazılmadı (BL-010).
-#: Sahte bir "tamam" demek yerine tipli reddedilir — backend zaten sessizlik
-#: üzerine kurulu (başarısız indeksleme eski `rag_output` satırını korur).
-INDEX_UNWIRED = "index_path_unwired"
-
-
+# `rag.index` is served end to end: the payload is parsed, every attachment is
+# read as bytes over its own blob stream, the note is chunked, embedded and
+# written into the school's note index (`service::notes_index`), and the answer
+# object goes back for the backend to store as the note's `rag_output`.
 class Dispatcher:
     """`Request` çerçevesi → servis metodu → `Response` çerçevesi."""
 
-    def __init__(self, service, *, capabilities=None):
+    def __init__(self, service, *, capabilities=None, indexer=None):
         self.service = service
+        #: `rag.index`'in gövdesi (not → parça → gömme → not indeksi). Enjekte
+        #: edilebilir: taşıma testleri ağ/örnek istemeyen bir sahte verir;
+        #: üretimde `service::notes_index.index_course_note` koşar.
+        self.indexer = indexer
+        #: Blob okuyucusu — TAŞIMA takar (`transport.BridgeTransport.register`).
+        #: Yoksa ekler okunamaz ve notun kendi metni yine indekslenir.
+        self.blob_reader = None
         self.capabilities = tuple(capabilities or (
             AI_CHAT_CAPABILITY, AI_RAG_CHAT_CAPABILITY, AI_RAG_INDEX_CAPABILITY))
 
@@ -65,10 +69,7 @@ class Dispatcher:
                                       "`school` ZORUNLU (varsayılan/fallback yok)")
 
         if req.capability == AI_RAG_INDEX_CAPABILITY:
-            return BridgeResponse.err(
-                req, INDEX_UNWIRED,
-                "rag.index bu serviste henüz sunulmuyor (taşıma/BLOB yolu "
-                "yazılmadı) — istek reddedildi, eski çıktı korunur")
+            return self._rag_index(req, okul)
         if req.capability == AI_RAG_CHAT_CAPABILITY:
             return BridgeResponse.ok(req, self._rag_chat(req, okul))
         if req.capability == AI_CHAT_CAPABILITY:
@@ -79,6 +80,35 @@ class Dispatcher:
             f"{', '.join(self.capabilities)})")
 
     # -- gövde eşlemeleri (tel biçimi → servis sözlüğü) --------------------
+    def _rag_index(self, req: BridgeRequest, okul: str) -> BridgeResponse:
+        """`rag.index` → not + ekler → not indeksi → backend'in sakladığı gövde.
+
+        Redler TİPLİ ve küçük tutulur: backend bir hatada eski `rag_output`
+        satırını korur, yani "sessiz tamam" en kötü sonuçtur. Tek bir ekin
+        okunamaması ise red DEĞİLDİR — notun kendi metni indekslenir ve cevap
+        hangi ekin okunamadığını söyler (bkz. `service/notes_index.py`)."""
+        from .contract import RagIndexPayload
+        try:
+            payload = RagIndexPayload.from_wire(req.payload)
+        except (KeyError, TypeError) as exc:
+            return BridgeResponse.err(req, "malformed",
+                                      f"rag.index gövdesi eksik/yanlış: {exc}")
+        indexer = self.indexer
+        if indexer is None:
+            from ..service.notes_index import index_course_note as indexer
+        try:
+            cevap = indexer(payload, school=okul, blob_reader=self.blob_reader)
+        except Exception as exc:                        # noqa: BLE001
+            import traceback
+            traceback.print_exc()
+            return BridgeResponse.err(req, "internal",
+                                      f"rag.index çalıştırılamadı: "
+                                      f"{type(exc).__name__}: {exc}")
+        if not isinstance(cevap, dict):
+            return BridgeResponse.err(req, "internal",
+                                      "rag.index bir nesne döndürmedi")
+        return BridgeResponse.ok(req, cevap)
+
     def _govde(self, req: BridgeRequest, okul: str) -> dict:
         """Servis isteğinin ortak alanları: sorgu + ROL + okul.
 

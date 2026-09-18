@@ -62,10 +62,11 @@ def _ayarlar(bridge: FakeBridge, *, port: int | None = None, **ustune) -> Settin
 
 
 @contextlib.asynccontextmanager
-async def _calisan_kopru(bridge: FakeBridge, servis: _SahteServis, **ustune):
+async def _calisan_kopru(bridge: FakeBridge, servis: _SahteServis, *,
+                         indexer=None, **ustune):
     """Köprüyü arka planda koştur, çıkışta temizle."""
     gorev = asyncio.ensure_future(
-        run_forever(_ayarlar(bridge, **ustune), Dispatcher(servis)))
+        run_forever(_ayarlar(bridge, **ustune), Dispatcher(servis, indexer=indexer)))
     try:
         yield gorev
     finally:
@@ -188,12 +189,13 @@ class KopruTasimaTestleri(unittest.TestCase):
                         await akis2.read(timeout=0.5)
                     akis2.close()
 
-                    # (c) `rag.index` ilan edilir ama HENÜZ sunulmaz: "tamam"
-                    # demek sessiz bir yalandır, backend eski çıktıyı korur.
+                    # (c) `rag.index` SUNULUR: gövdesi eksikse TİPLİ reddedilir
+                    # (uydurma "tamam" yok; gövde tam olduğunda yol aşağıdaki
+                    # testte blob akışıyla uçtan uca koşar).
                     indeks = await bridge.call("rag.index", "okul-a",
                                                {"course_note": "N1"})
                     self.assertEqual(indeks["status"], "err")
-                    self.assertEqual(indeks["code"], "index_path_unwired")
+                    self.assertEqual(indeks["code"], "malformed")
                     self.assertEqual(indeks["school"], "okul-a")
 
                     # (d) Hepsinin ardından normal istek cevaplanıyor.
@@ -367,3 +369,119 @@ class OrtamAdlariTestleri(unittest.TestCase):
         self.assertEqual(ayar.reconnect_max_secs, 60.0)
         # Özet SIR vermez: anahtarın kendisi değil, var/yok bilgisi yazılır.
         self.assertNotIn("test-token", ayar.summary())
+
+
+class RagIndexBlobAkisiTestleri(unittest.TestCase):
+    """`rag.index` uçtan uca: çerçeve → (sahte) dizinleyici → BLOB AKIŞI → cevap.
+
+    Ölçülen iddia: ekin baytları kendi istemci akışında, ham olarak (çerçeve
+    DEĞİL) gelir; cevap `files[].id`yi isteğin verdiği id ile AYNEN yankılar
+    (backend `course_note_file.rag_doc_id`yi yalnız bu eşleşmeden doldurur).
+    """
+
+    BAYT = (b"%PDF-1.4\n1 0 obj\n<< /Type /Catalog >>\nendobj\n"
+            b"%%EOF\n" * 20)
+
+    def test_ek_baytlari_blob_akisindan_okunur_ve_id_yankilanir(self):
+        okumalar: list = []
+
+        def sahte_indeksleyici(payload, *, school, blob_reader):
+            meta = payload.files[0]
+            header, data = blob_reader.read(
+                {"id": f"ULID-{meta.id}", "school": school, "file": meta.id,
+                 "on_behalf_of": payload.author},
+                max_bytes=8 * 1024 * 1024)
+            okumalar.append((header, data))
+            return {"course_note": payload.course_note,
+                    "chunks": 1,
+                    "files": [{"id": meta.id, "doc_id": "5eda1f0a9c32"}],
+                    "summary": f"'{payload.title}' notu indekslendi."}
+
+        async def senaryo() -> None:
+            bridge = FakeBridge()
+            bridge.add_blob("01FILE", self.BAYT, name="kaynak.pdf",
+                            content_type="application/pdf")
+            await bridge.start()
+            try:
+                async with _calisan_kopru(bridge, _SahteServis(),
+                                          indexer=sahte_indeksleyici):
+                    await bridge.wait_for_worker(timeout=10)
+                    cevap = await bridge.call("rag.index", "okul-a", {
+                        "course_note": "01NOTE", "course": "01COURSE",
+                        "author": "01AUTHOR", "title": "Hücre ve Canlılar",
+                        "content": "Hücre, canlıların en küçük yapı birimidir.",
+                        "files": [{"id": "01FILE", "name": "kaynak.pdf",
+                                   "content_type": "application/pdf",
+                                   "size": len(self.BAYT)}]})
+
+                    self.assertEqual(cevap["status"], "ok")
+                    self.assertEqual(cevap["school"], "okul-a")
+                    govde = cevap["payload"]
+                    self.assertEqual(govde["course_note"], "01NOTE")
+                    # id AYNEN yankılanır → backend ekin satırını damgalar.
+                    self.assertEqual(govde["files"][0]["id"], "01FILE")
+                    self.assertEqual(govde["files"][0]["doc_id"], "5eda1f0a9c32")
+
+                    # Baytlar ham aktı: çerçeve çözülmedi, tam boyutta geldi.
+                    self.assertEqual(len(okumalar), 1)
+                    header, data = okumalar[0]
+                    self.assertEqual(header["status"], "ok")
+                    self.assertEqual(header["size"], len(self.BAYT))
+                    self.assertEqual(header["name"], "kaynak.pdf")
+                    self.assertEqual(data, self.BAYT)
+
+                    # İstek backend'e okul + ADINA OKUMA ile gitti.
+                    istek = bridge.blob_requests[0]
+                    self.assertEqual(istek["school"], "okul-a")
+                    self.assertEqual(istek["file"], "01FILE")
+                    self.assertEqual(istek["on_behalf_of"], "01AUTHOR")
+            finally:
+                await bridge.stop()
+
+        asyncio.run(senaryo())
+
+    def test_okunamayan_ek_indekslemeyi_durdurmaz(self):
+        """Blob `not_found` derse dizinleme REDDEDİLMEZ: notun kendi metni
+        indekslenir ve cevap hangi ekin okunamadığını söyler (backend eski
+        satırı koruyacağı için "sessiz tamam" en kötü sonuçtur)."""
+        cevaplar: list = []
+
+        def sahte_indeksleyici(payload, *, school, blob_reader):
+            from src.bridge.contract import BlobReadRefused
+            hata = None
+            try:
+                blob_reader.read({"id": "ULID", "school": school,
+                                  "file": payload.files[0].id,
+                                  "on_behalf_of": payload.author},
+                                 max_bytes=1 << 20)
+            except BlobReadRefused as exc:
+                hata = exc
+            cevaplar.append(hata)
+            return {"course_note": payload.course_note, "chunks": 2, "files": [],
+                    "failed": [{"id": payload.files[0].id, "code": hata.code,
+                                "message": hata.message}],
+                    "summary": f"'{payload.title}' notu indekslendi."}
+
+        async def senaryo() -> None:
+            bridge = FakeBridge()          # blobs BOŞ: dosya yok
+            await bridge.start()
+            try:
+                async with _calisan_kopru(bridge, _SahteServis(),
+                                          indexer=sahte_indeksleyici):
+                    await bridge.wait_for_worker(timeout=10)
+                    cevap = await bridge.call("rag.index", "okul-a", {
+                        "course_note": "01NOTE", "course": "01COURSE",
+                        "author": "01AUTHOR", "title": "Hücre",
+                        "content": "Hücre...",
+                        "files": [{"id": "01YOK", "name": "yok.pdf",
+                                   "content_type": "application/pdf",
+                                   "size": 10}]})
+                    self.assertEqual(cevap["status"], "ok")
+                    self.assertEqual(cevap["payload"]["failed"][0]["code"],
+                                     "not_found")
+                    self.assertIsNotNone(cevaplar[0])
+                    self.assertEqual(cevaplar[0].code, "not_found")
+            finally:
+                await bridge.stop()
+
+        asyncio.run(senaryo())

@@ -231,6 +231,11 @@ class _Connection(QuicConnectionProtocol):
         self._quic.send_stream_data(sid, encode_frame(obj), end_stream=end)
         self.transmit()
 
+    def send_bytes(self, sid: int, data: bytes, end: bool) -> None:
+        """Ham bayt — blob gövdesi çerçeve DEĞİLDİR (`protocol.rs:27-30`)."""
+        self._quic.send_stream_data(sid, data, end_stream=end)
+        self.transmit()
+
     def forget(self, sid: int) -> None:
         self._readers.pop(sid, None)
 
@@ -290,9 +295,12 @@ class _Connection(QuicConnectionProtocol):
     # -- istemci başlatımlı akışlar --
 
     async def _serve_client_stream(self, sid: int, reader: _Reader) -> None:
-        """Bugün istemci HİÇ akış açmaz (RAG yalnız `Request` cevaplar).
+        """İstemci başlatımlı akış = BİR blob okuma (`rag.index`).
 
-        Açarsa bu bir kayıttır: sunucu tipli bir red yazar ki bekleyen bir
+        Bir `BlobRequest` (gerekli alan: `file`) → `BlobResponse` başlığı; `ok`
+        ise tam `size` **ham** bayt (`server.rs::serve_blob`). Başlıktan sonraki
+        gövde çerçeve DEĞİLDİR. Kayıtlı olmayan bir dosya `not_found` ile
+        reddedilir; başka bir çerçeve de tipli reddedilir ki bekleyen bir
         okuyucu asılı kalmasın."""
         try:
             raw = await reader.read_frame()
@@ -300,9 +308,24 @@ class _Connection(QuicConnectionProtocol):
             self._bridge.client_streams.append({"malformed": str(exc)})
             self.send(sid, _err("", "", "malformed", str(exc)), end=True)
             return
-        self._bridge.client_streams.append(raw if isinstance(raw, dict) else {})
-        self.send(sid, _err(str(raw.get("id") or ""), str(raw.get("school") or ""),
-                            "malformed", "bu servis istemci akışı açmıyor"), end=True)
+        if not isinstance(raw, dict) or raw.get("file") is None:
+            self._bridge.client_streams.append(raw if isinstance(raw, dict) else {})
+            self.send(sid, _err(str((raw or {}).get("id") or ""),
+                                str((raw or {}).get("school") or ""), "malformed",
+                                "bu servis yalnız blob okuma akışı açar"), end=True)
+            return
+        self._bridge.blob_requests.append(raw)
+        entry = self._bridge.blobs.get(str(raw.get("file")))
+        if entry is None:
+            self.send(sid, {"status": "err", "id": raw.get("id") or "",
+                            "school": raw.get("school") or "", "code": "not_found",
+                            "message": "no such course-note file"}, end=True)
+            return
+        name, content_type, data = entry
+        self.send(sid, {"status": "ok", "id": raw.get("id") or "",
+                        "school": raw.get("school") or "", "name": name,
+                        "content_type": content_type, "size": len(data)}, end=False)
+        self.send_bytes(sid, data, end=True)
 
 
 def _err(request_id: str, school: str, code: str, message: str) -> dict:
@@ -353,6 +376,10 @@ class FakeBridge:
         self.rejects: list[str] = []
         #: İstemcinin açtığı (kontrol dışı) akışların çerçeveleri.
         self.client_streams: list[dict] = []
+        #: `rag.index` blob okumaları: file id → (name, content_type, bytes).
+        self.blobs: dict[str, tuple[str, str, bytes]] = {}
+        #: Gelen her `BlobRequest` çerçevesi (sırayla) — okul/adına-okuma kanıtı.
+        self.blob_requests: list[dict] = []
         self._port = port
         self._server: Any = None
         self._quic_config: Any = None
@@ -450,6 +477,11 @@ class FakeBridge:
         self.registrations.append(worker)
         self._connections.add(worker.connection)
         self._worker_event.set()
+
+    def add_blob(self, file_id: str, data: bytes, *, name: str = "ek.pdf",
+                 content_type: str = "application/pdf") -> None:
+        """Bir ders-notu ekinin baytlarını servise sun (blob okuma için)."""
+        self.blobs[str(file_id)] = (name, content_type, data)
 
     def deregister(self, worker: _Worker) -> None:
         self._connections.discard(worker.connection)

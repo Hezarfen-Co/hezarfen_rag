@@ -164,13 +164,12 @@ Backend QUIC **sunucusudur**, AI servisleri ona dial eder. Taşıma yazıldı:
 **Test:** `tests/unit/test_bridge_transport.py` — sahte QUIC sunucusu
 (`tests/unit/_fake_bridge.py`), ağ/DB yok: kayıt, istek→dağıtım→cevap (okul
 eko'su), tipli redler (`invalid_school`, okulsuz çerçevede cevapsız akış,
-`index_path_unwired`), kopma sonrası yeniden kaydolma, backend-yokken süreç
+`malformed`), blob akışından ek okuma, kopma sonrası yeniden kaydolma, backend-yokken süreç
 çıkmaz + backend gelince kendiliğinden katılır.
 
-**Kalan (bilinçli):** `rag.index` hâlâ TİPLİ REDDEDER (ek dosya baytları
-`BlobRequest` + korpus yönlendirmesi ister, yazılmadı); backend'den OKUMA yolu
-(`ApiRequest`/`BlobRequest`) QUIC üzerinden bağlanmadı — bugünkü yetenekler
-istemediği için çağıranı olmayan yol yazılmadı. Ayrıntı:
+**Kalan (bilinçli):** backend'den genel OKUMA yolu (`ApiRequest`) QUIC üzerinden
+bağlanmadı — çağıranı yok. `rag.index` (2026-09-18) ek baytlarını `BlobRequest`
+ile okur ve notu okulun not indeksine yazar (süreç-içi). Ayrıntı:
 `docs/BACKEND-INTEGRATION.md` §4.2 + §7.
 
 ### BL-011 — Veli (parent) görünürlüğü kurulmadı

@@ -346,6 +346,23 @@ class BlobRequest:
         return d
 
 
+class BlobReadRefused(Exception):
+    """A blob read that did not deliver bytes.
+
+    The backend's own refusal vocabulary (`protocol.rs::BlobResponse::Err`:
+    `not_found` for a file it does not have, `forbidden` for one the named
+    reader may not open, `module_disabled`, `unavailable`) plus the codes this
+    side raises before/after the wire (`too_large`, `blob_unavailable`,
+    `bad_header`, `unsupported_type`, `parse_failed`). Typed, never a bare
+    `Exception`: one refused attachment must not abort a whole index.
+    """
+
+    def __init__(self, code: str, message: str) -> None:
+        super().__init__(f"{code}: {message}")
+        self.code = code
+        self.message = message
+
+
 class ApiError(Exception):
     """Köprü düzeyinde red (yol izinli değil, kullanıcı bilinmiyor).
 

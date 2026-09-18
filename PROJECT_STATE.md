@@ -101,7 +101,8 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
   `.github/workflows/main.yml` (elle tetiklenen VPS deploy). Backend bu HTTP'yi
   ÇAĞIRMAZ; gerçek entegrasyon QUIC `hab/2` köprüsüdür ve **taşıması yazıldı**
   (`src/bridge/transport.py`, ¶11.4) → `rag.chat` artık telden servis edilir;
-  `rag.index` hâlâ TİPLİ REDDEDER (`index_path_unwired`).
+  `rag.index` SUNULUR (2026-09-18): not + ekler indekslenir — ek baytları kendi
+  blob akışıyla okunur, parçalar okulun not indeksine yazılır.
   Kalıcı Qdrant hâlâ yok (in-memory indeks; #75/RISK-01).
 
 ## 4. Mimari Özet
@@ -114,8 +115,8 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
   `role`; `rag.chat`/`chat.reply`), **taşıma `src/bridge/transport.py`** (dial-out,
   `Hello`/`Greeting`, `Request` → dağıtıcı → `Response`, PING, üstel geri
   çekilmeyle sonsuz yeniden bağlanma; ¶11.4). Yani `rag.chat` telden servis
-  edilir; eksik kalan: `rag.index` (ek dosya baytları + korpus yönlendirmesi) ve
-  backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`, bugün çağıranı yok).
+  edilir; kalan: backend'den genel OKUMA yolu (`ApiRequest`, çağıranı yok) — `rag.index`
+  ek baytlarını `BlobRequest` ile OKUR (2026-09-18).
   Girdi/çıktı sözleşmesi + kiracılık: `docs/API-CONTRACT.md` §0.3,
   `docs/BACKEND-INTEGRATION.md` §4/§4.1/§4.2.
 
@@ -127,10 +128,10 @@ flowchart LR
   S[Öğrenci] -->|soru| FE[frontend] --> BR[backend QUIC hab/2] --> RAG --> BR --> FE --> S
 ```
 > Diyagram NİYETİ gösterir. 2026-09-17 durumu: `S → BR → RAG → BR → FE → S`
-> yolu ARTIK ÇALIŞIR (taşıma landı, `rag.chat` telden servis edilir). Kesikli
-> oklar hâlâ çizilmemiştir çünkü **korpus akışı yok**: `rag.index` tipli
-> reddediyor (dosya baytları `BlobRequest` ile okunmuyor), kalıcı Qdrant yok ve
-> öğretmenin yüklediği not otomatik indekslenmiyor.
+> yolu ARTIK ÇALIŞIR (taşıma landı, `rag.chat` telden servis edilir) ve korpus
+> akışı AÇILDI (2026-09-18): `rag.index` notu + eklerini indeksler (ek baytları
+> `BlobRequest` ile okunur). Kesikli oklar hâlâ çizilmemiştir çünkü **kalıcı
+> Qdrant yok**: not indeksi süreç-içidir, restart'ta kaybolur.
 
 ## 5. Teknik Kararlar
 - **D1** — RAG kaynağı sıfırdan yükleme alanı GEREKMEZ: `course-notes` (öğretmen→kayıtlı-öğrenci, dosya ekli) doğal korpustur. **kabul edildi** (backend/frontend main'de doğrulandı 2026-08-16). ⚠️ **Çelişki düzeltmesi:** bu oturumun erken RAG cevabı "böyle bir alan yok" idi; o cevap course-notes eklenmeden önceki duruma aitti ve **artık geçersiz** — doğrulanmış gerçek: alan VAR.
@@ -149,9 +150,9 @@ flowchart LR
 - **TASK-GOLDEN-APPROVE** — P1 — golden v1.1 (200 item) Kadir onayı → üretim ölçümü kilidi açılır. dep: Kadir. **BLOCKED**.
 - **TASK-CRISIS-LINE** — P1 — self-harm guardrail mesajına kriz-hattı no'su. dep: Kadir. **BLOCKED**.
 - **TASK-RAG-SERVICE** — P2 — HTTP servisi + `hab/2` dağıtıcısı + **QUIC taşıması
-  TAMAM** (2026-09-17, ¶11.4); kalan: `rag.index` yolunun yazılması (ek dosya
-  baytları + korpus yönlendirmesi) ve kalıcı Qdrant (sözleşme:
-  `docs/API-CONTRACT.md` §0.3). **KISMİ (eksik: index + kalıcı store)**.
+  TAMAM** (2026-09-17, ¶11.4); `rag.index` yolu da yazıldı (2026-09-18: blob okuma → parça → gömme → okulun not
+   indeksi); kalan: kalıcı Qdrant (sözleşme: `docs/API-CONTRACT.md` §0.3).
+   **KISMİ (eksik: kalıcı store)**.
 - **TASK-RAG-SCALE** — P3 — Faz 2 RAPTOR ölçek + çok-dersli korpus + özet-PDF/OCR (Faz 0.8). dep: Kadir yönü. **TODO**.
 - **TASK-REARCH** — P4 — derin yeniden-mimari (EB-KOS/layout/kalibrasyon) — "optimizasyon fazı", Kadir'e ayrıldı. **DEFERRED**.
 
@@ -345,11 +346,13 @@ transport-bağımsız dağıtıcıya verip tek `Response` yazar. Her hatada üst
 `docs/BACKEND-INTEGRATION.md` §4.2).
 
 **KAPSAM DIŞI (bilinçli, yalan söylenmiyor):**
-- `rag.index` hâlâ TİPLİ REDDEDER (`index_path_unwired`): dizin yazımı ek dosya
-  baytlarını (`BlobRequest`) ve korpus yönlendirmesini ister — yazılmadı.
-- Backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
-  bağlanmadı: bugünkü iki yetenek de onu istemiyor (`rag.chat` kapsamı
-  çerçevede), yani çağıranı olmayan bir yol yazılmadı.
+- `rag.index` SUNULUR (2026-09-18); iki dürüst sınır: (a) not indeksi SÜREÇ-İÇİDİR
+  (restart'ta kaybolur; not düzenlenince backend yeniden gönderir), (b) notun
+  (sınıf, ders) bilgisi telde YOKTUR — not kanalı OKUL süzgeçli, kasa süzgeci
+  değil (`src/index/notes.py` başlığı).
+- Backend'den genel OKUMA yolu (`ApiRequest`) QUIC üzerinden bağlanmadı:
+  `rag.chat` kapsamı çerçevede gelir, `rag.index` yalnız BLOB okur; çağıranı
+  olmayan yol yazılmadı.
 - **Canlı bir backend'e karşı uçtan uca koşum YAPILMADI** (bu oturumda ayakta
   backend yoktu): kanıt sahte sunucuyla alınan gerçek QUIC el sıkışmasıdır
   (kayıt, istek→dağıtım→cevap, tipli redler, kopma→yeniden kayıt,

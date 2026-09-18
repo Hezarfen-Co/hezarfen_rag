@@ -306,11 +306,22 @@ class Generator:
                  cost_recorder=None, role_ctx=None, response_cache=None,
                  safety_classifier=None, context_packing: bool = False,
                  context_max_tokens: int = 8000, context_reorder: bool = True,
-                 rewriter=None, corpus_version: str = "", require_role: bool = False):
+                 rewriter=None, corpus_version: str = "", require_role: bool = False,
+                 note_index=None):
         self.retriever = retriever
         self.reranker = reranker
-        self.chunks_by_id = chunks_by_id
-        self.span_meta = span_meta
+        # Not kanalı (`rag.index`'in yazdığı indeks, bkz. src/index/notes.py).
+        # `chunks_by_id`/`span_meta` KORPUS KURULURKEN donar; not satırları ise
+        # çalışma anında gelir ve değişir — bu yüzden ikisi de canlı indekse
+        # bakan bir sarmalayıcıdan geçer. None ise davranış ÖNCEKİYLE AYNIDIR.
+        self.note_index = note_index
+        if note_index is not None:
+            from ..index.notes import NoteAwareChunks
+            self.chunks_by_id = NoteAwareChunks(chunks_by_id, note_index.chunk)
+            self.span_meta = NoteAwareChunks(span_meta, note_index.span)
+        else:
+            self.chunks_by_id = chunks_by_id
+            self.span_meta = span_meta
         self.llm = llm if llm is not None else LLMClient()
         self.ders = ders
         # PROVİZYONEL eşik — golden set (Faz 1.8) sonrası kalibre edilecek.
@@ -499,6 +510,15 @@ class Generator:
                                            school=school)
         else:
             hits = self.retriever.retrieve(q, top_k=candidate_n, school=school)
+        # NOT KANALI (`rag.index`): okulun ders notları ders korpusunun YANINDA
+        # aranır. Okul süzgeci store'un kendisindedir; (sınıf, ders) kapısı not
+        # satırlarına UYGULANAMAZ çünkü telde notun sınıfı/dersi yoktur (bkz.
+        # `index/notes.py` başlığı — dürüst sınır).
+        if self.note_index is not None and school:
+            from ..index.notes import merge_hits
+            not_vurus = self.note_index.retrieve(q, self.retriever.embedder,
+                                                 school=school, top_k=candidate_n)
+            hits = merge_hits(hits, not_vurus, candidate_n)
         contexts = rerank_select(q, hits, self.chunks_by_id, self.reranker,
                                  top_n=top_n, candidate_n=candidate_n)
         _tr("retrieve", n_hits=len(hits), n_contexts=len(contexts),

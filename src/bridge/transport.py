@@ -15,17 +15,20 @@ Desen, kanıtlanmış bir istemciden alındı: `hezarfen_zeka/service/src/bridge
 ayrılır:
 
 1. **İş yönü.** ZEKA `insight.*` YAZAR (backend'in açtığı akışlara cevap verir
-   ve kendi okuma/yazma akışlarını açar). RAG yalnız `Request`leri CEVAPLAR:
-   bugün açtığı istemci akışı YOKTUR, çünkü `rag.chat` cevabını hesaplamak için
-   okul verisi istemez (kapsamı çerçeve taşır) ve `rag.index` TİPLİ REDDEDER.
+   ve kendi okuma/yazma akışlarını açar). RAG `Request`leri CEVAPLAR ve
+   `rag.index` için kendi İSTEMCİ akışlarını açar: her ek dosyanın baytları
+   ayrı bir çift yönlü akışta `BlobRequest` → `BlobResponse` başlığı → tam
+   `size` HAM bayt olarak okunur (`read_blob`; şekil `protocol.rs:25-31`).
+   `rag.chat` hâlâ okul verisi istemez: kapsamı çerçeve taşır.
 2. **Yetenekler.** İlan edilen küme `rag.chat` + `rag.index`tir
    (`ADVERTISED_CAPABILITIES`). Dispatcher `chat.reply`ı da KARŞILAR (backend
    yollarsa cevaplanır) ama onu İLAN ETMEYİZ: o yetenek chatbot'undur ve ilan
    etmek sohbet trafiğini RAG'e yönlendirmeye davetiye olurdu.
 3. **Redler tiplidir.** Kayıt reddi (`unauthorized`, `unsupported_protocol`)
    loglanır; süreç ÇIKMAZ.
-4. **`rag.index` bugün TİPLİ REDDEDER** (`dispatch.INDEX_UNWIRED`): taşıma onu
-   taşır ama "tamam" demez.
+4. **`rag.index` SUNULUR.** Gövdesi `bridge/dispatch.py` → `service/notes_index.py`;
+   blob akışını bu modül açar (`_LoopBlobReader` ile executor thread'inden
+   köprülenir) ve not indeksi süreç-içidir (`index/notes.py`).
 
 BOOT POLİTİKASI (uygulanan; testle sabitlenen):
   * **Backend YOKKEN süreç DÜŞMEZ.** `run_forever` hiçbir hatada çıkmaz; üstel
@@ -107,6 +110,12 @@ DEFAULT_BRIDGE_PORT = 8090
 DEFAULT_BACKEND_URL = "http://hezarfen_backend:7656"
 CERT_FETCH_TIMEOUT_SECS = 10.0
 """`GET /ai/certificate` için HTTP zaman aşımı."""
+BLOB_HEADER_TIMEOUT_SECS = 30.0
+"""Bir blob akışının BAŞLIK çerçevesi için bekleme: backend reddi ya da `ok`."""
+BLOB_BODY_TIMEOUT_SECS = 120.0
+"""Gövde için bekleme. backend gövdeyi 64 KiB'lik parçalarla akıtır
+(`server.rs::write_blob_body`) ve her yazıya kendi takılma sınırını koyar; bu
+sınır bizim tarafımızda, not indekslemesinin son tarihinin (120 s) altında."""
 
 
 def _env_str(name: str, default: str) -> str:
@@ -287,11 +296,12 @@ class BridgeTransport(QuicConnectionProtocol):
     """Tek bir QUIC bağlantısı: kontrol akışı + backend'in açtığı iş akışları."""
 
     def __init__(self, *args, settings: Settings, handler, capabilities,
-                 **kwargs) -> None:
+                 dispatcher=None, **kwargs) -> None:
         super().__init__(*args, **kwargs)
         self._settings = settings
         self._handler = handler
         self._capabilities = tuple(capabilities)
+        self._dispatcher = dispatcher
         self._streams: dict[int, FrameStream] = {}
         self._control_sid: int | None = None
         self._ping_uid = 0
@@ -348,9 +358,53 @@ class BridgeTransport(QuicConnectionProtocol):
         greeting = await asyncio.wait_for(stream.read_frame(),
                                           timeout=GREETING_TIMEOUT_SECS)
         self.worker_id = parse_greeting(greeting)
+        # Blob okuma yolu BURADA takılır: `rag.index` executor thread'inde koşar
+        # (PING'ler durmasın) ve o thread'den QUIC akışı açmak bu köprüyü
+        # (`run_coroutine_threadsafe`) gerektirir.
+        if self._dispatcher is not None:
+            self._dispatcher.blob_reader = _LoopBlobReader(self)
         log("info", f"kayıt başarılı: worker_id={self.worker_id} "
                     f"yetenekler={','.join(self._capabilities)}")
         return self.worker_id
+
+    # -- istemci başlatımlı akışlar: blob okuma --
+    async def read_blob(self, request: dict, *, max_bytes: int,
+                        header_timeout: float = BLOB_HEADER_TIMEOUT_SECS,
+                        body_timeout: float = BLOB_BODY_TIMEOUT_SECS):
+        """Bir ekin baytlarını KENDİ istemci akışında oku.
+
+        Şekil (`protocol.rs:25-31`): bir `BlobRequest` yaz, gönderme tarafını
+        bitir, BİR `BlobResponse` başlık çerçevesi oku; `ok` ise tam `size`
+        HAM bayt gelir (çerçeve DEĞİL — `AI_MAX_FRAME_BYTES` onları sınırlamaz),
+        sonra akış biter. Dönüş: `(header, bytes)`; red `BlobReadRefused`.
+        """
+        from .contract import BlobReadRefused
+        sid = self._quic.get_next_available_stream_id()
+        stream = FrameStream()
+        self._streams[sid] = stream
+        try:
+            self._send_frame(sid, request, end=True)
+            header = await asyncio.wait_for(stream.read_frame(), timeout=header_timeout)
+            if not isinstance(header, dict):
+                raise BlobReadRefused("bad_header", "blob başlığı nesne değil")
+            if header.get("status") != "ok":
+                raise BlobReadRefused(str(header.get("code") or "unknown"),
+                                      str(header.get("message") or ""))
+            size = int(header.get("size") or 0)
+            if size < 0 or size > max_bytes:
+                raise BlobReadRefused(
+                    "too_large", f"blob {size} bayt: sınır {max_bytes}")
+            body = await asyncio.wait_for(stream.read_exact(size),
+                                          timeout=body_timeout)
+            return header, body
+        except BlobReadRefused:
+            raise
+        except asyncio.TimeoutError as exc:
+            raise BlobReadRefused("timeout", "blob akışı zaman aşımına uğradı") from exc
+        except (BridgeFrameError, EOFError, ValueError) as exc:
+            raise BlobReadRefused("bad_header", str(exc)) from exc
+        finally:
+            self._streams.pop(sid, None)
 
     async def keepalive(self) -> None:
         """QUIC PING. Uygulama düzeyinde heartbeat ÇERÇEVESİ yoktur
@@ -425,6 +479,33 @@ class BridgeTransport(QuicConnectionProtocol):
             self._streams.pop(sid, None)
 
 
+class _LoopBlobReader:
+    """`rag.index`'in blob okuması için thread ↔ olay döngüsü köprüsü.
+
+    Boru hattı (chunk + gömme) executor thread'inde koşar; QUIC akışı ise olay
+    döngüsünde açılır. Executor thread'inden `run_coroutine_threadsafe` ile
+    geçilir ve SENKRON beklenir — `rag.index` zaten arka planda, kimse
+    bekleyemez.
+    """
+
+    def __init__(self, protocol) -> None:
+        self._protocol = protocol
+
+    def read(self, request: dict, *, max_bytes: int):
+        from concurrent.futures import TimeoutError as FutureTimeout
+        from .contract import BlobReadRefused
+        loop = getattr(self._protocol, "_loop", None)
+        if loop is None or loop.is_closed():
+            raise BlobReadRefused("unavailable", "köprü olay döngüsü yok/ kapalı")
+        future = asyncio.run_coroutine_threadsafe(
+            self._protocol.read_blob(request, max_bytes=max_bytes), loop)
+        try:
+            return future.result(
+                timeout=BLOB_HEADER_TIMEOUT_SECS + BLOB_BODY_TIMEOUT_SECS)
+        except FutureTimeout as exc:
+            raise BlobReadRefused("timeout", "blob okuması zaman aşımına uğradı") from exc
+
+
 def _err_frame(kaynak, code: str, message: str) -> dict:
     """Türsüz bir hata için küçük bir `Response{status:"err"}` çerçevesi.
 
@@ -447,7 +528,8 @@ async def run_once(settings: Settings, dispatcher: Dispatcher,
     log("info", f"{settings.host}:{settings.port} adresine bağlanılıyor "
                 f"(ALPN {AI_ALPN})")
     create = partial(BridgeTransport, settings=settings,
-                     handler=dispatcher.handle, capabilities=capabilities)
+                     handler=dispatcher.handle, dispatcher=dispatcher,
+                     capabilities=capabilities)
     async with connect(settings.host, settings.port, configuration=quic_config,
                        create_protocol=create) as connection:
         await connection.wait_connected()

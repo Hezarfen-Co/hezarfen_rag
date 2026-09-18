@@ -24,8 +24,8 @@ RAG servisi:
 > artık VAR: `src/bridge/transport.py` backend'e dial-out eder, `rag.chat` +
 > `rag.index` ilan eder ve gelen `Request`leri `bridge/dispatch.py`'ye verir
 > (§4.2). `src/bridge/client.py` ise hâlâ yalnız çerçeve kurma/çözme tarafıdır:
-> backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
-> bağlanmadı — bugünkü yetenekler onu istemiyor (§7).
+> backend'den BLOB okuma yolu da LANDI: `rag.index` her eki `BlobRequest` ile
+> okur (2026-09-18); yalnız genel `ApiRequest` yolunun çağıranı yok (§7).
 
 ## 2. Bugün ÇALIŞAN yol: `rag.index`
 
@@ -170,7 +170,7 @@ denemek bırakılmaz.
 **Testler (ağ yok, DB yok):** `tests/unit/test_bridge_transport.py` sahte bir
 QUIC sunucusuyla (`tests/unit/_fake_bridge.py`, aioquic, 127.0.0.1) kaydı,
 okul eko'sunu, tipli redleri (`invalid_school`, okulsuz çerçevede cevapsız akış,
-`index_path_unwired`), kopma sonrası yeniden kaydolmayı ve backend-yokken boot
+`malformed`), blob akışından ek okumayı, kopma sonrası yeniden kaydolmayı ve backend-yokken boot
 politikasını koşar.
 
 ## 5. Bu tarafta yapılanlar (bu depoda)
@@ -212,15 +212,14 @@ Birleştirilmeden `can_access(sinif=, ders=)` kurulamaz.
   artık telden servis edilir: kayıt, okul eko'su, tipli redler, kopma sonrası
   yeniden bağlanma ve backend-yokken boot politikası sahte bir QUIC sunucusuyla
   test edilir (`tests/unit/test_bridge_transport.py`).
-- **`rag.index` hâlâ SUNULMUYOR** — taşıma onu taşır ama dağıtıcı tipli
-  reddeder (`index_path_unwired`): dizin yazımı ek dosya BAYTLARINI
-  (`BlobRequest`) ve korpus yönlendirmesini ister. Sahte bir "tamam" demek
-  yerine reddedilir; backend başarısız indekslemede eski `rag_output` satırını
-  korur.
-- **Backend'den OKUMA yolu (`ApiRequest`/`BlobRequest`) QUIC üzerinden
-  bağlanmadı.** Bugünkü iki yetenek de onu istemez (`rag.chat`'in kapsamı
-  çerçevede gelir; `rag.index` sunulmuyor), bu yüzden çağıranı olmayan bir yol
-  yazılmadı. Öğrenci bağlamı (`BridgeReader`) gerektiren bir yetenek eklenirse
+- **`rag.index` SUNULUR (2026-09-18)** — gövde: `bridge/dispatch.py::_rag_index` →
+  `service/notes_index.py` (not + ekler → parça → gömme → okulun not indeksi). Ek
+  baytları `bridge/transport.py::read_blob` ile HAM okunur (başlık + tam `size`
+  bayt). Dürüst sınır: not indeksi süreç-içidir ve not kanalı OKUL süzgeçlidir,
+  kasa süzgeci değil (telde notun sınıfı/dersi yok).
+- **Backend'den genel OKUMA yolu (`ApiRequest`) QUIC üzerinden bağlanmadı.**
+  `rag.chat`'in kapsamı çerçevede gelir; `rag.index` yalnız BLOB okur
+  (`BlobRequest`). Çağıranı olmayan `ApiRequest` yolu yazılmadı. Öğrenci bağlamı (`BridgeReader`) gerektiren bir yetenek eklenirse
   `client.py`'ın senkron `(gönder, al)` arayüzü ile taşımanın async akışları
   arasında bir uyarlama gerekir.
 - `rag.chat` `asker_role` → `role.role` eşlemesi dağıtıcıda YAPILIYOR

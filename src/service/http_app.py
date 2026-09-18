@@ -613,6 +613,7 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     from ..ingest.canonical import build_canonical
     from ..chunk import chunk_document
     from ..index import DenseIndex, BM25Index
+    from ..index.notes import shared_note_index
     from ..retrieve import SparseIndex, HybridRetriever
     from ..generate import Generator, QuestionGenerator, build_span_meta
     from ..summarize.summarizer import Summarizer
@@ -715,7 +716,11 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     gen = Generator(retr, reranker, by_id, span_meta, ders=ders,
                     safety_classifier=LLMSafetyClassifier(), context_packing=True,
                     corpus_version=cv, require_role=True,   # STRICT: rolsüz istek fail-closed
-                    response_cache=response_cache, rewriter=rewriter)
+                    response_cache=response_cache, rewriter=rewriter,
+                    # Ders notları (`rag.index`) bu korpusun YANINDA aranır:
+                    # süreç-içi tek indeks, çünkü `rag.index` korpus nesnesine
+                    # değil okula yazar (bkz. src/index/notes.py).
+                    note_index=shared_note_index())
     return RagService(gen, doc=doc, summarizer=Summarizer(),
                       question_gen=QuestionGenerator(), ders=ders, school=sahip)
 

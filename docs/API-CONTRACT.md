@@ -82,7 +82,8 @@ okulsuz okur hiçbir şey görmez.
 testlidir (okul eko'su, yetenek eşlemesi, `asker_role` → `role`). QUIC taşıması
 (`bridge/transport.py`) 2026-09-17'de eklendi: dial-out + kayıt + gelen
 `Request`lerin dağıtıcıya verilmesi + yeniden bağlanma. `rag.chat` böylece
-telden servis edilebilir; `rag.index` hâlâ TİPLİ REDDEDER (sunulmuyor).
+telden servis edilebilir; `rag.index` de SUNULUR (2026-09-18) — ek baytları
+`BlobRequest` ile okunur, cevap `{course_note, chunks, files[], failed[], summary}`.
 HTTP yüzeyi yerel koşum/ölçüm için durur; backend onu ÇAĞIRMAZ.
 
 ## 0. Sorumluluk sınırı — kim neyi yapar (#87, 2026-09-12)
