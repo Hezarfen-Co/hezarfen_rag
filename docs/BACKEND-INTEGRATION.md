@@ -217,6 +217,12 @@ Birleştirilmeden `can_access(sinif=, ders=)` kurulamaz.
   baytları `bridge/transport.py::read_blob` ile HAM okunur (başlık + tam `size`
   bayt). Dürüst sınır: not indeksi süreç-içidir ve not kanalı OKUL süzgeçlidir,
   kasa süzgeci değil (telde notun sınıfı/dersi yok).
+  **Cevap artık metnin KENDİSİNİ de taşır (2026-09-18):** `passages` — indekslenen
+  ÇOCUK parçalar (`chunk_id`, `doc_id`, `text`, `page_start`, `page_end`), yani
+  "18 metin parçası" diyen panel SAYInın yanında ne çıkarıldığını da gösterebilir.
+  `passages_truncated`, liste kırpıldıysa `True`'dur; `chunks` KIRPILMAZ (indekse
+  yazılan toplam parça sayısı olarak kalır, `passages` uzunluğu değildir). Sözleşme:
+  `API-CONTRACT.md` §0.1.
 - **Backend'den genel OKUMA yolu (`ApiRequest`) QUIC üzerinden bağlanmadı.**
   `rag.chat`'in kapsamı çerçevede gelir; `rag.index` yalnız BLOB okur
   (`BlobRequest`). Çağıranı olmayan `ApiRequest` yolu yazılmadı. Öğrenci bağlamı (`BridgeReader`) gerektiren bir yetenek eklenirse

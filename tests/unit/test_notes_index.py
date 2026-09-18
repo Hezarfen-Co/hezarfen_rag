@@ -12,13 +12,16 @@ okuyucu baytları yerel sözlükten verir. Testin ölçtüğü iddialar:
 from __future__ import annotations
 
 import hashlib
+import json
 import unittest
 
 import numpy as np
 
 from src.bridge.contract import BlobReadRefused, RagIndexPayload, RagFile
 from src.index.notes import NoteIndex, doc_id_for_bytes
-from src.service.notes_index import index_course_note
+from src.service import notes_index as ni
+from src.service.notes_index import (MAX_PASSAGES, MAX_PASSAGES_BYTES,
+                                     index_course_note)
 
 
 class SahteEmbedder:
@@ -199,6 +202,103 @@ class BasarisizTasimaTestleri(unittest.TestCase):
             embedder=SahteEmbedder())
         self.assertEqual(cevap["failed"][0]["code"], "unsupported_type")
         self.assertEqual(cevap["files"], [])
+
+
+def _metin(bayt: int) -> str:
+    """~`bayt` baytlık TEK satır: bir paragraf = bir birim = bir çocuk parça.
+
+    `kelime ` 7 bayt; `CHILD_FLUSH`=250 token ≈ 178 kelime, yani 200 kelimelik
+    bir paragraf tek başına çocuğu kapatır → paragraf sayısı = parça sayısı.
+    """
+    return "kelime " * max(1, bayt // 7)
+
+
+class MetinParcalariTestleri(unittest.TestCase):
+    """`passages` — indekslenen METİN geri dönüyor mu (yalnız sayı değil).
+
+    Sözleşme (backend ve frontend bu anahtarlara karşı kod yazıyor): her satır
+    `chunk_id`, `doc_id`, `text`, `page_start`, `page_end` taşır; `text`
+    indekste duranın BİREBİR kendisidir (kısaltmak UI'ın işi); iki tavandan
+    (50 satır / cevabın tamamı 512 KB) hangisi önce dolarsa liste orada kesilir
+    ve `passages_truncated` `True` olur. `chunks` KIRPILMAZ — o, indekse yazılan
+    toplam parça sayısıdır.
+    """
+
+    def setUp(self) -> None:
+        self.index = NoteIndex()
+        self.embedder = SahteEmbedder()
+
+    def _indeksle(self, **ustune):
+        return index_course_note(_payload(**ustune), school="okul-a",
+                                 note_index=self.index, embedder=self.embedder)
+
+    def test_kucuk_not_butun_parcalari_birebir_tasir(self):
+        cevap = self._indeksle(content="Birinci paragraf.\nİkinci paragraf.")
+        self.assertFalse(cevap["passages_truncated"])
+        self.assertEqual(len(cevap["passages"]), cevap["chunks"])
+        # Satır, indeksteki parçanın AYNISI: id, doc_id, sayfalar, metin.
+        for satir in cevap["passages"]:
+            parca = self.index.chunk(satir["chunk_id"])
+            self.assertIsNotNone(parca, "chunk_id indekste bulunmalı")
+            self.assertEqual(satir["text"], parca.text)
+            self.assertEqual(satir["doc_id"], parca.doc_id)
+            self.assertEqual((satir["page_start"], satir["page_end"]),
+                             (parca.page_start, parca.page_end))
+        # Not metni: not KAPSAMINDA bir id (iki not aynı PDF'i paylaşabilir).
+        self.assertEqual(cevap["passages"][0]["chunk_id"], "01NOTE:01NOTE:c0")
+        # `chunks` hâlâ indeksin TAM sayısı (bu testte tek satır).
+        self.assertEqual(cevap["chunks"], self.index.stats()["okul-a"])
+        self.assertIn("İkinci paragraf.", cevap["passages"][0]["text"])
+
+    def test_parca_sayisi_tavani_tam_bossa_kirpilmadi_der(self):
+        """Sınır: tam 50 parça → hepsi döner ve bayrak `False` kalır."""
+        cevap = self._indeksle(content="\n".join(_metin(1400) for _ in range(MAX_PASSAGES)))
+        self.assertEqual(cevap["chunks"], MAX_PASSAGES)
+        self.assertEqual(len(cevap["passages"]), MAX_PASSAGES)
+        self.assertFalse(cevap["passages_truncated"])
+
+    def test_parca_sayisi_tavani_dolunca_kirpilir_ama_sayi_tam_kalir(self):
+        """60 parça: liste tavanda KESİLİR, `chunks` 60 demeye devam eder."""
+        cevap = self._indeksle(content="\n".join(_metin(1400) for _ in range(60)))
+        self.assertGreater(cevap["chunks"], MAX_PASSAGES)
+        self.assertEqual(len(cevap["passages"]), MAX_PASSAGES)
+        self.assertTrue(cevap["passages_truncated"])
+        # Sayı uydurulmadı: indekse gerçekten yazılan satır sayısı.
+        self.assertEqual(cevap["chunks"], self.index.stats()["okul-a"])
+
+    def test_cevabin_bayt_butcesi_asilmaz_kalan_parcalar_kirpilir(self):
+        """Tek DEV paragraf = tek dev parça; bayt tavanı burada bağlar."""
+        icerik = "\n".join(_metin(150 * 1024) for _ in range(4))
+        cevap = self._indeksle(content=icerik)
+        olcu = len(json.dumps(cevap, ensure_ascii=False,
+                              separators=(",", ":")).encode("utf-8"))
+        self.assertLessEqual(olcu, MAX_PASSAGES_BYTES)
+        self.assertTrue(cevap["passages_truncated"])
+        self.assertLess(len(cevap["passages"]), cevap["chunks"])
+        # Sığanlar tam metindir: kırpma METNİN İÇİNDEN değil, LİSTEDEN olur.
+        self.assertTrue(cevap["passages"])
+        self.assertGreater(len(cevap["passages"][0]["text"]), 100 * 1024)
+        # Tavan GERÇEKTEN bağlayan şey: bir satır daha konsa bütçe AŞILIRDI.
+        # (Yoksa "kırpıldı" bayrağı başka bir sebeple yanıyor olabilirdi.)
+        fazlasi = {**cevap,
+                   "passages": cevap["passages"] + [dict(cevap["passages"][0])]}
+        self.assertGreater(
+            len(json.dumps(fazlasi, ensure_ascii=False,
+                           separators=(",", ":")).encode("utf-8")),
+            MAX_PASSAGES_BYTES)
+
+    def test_parca_uretimi_coktugunde_indeks_yine_basarili(self):
+        """Parça listesi indeksin KENDİSİ değil: üretimi patlarsa cevap düşmez."""
+        from unittest import mock
+        with mock.patch.object(ni, "_passages",
+                               side_effect=RuntimeError("patladı")):
+            cevap = self._indeksle()
+        self.assertGreater(cevap["chunks"], 0)
+        self.assertEqual(cevap["passages"], [])
+        self.assertTrue(cevap["passages_truncated"])
+        self.assertIn("Hücre", cevap["summary"])
+        # İndeks GERÇEKTEN yazıldı — düşen bir cevap eski satırı kaybettirirdi.
+        self.assertEqual(self.index.stats()["okul-a"], cevap["chunks"])
 
 
 if __name__ == "__main__":

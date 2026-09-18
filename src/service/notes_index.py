@@ -15,7 +15,11 @@ WHAT ONE REQUEST DOES
   4. the note's rows replace whatever this note held before (one unit — a
      re-index cannot duplicate);
   5. the answer echoes `files[].id` so the backend can stamp the doc id it
-     minted onto the attachment row, and names any attachment that failed.
+     minted onto the attachment row, and names any attachment that failed;
+  6. the answer also carries `passages` — the indexed **child** chunks with
+     their full text — so the caller can show WHAT was extracted instead of
+     only how many pieces there are (`MAX_PASSAGES`/`MAX_PASSAGES_BYTES` cap
+     the list; `passages_truncated` says whether anything was left out).
 
 A FAILED ATTACHMENT DOES NOT ABORT THE INDEX. A blob read that refuses (missing
 file, permission, unknown type) is recorded and the rest — including the note
@@ -25,6 +29,7 @@ refusal must be typed rather than answered with an empty "ok".
 """
 from __future__ import annotations
 
+import json
 import os
 import tempfile
 
@@ -34,6 +39,53 @@ from ..index.notes import (MAX_NOTE_FILE_BYTES, doc_id_for_bytes,
 
 PDF_TYPES = ("application/pdf", "application/x-pdf")
 TEXT_TYPES = ("text/plain", "text/markdown", "text/csv", "application/json")
+
+MAX_PASSAGES = 50
+"""Cevaba konan en fazla parça SAYISI."""
+
+MAX_PASSAGES_BYTES = 512 * 1024
+"""Cevabın tamamı (bütün anahtarlar) için bayt bütçesi.
+
+Bayt tavanı Çerçeve tavanından (`AI_MAX_FRAME_BYTES` = 8 MiB) çok küçük
+seçildi: 8 MiB'lık bir cevap telden geçse bile `rag_output.payload` olarak
+saklanır ve panelde bir notu açmak ~8 MiB'lık bir JSON indirmek olurdu.
+Parçaların hepsi zaten indekste duruyor — cevaptaki liste bir ÖRNEK."""
+
+
+def _json_bytes(obj) -> int:
+    """Tel biçimi (`contract.encode_frame`) ile AYNI serileştirmenin boyutu."""
+    return len(json.dumps(obj, ensure_ascii=False,
+                          separators=(",", ":")).encode("utf-8"))
+
+
+def _passages(chunks, head: dict) -> tuple[list[dict], bool]:
+    """Çocuk chunk'lar → cevabın `passages` listesi + `passages_truncated`.
+
+    Sözleşme (backend/frontend bu anahtarlara göre kod yazıyor): her satır
+    `chunk_id`, `doc_id`, `text`, `page_start`, `page_end` taşır ve `text`
+    indekste duran metnin BİREBİR kendisidir (kısaltma UI'ın işi).
+
+    Bütçe cevabın TAMAMI içindir; `head` cevabın diğer anahtarlarıdır, yani
+    "512 KB" iddiası telden geçen şeyin kendisi hakkındadır. İki tavan da
+    (`MAX_PASSAGES`, `MAX_PASSAGES_BYTES`) aynı listeye bakar ve hangisi önce
+    dolarsa liste orada kesilir — kesildiyse bayrak `True`'dur.
+    """
+    out: list[dict] = []
+    used = _json_bytes({**head, "passages": [], "passages_truncated": False})
+    for chunk in chunks:
+        if len(out) >= MAX_PASSAGES:
+            return out, True
+        satir = {"chunk_id": chunk.chunk_id, "doc_id": chunk.doc_id,
+                 "text": chunk.text, "page_start": chunk.page_start,
+                 "page_end": chunk.page_end}
+        # JSON ilk satırdan sonra her satır için bir virgül harcar; listenin
+        # kendi köşeli parantezleri `used` içindeki boş listede ödendi.
+        boyut = _json_bytes(satir) + (1 if out else 0)
+        if used + boyut > MAX_PASSAGES_BYTES:
+            return out, True
+        out.append(satir)
+        used += boyut
+    return out, False
 
 
 def _is_pdf(name: str, content_type: str) -> bool:
@@ -175,13 +227,24 @@ def index_course_note(payload: RagIndexPayload, *, school: str,
         rows = [(chunk, vec, sp) for chunk, vec, sp in zip(chunks, vecs, sparse)]
     n = index.replace_note(school, payload.course_note, rows)
 
-    return {
+    head = {
         "course_note": payload.course_note,
         "chunks": n,
         "files": indexed_files,
         "failed": failed_files,
         "summary": _summary(payload.title, n, indexed_files, failed_files),
     }
+    # Parça listesi indeksin KENDİSİ değil, ondan bir örnektir: buradaki
+    # herhangi bir arıza cevabı düşürmez, yalnız listeyi boşaltır (`chunks`
+    # yine tam sayıyı söyler). Backend eski `rag_output` satırını ancak TÜM
+    # tur düşerse korur — parça üretimi yüzünden reddetmek, indekslenmiş bir
+    # notu kaybettirirdi.
+    try:
+        passages, truncated = _passages(chunks, head)
+    except Exception:                                   # noqa: BLE001
+        passages, truncated = [], True
+
+    return {**head, "passages": passages, "passages_truncated": truncated}
 
 
 def _read_file(meta, *, school: str, author: str, blob_reader):

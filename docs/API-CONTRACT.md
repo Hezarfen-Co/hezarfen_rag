@@ -21,6 +21,27 @@ backend `course_note_file.rag_doc_id`'yi yalnız bu eşleşmeden öğrenir — b
 yeniden indekslerken/silerken hangi korpusu hedefleyeceğini bilmeli (`bridge/contract.py`:
 `RagIndexReply`/`RagIndexReplyFile`).
 
+**`rag.index` yanıtı çıkarılan METNİ de taşır (2026-09-18, ek anahtar).**
+`chunks` yalnız bir SAYIdır; panel onunla "18 metin parçası" yazıp ne çıkarıldığını
+gösteremiyordu. Cevap artık iki **ek** anahtar taşır (eski tüketiciler etkilenmez):
+
+```jsonc
+{ "chunks": 18,                       // DEĞİŞMEDİ: indekse yazılan TOPLAM parça
+  "passages": [                        // indekslenen ÇOCUK parçalar (parent'lar
+    { "chunk_id": "<not>:<doc>:c0",    //  çocukların metnini kopyalar, listelenmez)
+      "doc_id": "<not kaydı|sha256>",  // notun kendisi → not anahtarı, ek → içerik sha
+      "text": "<parçanın TAM metni>",  // kısaltma YOK — kırpmak istemcinin işi
+      "page_start": 1, "page_end": 1 } ],
+  "passages_truncated": false }        // liste kırpıldıysa true
+```
+
+TAVANLAR: en fazla **50** satır **ve/veya** cevabın tamamı **512 KB** — hangisi önce
+dolarsa liste orada kesilir ve `passages_truncated` `true` olur. Tavan bir çerçeve
+tavanı değil, DEPOLAMA/kullanım tavanıdır: `AI_MAX_FRAME_BYTES` 8 MiB'dır ama cevap
+`rag_output.payload` olarak saklanır ve panelde bir notu açmak o kadar JSON indirmek
+olurdu. Parça üretimi **hiçbir zaman** indekslemeyi düşürmez: bir arıza olursa cevap
+yine `status: ok` döner, `passages: []` + `passages_truncated: true` ile.
+
 **`rag.chat` kapsamı (sınıf, ders) ÇİFT listesidir.** Eski `role.sinif` +
 `role.ders_list` biçimi bir KARTEZYEN ÇARPIM ifade eder (`sinif="10"` +
 `ders_list=["biyoloji","satranç"]` → "10-biyoloji **VE** 10-satranç"); oysa gerçek
