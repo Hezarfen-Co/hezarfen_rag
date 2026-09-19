@@ -81,6 +81,35 @@ def _ayarlar(bridge: FakeBridge, *, port: int | None = None, **ustune) -> Settin
     return Settings(**deger)
 
 
+#: İptalden sonra görevin bitmesi için üst sınır. Taşıma iptali YUTARSA
+#: görev `wait_closed()`ta asılı kalır (3.11 `asyncio.wait_for`ının iptal
+#: yutması — `transport.register`); o durumda test ASILI KALMAZ, ADIYLA düşer.
+KOPRU_IPTAL_TIMEOUT_SECS = 15.0
+
+
+async def _iptal_et_ve_bekle(gorev) -> None:
+    """`cancel()` + iptalin GERÇEKTEN işlemesini SINIRLI bekle (YOKLAMA).
+
+    Sınırsız `await gorev` bir kilitlenmeyi CI'da yalnız faulthandler'ın
+    zaman aşımıyla görünür kılar. Doğrudan/`asyncio.timeout` içinde beklemek
+    de YETMEZ: zaman aşımının iptali görevi de çözer, yani YUTULAN iptal
+    görünmez kalır (ölçüldü: 15 sn bekleyip test yine PASS etti). Bu yüzden
+    görev YOKLANIR; süre dolarsa adıyla bir `AssertionError` çıkar — CI'ın
+    zaman aşımı katmanı yerinde kalır, bu yalnız iptalin işlediğini ölçer."""
+    gorev.cancel()
+    loop = asyncio.get_running_loop()
+    deadline = loop.time() + KOPRU_IPTAL_TIMEOUT_SECS
+    while not gorev.done():
+        if loop.time() >= deadline:
+            raise AssertionError("köprü görevi iptalden sonra bitmedi: "
+                                 f"taşıma iptali YUTMUŞ (done={gorev.done()})")
+        await asyncio.sleep(0.05)
+    if not gorev.cancelled():
+        # İptal dışındaki sonuç GİZLENMEZ: teardown'da bir hata varsa burada
+        # yükselir (eski `await gorev` yalnız CancelledError'ı yutardı).
+        gorev.result()
+
+
 @contextlib.asynccontextmanager
 async def _calisan_kopru(bridge: FakeBridge, servis: _SahteServis, *,
                          indexer=None, **ustune):
@@ -90,9 +119,7 @@ async def _calisan_kopru(bridge: FakeBridge, servis: _SahteServis, *,
     try:
         yield gorev
     finally:
-        gorev.cancel()
-        with contextlib.suppress(asyncio.CancelledError):
-            await gorev
+        await _iptal_et_ve_bekle(gorev)
         assert gorev.done()
 
 
@@ -375,9 +402,7 @@ class KopruTasimaTestleri(unittest.TestCase):
                 await asyncio.sleep(0.3)
                 self.assertFalse(ilk.done(), "erişilemeyen backend'de süreç ÇIKTI")
             finally:
-                ilk.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await ilk
+                await _iptal_et_ve_bekle(ilk)
 
             # (b) Sertifika çekilebiliyor, QUIC YOK (gerçek bir yeniden
             # başlatmanın ilk anı) → bekle, backend gelince katıl.
@@ -397,9 +422,7 @@ class KopruTasimaTestleri(unittest.TestCase):
                                           {"message": "x", "asker_role": "student"})
                 self.assertEqual(cevap["status"], "ok")
             finally:
-                gorev.cancel()
-                with contextlib.suppress(asyncio.CancelledError):
-                    await gorev
+                await _iptal_et_ve_bekle(gorev)
                 await bridge.stop()
 
         asyncio.run(senaryo())
@@ -427,9 +450,7 @@ class KopruTasimaTestleri(unittest.TestCase):
                                      "yanlış parmak iziyle BAĞLANDI")
                     self.assertFalse(gorev.done(), "pin uyuşmazlığında süreç ÇIKTI")
                 finally:
-                    gorev.cancel()
-                    with contextlib.suppress(asyncio.CancelledError):
-                        await gorev
+                    await _iptal_et_ve_bekle(gorev)
                 async with _calisan_kopru(
                         bridge, _SahteServis(),
                         tls_fingerprint=bridge.certificate.fingerprint):

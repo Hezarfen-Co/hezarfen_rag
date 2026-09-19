@@ -297,7 +297,12 @@ def create_app(service, *, service_token: str | None = None,
         rid = request.headers.get("X-Request-Id") or uuid.uuid4().hex[:16]
         try:
             if deadline > 0:
-                resp = await asyncio.wait_for(call_next(request), timeout=deadline)
+                # `wait_for` DEĞİL `asyncio.timeout` — gerekçesi köprüde
+                # (`transport.register`): 3.11'in `wait_for`ı, içteki çağrı
+                # bittiği anda gelen DIŞ iptali (istemci koptu / sunucu
+                # kapanıyor) yutar. Burada da iptal aynen geçmeli.
+                async with asyncio.timeout(deadline):
+                    resp = await call_next(request)
             else:
                 resp = await call_next(request)
         except (asyncio.TimeoutError, TimeoutError):

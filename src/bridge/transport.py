@@ -358,8 +358,15 @@ class BridgeTransport(QuicConnectionProtocol):
         hello = build_hello(self._settings.service, self._capabilities,
                             self._settings.token, self._settings.max_concurrent)
         self._send_frame(sid, hello, end=False)
-        greeting = await asyncio.wait_for(stream.read_frame(),
-                                          timeout=GREETING_TIMEOUT_SECS)
+        # `wait_for` DEĞİL `asyncio.timeout`: 3.11'in `wait_for`ı, dışarıdan
+        # gelen iptal (CancelledError) tam içteki okuma BİTTİĞİ anda gelirse
+        # iptali YUTAR ve sonucu döndürür (`except CancelledError: if
+        # fut.done(): return fut.result()`, bkz. 3.11 `asyncio/tasks.py`;
+        # 3.12+ `wait_for`u bu dalı taşımaz). Yutulan iptal, iptal edilmiş
+        # sanılan `run_forever`ı `wait_closed()`ta asılı bırakır: bağlantı
+        # kapanmaz, görev hiç bitmez. `asyncio.timeout` iptali aynen geçirir.
+        async with asyncio.timeout(GREETING_TIMEOUT_SECS):
+            greeting = await stream.read_frame()
         self.worker_id = parse_greeting(greeting)
         # Blob okuma yolu BURADA takılır: `rag.index` executor thread'inde koşar
         # (PING'ler durmasın) ve o thread'den QUIC akışı açmak bu köprüyü
@@ -387,7 +394,11 @@ class BridgeTransport(QuicConnectionProtocol):
         self._streams[sid] = stream
         try:
             self._send_frame(sid, request, end=True)
-            header = await asyncio.wait_for(stream.read_frame(), timeout=header_timeout)
+            # `asyncio.timeout`, `wait_for` DEĞİL — gerekçe `register()`te:
+            # 3.11'in `wait_for`ı, içteki okuma bittiği anda gelen iptali
+            # yutar; bu yol da aynı sınıftandır.
+            async with asyncio.timeout(header_timeout):
+                header = await stream.read_frame()
             if not isinstance(header, dict):
                 raise BlobReadRefused("bad_header", "blob başlığı nesne değil")
             if header.get("status") != "ok":
@@ -397,8 +408,8 @@ class BridgeTransport(QuicConnectionProtocol):
             if size < 0 or size > max_bytes:
                 raise BlobReadRefused(
                     "too_large", f"blob {size} bayt: sınır {max_bytes}")
-            body = await asyncio.wait_for(stream.read_exact(size),
-                                          timeout=body_timeout)
+            async with asyncio.timeout(body_timeout):
+                body = await stream.read_exact(size)
             return header, body
         except BlobReadRefused:
             raise
