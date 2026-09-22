@@ -77,6 +77,32 @@ class ChatTests(unittest.TestCase):
         self.assertEqual(out["reason"], "empty_query")
         self.assertEqual(g.last_role, "UNSET")                    # generator ÇAĞRILMADI
 
+    def test_greeting_is_not_insufficient_data(self):
+        g = _GenStub(_ANS)
+        svc = RagService(g)
+        for q in ("selam", "merhaba"):
+            out = svc.chat({"query": q})
+            self.assertNotEqual(out["reason"], "insufficient_data", q)
+            self.assertFalse(out["abstained"], q)
+            self.assertEqual(out["reason"], "", q)
+            self.assertEqual(out["citations"], [], q)
+            self.assertEqual(out["cost_usd"], 0.0, q)
+            self.assertFalse(out["cache_hit"], q)
+            self.assertTrue(out["text"].strip(), q)
+            self.assertNotIn("bulunamadı", out["text"])
+        self.assertEqual(g.last_role, "UNSET")
+
+    def test_non_greeting_question_still_calls_generator(self):
+        g = _GenStub(_ANS)
+        out = RagService(g).chat({
+            "query": "Fotosentez nedir?",
+            "role": {"role": "student", "sinif": "12", "ders_list": ["biyoloji"]},
+        })
+        self.assertNotEqual(g.last_role, "UNSET")
+        self.assertEqual(g.last_role.role, Role.STUDENT)
+        self.assertEqual(out["text"], "Cevap [1].")
+        self.assertFalse(out["abstained"])
+
     def test_invalid_role_becomes_none(self):
         g = _GenStub(_ANS)
         RagService(g).chat({"query": "q", "role": {"role": "hacker"}})

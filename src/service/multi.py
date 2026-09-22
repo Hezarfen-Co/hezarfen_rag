@@ -415,6 +415,13 @@ class MultiCorpusService:
         return {**ortak, "items": [], "span_ids": [], "pages": []}
 
     def chat(self, req: dict) -> dict:
+        # Same gate as RagService.chat. Routing first would turn "selam" into
+        # no_corpus when the asker has no pair, which is the admin study bug.
+        from .handler import sohbet_reply
+        query = (req.get("query") or "").strip()
+        hit = sohbet_reply(query) if query else None
+        if hit is not None:
+            return hit
         svc, sebep = self._route(req)
         return svc.chat(req) if svc is not None else self._refused(sebep, "chat")
 

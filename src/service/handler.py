@@ -14,6 +14,7 @@ from ..observability.trace import RequestTrace, redact, write_trace
 from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
 from ..guard.tenant import TenantError, normalize_school
+from ..understand import Intent, analyze
 
 
 def scope_pairs(scope) -> list:
@@ -126,6 +127,17 @@ SCOPE_TEXT = ("Seçtiğin bölüm bir seferde özetlenemeyecek kadar geniş. "
               "Daha dar bir aralık seçer misin?")
 TENANT_TEXT = ("Bu istek bir okula bağlanamadı; kaynaklar açılamıyor. Lütfen "
                "tekrar dene ya da öğretmenine haber ver.")
+GREETING_TEXT = "Merhaba! Dersle ilgili bir sorun varsa sorabilirsin."
+
+
+def sohbet_reply(query: str) -> dict | None:
+    """A greeting is not a missing source. None means the caller should retrieve."""
+    analysis = analyze(query)
+    if analysis.is_out_of_scope and analysis.intent == Intent.SOHBET:
+        return {"text": GREETING_TEXT, "abstained": False, "reason": "",
+                "citations": [], "used_source_ids": [],
+                "invalid_citations": [], "cost_usd": 0.0, "cache_hit": False}
+    return None
 
 
 def _unknown_school(kind: str = "chat") -> dict:
@@ -215,6 +227,11 @@ class RagService:
         if not query:
             return {"text": "", "abstained": True, "reason": "empty_query",
                     "citations": [], "used_source_ids": [], "cost_usd": 0.0, "cache_hit": False}
+        # Smalltalk is not a missing source. Answer it here so it never reaches
+        # retrieval or the insufficient_data gate.
+        hit = sohbet_reply(query)
+        if hit is not None:
+            return hit
         # KİRACILIK: okul istekten gelir ve burada doğrulanır. Geçersiz/ayrılmış
         # bir değer 500'e değil TİPLİ bir redde düşmelidir (bkz. guard/tenant.py);
         # doğrulanmış değer aşağıya (retrieval + cache anahtarı) geçer.

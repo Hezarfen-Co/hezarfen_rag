@@ -70,6 +70,17 @@ def _svc(specs=("10/biyoloji", "10/kimya", "10/fizik"), gecikme=0.0,
     return s
 
 
+
+class GreetingRouteTests(unittest.TestCase):
+    def test_greeting_is_not_a_missing_corpus(self):
+        s = _svc()
+        out = s.chat({"query": "selam", "school": _OKUL,
+                      "role": {"role": "admin"}, "scope": []})
+        self.assertFalse(out["abstained"])
+        self.assertNotEqual(out["reason"], "no_corpus")
+        self.assertNotIn("bulunamadı", out["text"])
+        self.assertEqual(s.registry.keys(), [])
+
 def _bekle(s, sinif, ders, timeout=5.0):
     """Arka plan korpus kurulumunun bitmesini bekler.
 
