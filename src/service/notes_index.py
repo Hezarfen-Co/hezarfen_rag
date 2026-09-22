@@ -251,7 +251,7 @@ def _read_file(meta, *, school: str, author: str, blob_reader):
     """One attachment's bytes over its own blob stream.
 
     The request shape is the bridge's (`protocol.rs::BlobRequest`): the file's
-    record id, the school slug, and the note's author as `on_behalf_of` — the
+    record id, the school uuid, and the note's author as `on_behalf_of` — the
     `ai` principal can view no course, so a read as itself always earns
     `forbidden`.
     """

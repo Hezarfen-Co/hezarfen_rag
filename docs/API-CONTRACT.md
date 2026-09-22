@@ -80,17 +80,17 @@ hizmet eder; bir okula sabitlenmiş bir servis "her müşteri için bir kez
 
 | katman | kural | yer |
 |---|---|---|
-| Tel çerçevesi | `Request.school` ZORUNLU; yoksa `malformed` (akış düşer, cevap yazılmaz); geçersiz slug → tipli `invalid_school`; **her** `Response` okulu AYNEN eko eder | `bridge/contract.py` (`BridgeRequest.from_wire`, `BridgeResponse`), `bridge/dispatch.py` |
+| Tel çerçevesi | `Request.school` ZORUNLU (değer: tireli uuid); yoksa `malformed` (akış düşer, cevap yazılmaz); geçersiz okul belirteci → tipli `invalid_school`; **her** `Response` okulu AYNEN eko eder | `bridge/contract.py` (`BridgeRequest.from_wire`, `BridgeResponse`), `bridge/dispatch.py` |
 | İçerik | Damgasız (okulsuz) satır ERİŞİLEMEZ — "paylaşılan/public" bir boyut YOKTUR; eski satırlar taşınmaz, kaynaktan yeniden indekslenir (VPS verisi tek kullanımlık) | `guard/tenant.py`: `content_visible`, `visible_owners`, `require_owner` |
 | Korpus anahtarı | `(okul, sınıf, ders)` — iki okulun aynı dersi birbirini EZEMEZ; okulsuz istek `school_required`, geçersiz okul `unknown_school` | `service/registry.py::CorpusKey` + `resolve` |
-| Korpus keşfi | `RAG_CORPORA` OKUL ADI TAŞIMAZ (yalnız ders süzgeci); korpuslar diskten `data/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf` ile keşfedilir | `service/multi.py` (`school_from_book_path`, `discover_tenants_`) |
+| Korpus keşfi | `RAG_CORPORA` OKUL ADI TAŞIMAZ (yalnız ders süzgeci); korpuslar diskten `data/<okul-uuid>/<kasa>/<sınıf>/<ders>/kitap.pdf` ile keşfedilir (ilk segment okulun tireli uuid'sidir) | `service/multi.py` (`school_from_book_path`, `discover_tenants_`) |
 | Yazma | Yeni yazmada `require_owner` ZORUNLU; sahipsiz yazma bir HATA, "paylaşılan satır" değil | `guard/tenant.py`, `build_service(school=...)` (varsayılanı yok) |
 | Store okuma | Dense payload + BM25/sparse satır damgası zorunlu; aramalar okur okuluna **tam eşitlikle süzülür** (kırpma değil süzgeç) | `index/dense.py`, `index/lexical.py`, `retrieve/sparse.py`, `retrieve/hybrid.py` |
 | Cevap cache | Cache anahtarına `school` girer — iki okul aynı soruda hit PAYLAŞAMAZ | `cache/response_cache.py` |
 | HTTP yüzeyi | Gövdelerde `school` alanı vardır; üretimde onu BACKEND doldurur (servis backend'in arkasındadır). Okulsuz HTTP isteği de `school_required` ile reddedilir | `service/http_app.py` (`ChatRequest.school`) |
 
 **Tel biçiminde tipli okul redleri:** `malformed` (okul alanı yok — çerçeve
-düzeyi), `invalid_school` (slug biçimi geçersiz), `school_required` (istek
+düzeyi), `invalid_school` (okul belirteci biçimi geçersiz), `school_required` (istek
 okulsuz), `unknown_school` (okul çözülemedi/ayrılmış). Dördü de fail-closed'dır;
 hiçbiri "varsayılan okul"a düşmez, hiçbiri başka okulun satırını döndürmez.
 
@@ -315,7 +315,7 @@ biçiminde kurar (`rag.chat`in çift listesinden AYRI — handler.py:45-110).
 
 ## 3. Backend'in sorumlulukları (bu repo YAPMAZ)
 - **Auth + rol türetme:** oturumdan `role`/`sinif`/`ders_list` çıkar; istemciye güvenme.
-- **OKULU TAŞIMA (kiracılık):** her isteğe `school` (okul slug'ı) koy — hem HTTP
+- **OKULU TAŞIMA (kiracılık):** her isteğe `school` (okulun tireli uuid'si) koy — hem HTTP
   gövdesine hem hab/2 çerçevesine. Servis okul uydurmaz, env'den okul seçmez;
   okulsuz istek `school_required` ile reddedilir (bkz. §0.3).
 - **Kaynak yükleme/indeksleme tetikleme:** öğretmen kaynak yükleyince (course-notes) ingest

@@ -568,7 +568,7 @@ class BridgeRequest:
     """Backend'in AÇTIĞI akışta okunan tek çalışma birimi (`protocol.rs::Request`).
 
     Okul İKİ YÖNDE de taşınır: burada ZORUNLUDUR ve cevap onu AYNEN yazar.
-    Backend'in kendi kuralı: *"Every request frame names its school by slug,
+    Backend'in kendi kuralı: *"Every request frame names its school by its hyphenated uuid,
     and every answer echoes it … A frame without a `school` is `malformed` …
     there is no default and no fallback."* Bu yüzden `from_wire` okulsuz
     çerçeveyi reddeder — varsayılan bir okul YOKTUR (bkz. guard/tenant.py).

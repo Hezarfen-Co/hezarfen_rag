@@ -604,7 +604,7 @@ def build_service(book_path: str, *, school, sinif: str, ders: str,
     """Gerçek pipeline'ı kurup RagService döndürür (ağır: PDF parse + BGE modelleri +
     indeks). main()/üretim için. corpus_version cache anahtarına girer (#30).
 
-    `school` ZORUNLUDUR ve varsayılanı yoktur: korpusun SAHİBİdir (okul slug'ı;
+    `school` ZORUNLUDUR ve varsayılanı yoktur: korpusun SAHİBİdir (okulun tireli uuid'si;
     paylaşılan/"public" bir boyut YOKTUR). Sahipsiz kurulan bir korpus, bir
     okulun kitabını herkese açabilirdi (bkz. guard/tenant.py).
 
@@ -875,8 +875,8 @@ def create_app_with_warmup():
     # cevap veremeyen servis" (bkz. src/service/preflight.py).
     from .preflight import enforce as _preflight
     _preflight()
-    # Okul segmenti ZORUNLU (kiracılık): `<kök>/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`
-    # — düzeni taşımayan yol açık hata verir (multi.school_from_book_path).
+    # Okul segmenti ZORUNLU (kiracılık): `<kök>/<okul-uuid>/<kasa>/<sınıf>/<ders>/kitap.pdf`
+    # — düzeni taşımayan yol açık hata verir. Varsayılan yol demo fixture adıdır (okul-a).
     book = os.environ.get("BOOK_PATH", "data/okul-a/lise/12/biyoloji/kitap.pdf")
     sinif = os.environ.get("SINIF", "12")
     ders = os.environ.get("DERS", "biyoloji")

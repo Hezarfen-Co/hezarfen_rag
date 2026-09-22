@@ -62,10 +62,10 @@ x-rag-common: &rag-common
     # Laptopta dosya yokken aşağıdaki varsayılan geçerlidir.
     #
     # DİKKAT — OKUL SEGMENTİ ZORUNLU (kiracılık, b2ba173): düzen
-    # `<root>/<okul>/<kasa>/<sınıf>/<ders>/kitap.pdf`. Eski 4 parçalı
+    # `<root>/<okul-uuid>/<kasa>/<sınıf>/<ders>/kitap.pdf`. Eski 4 parçalı
     # varsayılan (`/app/data/lise/10/...`) sessizce bir okula atfetmek yerine
     # AÇIK hata verir (src/service/multi.py:65-81, test:
-    # tests/unit/test_tenant_multischool.py:271). Okul adı gerçek slug'dır.
+    # tests/unit/test_tenant_multischool.py:271). Canlı okul segmenti tireli uuid'dir; aşağıdaki varsayılan okul-a demo fixture adıdır.
     # Yol KONTEYNER içidir (korpus /app/data'ya bağlanır).
     BOOK_PATH: ${BOOK_PATH:-/app/data/okul-a/lise/10/biyoloji/kitap.pdf}
     SINIF: ${SINIF:-10}

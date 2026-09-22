@@ -141,7 +141,7 @@ def sohbet_reply(query: str) -> dict | None:
 
 
 def _unknown_school(kind: str = "chat") -> dict:
-    """Geçersiz okul slug'ı — chat/özet/soru için AYNI tipli ret.
+    """Geçersiz okul belirteci — chat/özet/soru için AYNI tipli ret.
 
     Kiracılık: okul ZORUNLU bir alandır; biçimi geçersizse istek işlenmez
     (fail-closed). `unknown_school` API-CONTRACT'ta belgeli rettir."""
@@ -215,7 +215,7 @@ class RagService:
         self.question_gen = question_gen
         self.ders = ders
         # Bu servis örneğinin korpus SAHİBİ (kiracılık boyutu): o okulun
-        # slug'ı; ZORUNLUDUR ve varsayılanı yoktur — paylaşılan/"public" bir
+        # tireli uuid'si; ZORUNLUDUR ve varsayılanı yoktur — paylaşılan/"public" bir
         # boyut YOKTUR (bkz. guard/tenant.py).
         # Kayıt defteri anahtarına girer; istek başına okur okulu ise
         # `chat()` içinde istekten okunur.

@@ -114,7 +114,7 @@ eşikleri model çağından kalmaydı. Ölçtüğümüz 7 GB'lık geliştirme su
 Kapıyı açmak için: repo secret'larına `SSH_PRIVATE_KEY`/`SSH_HOST`/`SSH_USER`
 ekle, sunucuya `~/hezarfen_rag/hezarfen_rag.env` (0600, şablon:
 `deploy/hezarfen_rag.env.example`) ve `~/hezarfen_rag/data/`
-(`<okul>/lise/<sınıf>/<ders>/kitap.pdf`) korpusunu koy, sonra
+(`<okul-uuid>/lise/<sınıf>/<ders>/kitap.pdf`, okul segmenti tireli uuid) korpusunu koy, sonra
 `workflow_dispatch` ile koş.
 
 ### GPU için tek seferlik ana makine kurulumu

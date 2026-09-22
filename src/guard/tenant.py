@@ -23,8 +23,8 @@ from __future__ import annotations
 
 import re
 
-# Backend'in okul slug'ı: küçük harf/rakam, tire. 64 karakter üstü bir slug
-# hiçbir zaman üretilmez (Postgres kimlik sınırı da 63).
+# Okul belirteci (tireli uuid; demo fixture adları da sığar): küçük harf/rakam,
+# tire, alt çizgi. 64 karakter üstü üretilmez (Postgres kimlik sınırı 63).
 _SCHOOL_RE = re.compile(r"^[a-z0-9][a-z0-9_-]{0,63}$")
 
 

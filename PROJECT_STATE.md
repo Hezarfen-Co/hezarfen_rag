@@ -192,6 +192,8 @@ flowchart LR
 `b2ba173` ile landi: korpus anahtarı `(okul, sınıf, ders)`, zorunlu yazma sahibi,
 tam-eşitlik okuma süzgeci, cevap-cache anahtarına okul, istek-taşınan okul ve
 transport-bağımsız `hab/2` dağıtıcısı (okul çerçevede zorunlu, cevapta eko).
+Okul değeri ve korpus dizininin ilk segmenti tireli uuid'dir (`data/<uuid>/...`).
+Repo varsayılanı `okul-a` demo fixture adıdır; canlı yol operatör env'indedir.
 Sözleşme tablosu: `docs/API-CONTRACT.md` §0.3 + `docs/BACKEND-INTEGRATION.md`
 §4.1. Süit: **1278 yeşil / 34 skip**.
 

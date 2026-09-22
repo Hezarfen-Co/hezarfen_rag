@@ -127,7 +127,7 @@ Bu depodaki uygulama (ayrıntılı tablo: `API-CONTRACT.md` §0.3):
 | tel öğesi | kural | kod |
 |---|---|---|
 | `Request.school` | ZORUNLU. Yoksa çerçeve `malformed` — akış DÜŞER, cevap yazılmaz (geri yazılacak bir okul yok) | `bridge/contract.py::BridgeRequest.from_wire` |
-| geçersiz slug | tipli `invalid_school` reddi (okulun VARLIĞI backend'in kararıdır; servis okul listesi icat etmez) | `bridge/dispatch.py::Dispatcher.dispatch` |
+| geçersiz okul belirteci | tipli `invalid_school` reddi (okulun VARLIĞI backend'in kararıdır; servis okul listesi icat etmez; filo değeri tireli uuid'dir) | `bridge/dispatch.py::Dispatcher.dispatch` |
 | `Response.school` | HER cevapta (ok/err) isteğin okulu AYNEN eko edilir | `bridge/contract.py::BridgeResponse` |
 | istek gövdesi | okul servis çağrısına konur; korpus anahtarı `(okul, sınıf, ders)`tir; okulsuz istek `school_required` | `service/registry.py::resolve`, `service/multi.py` |
 | okuma/yazma | okul-scoped ya da hiç: damgasız satır erişilemez, sahipsiz yazma hata, aramalar tam eşitlikle süzülür | `guard/tenant.py`, `index/*`, `retrieve/*` |
