@@ -68,7 +68,9 @@ def drop_reasoning_plan(text: str) -> str:
             continue
         if _CITED.search(line):
             kept.append(line)
-    return "\n".join(kept)
+    # An empty string is not storable. A plan with no cited sentence is an
+    # abstain, not a blank bubble the backend rejects as bad_reply.
+    return "\n".join(kept) if kept else ABSTAIN_SENTENCE
 
 
 

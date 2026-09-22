@@ -125,6 +125,11 @@ class ReasoningPlanTests(unittest.TestCase):
         text = "C# bir programlama dilidir. [1]"
         self.assertEqual(drop_reasoning_plan(text), text)
 
+    def test_a_plan_with_no_citation_is_the_abstain_sentence(self):
+        raw = "We need to answer the student's question.\nSource 1: notes.\n"
+        self.assertEqual(drop_reasoning_plan(raw), "Kaynaklarda bu bilgi bulunamadı.")
+
+
 
 if __name__ == "__main__":
     unittest.main()
