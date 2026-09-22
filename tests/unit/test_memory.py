@@ -62,6 +62,13 @@ class HistoryRewriteTests(unittest.TestCase):
         out = rw.rewrite(_HIST, "o enzim ne?")
         self.assertEqual(out, "DNA replikasyonu enzimi nedir?")
 
+    def test_reasoning_dump_keeps_the_original_query(self):
+        dump = ('We need to rewrite the follow-up question "c#" to be '
+                'self-contained. So we need to rewrite as a question.')
+        rw = HistoryAwareRewriter(_StubDS(dump), cost_recorder=_noop)
+        self.assertEqual(rw.rewrite(_HIST, "c#"), "c#")
+
+
     def test_cost_recorded(self):
         calls = []
         rw = HistoryAwareRewriter(_StubDS("yeniden yazıldı"),

@@ -570,11 +570,13 @@ class Generator:
         system, user = build_grounded_prompt(q, numbered_sources)
         result = self.llm.chat(user, system=system, temperature=temperature,
                                max_tokens=max_tokens)
+        from .prompt import drop_reasoning_plan
+        answer_text = drop_reasoning_plan(result.text)
 
         # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
         # #57: kaynak sayısı VERİLİR → `[0,1]` gibi veri gösterimleri atıf sanılıp
         # UYDURMA atıf üretmesin. Üç kova döner (bkz. generate/citations.py).
-        ham_ns, hayalet_ns, belirsiz_gruplar = parse_citations(result.text,
+        ham_ns, hayalet_ns, belirsiz_gruplar = parse_citations(answer_text,
                                                                len(numbered_sources))
         cited_ns = sorted(set(ham_ns))
         citations = []
@@ -593,7 +595,7 @@ class Generator:
         # #62: hayalet `[N]` kullanıcıya gösterilen metinden KIRPILIR — eskiden
         # metinde duruyor ama karşılığında tıklanabilir atıf kaydı olmuyordu.
         # Belirsiz gruplar (`[0,1]`) kırpılmaz: onlar cümlenin içeriği olabilir.
-        gosterim_metni = strip_phantom(result.text, invalid_citations)
+        gosterim_metni = strip_phantom(answer_text, invalid_citations)
 
         if invalid_citations and not citations:
             reason = "all_citations_phantom"    # [N] var ama HİÇBİRİ geçerli değil
@@ -658,7 +660,7 @@ class Generator:
 
         # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
         # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
-        if _looks_like_abstain(result.text) or (not citations and _is_effectively_empty(result.text)):
+        if _looks_like_abstain(answer_text) or (not citations and _is_effectively_empty(answer_text)):
             return GroundedAnswer(text=gosterim_metni, citations=citations,
                                   used_source_ids=used_source_ids,
                                   invalid_citations=invalid_citations, abstained=True,

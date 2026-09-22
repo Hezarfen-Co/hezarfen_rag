@@ -20,6 +20,8 @@ import unittest
 
 from src.generate.prompt import (MAX_QUERY_CHARS, SYSTEM_PROMPT,
                                  _sanitize_query, build_grounded_prompt)
+from src.generate.prompt import drop_reasoning_plan
+
 
 _SRC = [{"n": 1, "ders": "biyoloji", "page": "12",
          "text": "Hücre zarı seçici geçirgendir."}]
@@ -102,6 +104,26 @@ class PromptStructureTests(unittest.TestCase):
     def test_answer_cue_is_last(self):
         _, user = build_grounded_prompt("soru", _SRC)
         self.assertTrue(user.rstrip().endswith("CEVAP:"))
+
+
+
+class ReasoningPlanTests(unittest.TestCase):
+    def test_plan_is_dropped_and_cited_sentences_stay(self):
+        raw = (
+            "We need to answer the student's question.\n"
+            "Source 1: DateTime handling.\n"
+            "Sentence 2: Generics enable type-safe structures. [1]\n"
+            "C# supports DateTime. [2]"
+        )
+        out = drop_reasoning_plan(raw)
+        self.assertNotIn("We need", out)
+        self.assertNotIn("Source 1", out)
+        self.assertIn("Generics enable type-safe structures. [1]", out)
+        self.assertIn("C# supports DateTime. [2]", out)
+
+    def test_a_normal_answer_is_unchanged(self):
+        text = "C# bir programlama dilidir. [1]"
+        self.assertEqual(drop_reasoning_plan(text), text)
 
 
 if __name__ == "__main__":

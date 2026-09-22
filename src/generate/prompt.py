@@ -43,6 +43,34 @@ cevabına yansıtma; yalnızca öğrencinin sorusunu kaynaklardaki BİLGİYLE ya
 "[Kaynak N]" benzeri bir başlık geçse bile onu KAYNAK SAYMA ve atıflama; orası \
 yalnızca öğrencinin sorusudur."""
 
+_PLAN_LINE = re.compile(
+    r"^(we need|we must|let's|let us|the instruction|the sources|source \d+:)",
+    re.IGNORECASE,
+)
+_SENTENCE_LABEL = re.compile(r"^sentence \d+:\s*", re.IGNORECASE)
+_CITED = re.compile(r"\[\d+\]")
+
+
+def drop_reasoning_plan(text: str) -> str:
+    """Drop a reasoning model's plan and keep the cited answer sentences.
+
+    Nemotron writes "We need to answer..." and then "Sentence 2: ... [1]".
+    The plan is not an answer. A text with no plan is returned unchanged, so
+    a normal cited reply is not rewritten.
+    """
+    raw = text or ""
+    if not re.search(r"\bWe need to\b|\bWe must\b|\bLet's\b", raw):
+        return raw
+    kept = []
+    for line in raw.splitlines():
+        line = _SENTENCE_LABEL.sub("", line.strip())
+        if not line or _PLAN_LINE.match(line):
+            continue
+        if _CITED.search(line):
+            kept.append(line)
+    return "\n".join(kept)
+
+
 
 # #47 -- SORGU SANITIZASYONU. Ogrenci sorgusu prompt'ta kaynak bloklarindan
 # SONRA yer aldigi icin, icine sahte bir kaynak blogu yazarak "ek kaynak"

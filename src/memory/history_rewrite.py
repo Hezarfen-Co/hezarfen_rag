@@ -12,6 +12,7 @@ Sunucu-tarafı: geçmiş çağıran/auth katmanından gelir (istemci-header'a k�
 """
 from __future__ import annotations
 
+import re
 _SYSTEM = """Sana bir konuşma geçmişi ve bir TAKİP SORUSU verilecek. Takip sorusunu, \
 konuşma geçmişine bakmadan TEK BAŞINA anlaşılır, BAĞIMSIZ bir soruya çevir: zamirleri \
 ("bu", "o", "bunun") ve eksik/ima edilen özneleri geçmişten çözerek açık hale getir. \
@@ -29,6 +30,28 @@ def _fmt_history(history, max_turns: int) -> str:
         lines.append(f"{who}: {t.get('content', '')}")
     return "\n".join(lines)
 
+
+
+_PLAN_START = re.compile(
+    r"^(we need|we must|let's|let us|the user|the conversation|i need)\b",
+    re.IGNORECASE,
+)
+
+
+def accept_rewrite(rewritten: str, query: str) -> str:
+    """Keep a rewrite only when it is a question, not the model's plan.
+
+    A reasoning model ignores "return only the question" and writes a
+    chain-of-thought. Feeding that paragraph to retrieval misses the source
+    the original word would have hit. A plan, a newline, or a paragraph
+    longer than a question falls back to the original query.
+    """
+    if "\n" in rewritten or _PLAN_START.match(rewritten):
+        return query
+    one = " ".join(rewritten.split())
+    if not one or len(one) > 240:
+        return query
+    return one
 
 class HistoryAwareRewriter:
     """rewrite(history, query) -> bağımsız sorgu. Geçmiş yoksa sorgu aynen döner."""
@@ -68,4 +91,4 @@ class HistoryAwareRewriter:
                                f"q_hash={qh} rewritten_len={len(rewritten)}"))
         except Exception:
             pass
-        return rewritten
+        return accept_rewrite(rewritten, query)
