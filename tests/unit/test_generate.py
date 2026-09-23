@@ -325,7 +325,7 @@ class PostHocAbstainTests(unittest.TestCase):
 
         self.assertTrue(result.abstained)
         self.assertEqual(result.reason, "model_abstained")
-        self.assertEqual(llm.calls, 2)            # one re-ask, both abstain
+        self.assertEqual(llm.calls, 3)            # re-ask + finalize, all abstain
         self.assertIsNotNone(result.usage)
         self.assertGreater(result.cost_usd, 0.0)        # maliyet SIFIRLANMADI
 
@@ -393,19 +393,50 @@ class ModelAbstainReaskTests(unittest.TestCase):
         self.assertEqual(again.text, result.text)
         self.assertEqual(llm.calls, 2)
 
-    def test_two_abstains_return_model_abstained(self):
-        llm = _SequenceLLM([ABSTAIN_SENTENCE, ABSTAIN_SENTENCE])
+    def test_two_plans_then_finalize_cited_answer(self):
+        llm = _SequenceLLM([self._PLAN, self._PLAN, self._CITED])
+        gen = _make_generator(llm, scores={"c1": 0.9, "c2": 0.85})
+        gen.response_cache = ResponseCache(SQLiteCache(":memory:"))
+        gen.corpus_version = "v1"
+        buf = io.StringIO()
+        with redirect_stdout(buf):
+            result = gen.answer("DNA nedir?")
+        self.assertFalse(result.abstained)
+        self.assertEqual(result.reason, "")
+        self.assertIn("[1]", result.text)
+        self.assertEqual(result.citations[0]["chunk_id"], "c1")
+        self.assertEqual(llm.calls, 3)
+        self.assertEqual(llm.prompts[0], llm.prompts[1])
+        self.assertNotEqual(llm.prompts[2], llm.prompts[0])
+        self.assertIn("write the final answer now, cite [N]", llm.prompts[2])
+        self.assertIn("[Kaynak 1 |", llm.prompts[2])
+        self.assertIn("do not describe your plan", llm.prompts[2])
+        self.assertEqual(llm.temperatures, [0.2, 0.2, 0.0])
+        self.assertEqual(llm.max_tokens, [700, 700, 700])
+        log = buf.getvalue()
+        self.assertIn("re-asking the LLM once", log)
+        self.assertIn("finalizing once", log)
+        self.assertNotIn("returning abstain", log)
+        with redirect_stdout(io.StringIO()):
+            again = gen.answer("DNA nedir?")
+        self.assertTrue(again.cache_hit)
+        self.assertEqual(llm.calls, 3)
+
+    def test_three_abstains_return_model_abstained(self):
+        llm = _SequenceLLM([ABSTAIN_SENTENCE, ABSTAIN_SENTENCE, ABSTAIN_SENTENCE])
         gen = _make_generator(llm, scores={"c1": 0.9, "c2": 0.85})
         buf = io.StringIO()
         with redirect_stdout(buf):
             result = gen.answer("DNA nedir?")
         self.assertTrue(result.abstained)
         self.assertEqual(result.reason, "model_abstained")
-        self.assertEqual(llm.calls, 2)
+        self.assertEqual(llm.calls, 3)
         self.assertGreater(result.cost_usd, 0.0)
         log = buf.getvalue()
         self.assertIn("re-asking the LLM once", log)
         self.assertIn("re-ask also model_abstained (looks_like_abstain)", log)
+        self.assertIn("finalizing once", log)
+        self.assertIn("finalize also model_abstained (looks_like_abstain)", log)
 
     def test_insufficient_data_does_not_call_llm(self):
         llm = _SequenceLLM([self._PLAN, self._CITED])
@@ -1082,7 +1113,7 @@ class ResponseCacheIntegrationTests(unittest.TestCase):
         gen.answer("DNA nedir?")
         gen.answer("DNA nedir?")
 
-        self.assertEqual(llm.calls, 4, "model_abstained sonucu cache'lenmediği için her answer() bir re-ask daha yapar")
+        self.assertEqual(llm.calls, 6, "model_abstained sonucu cache'lenmediği için her answer() re-ask ve finalize yapar")
         self.assertEqual(gen.cache_hits, 0)
 
     def test_no_response_cache_behaves_exactly_as_before(self):

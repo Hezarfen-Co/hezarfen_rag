@@ -568,13 +568,30 @@ class Generator:
                                     "doc_id": getattr(ctx, "doc_id", "")}
 
         system, user = build_grounded_prompt(q, numbered_sources)
-        # One bounded re-ask when the post-hoc detector says model_abstained.
-        # Prompt and params stay the same; the sampler is what varies. A second
-        # abstain is returned exactly as before. insufficient_data never reaches
-        # this loop. ungrounded_no_citations is not retried.
-        for attempt in range(2):
-            result = self.llm.chat(user, system=system, temperature=temperature,
-                                   max_tokens=max_tokens)
+        # Two samples, then one finalize. The re-ask keeps the same grounded
+        # prompt and params; the sampler is what varies. If both samples are
+        # plan-only or abstain-shaped, one stricter finalize call asks for the
+        # cited answer instead of another roll. A third abstain is returned
+        # exactly as before. insufficient_data never reaches this loop.
+        # ungrounded_no_citations is not retried. Total LLM calls stay <= 3.
+        for attempt in range(3):
+            if attempt < 2:
+                chat_user, chat_system, chat_temp = user, system, temperature
+            else:
+                chat_user = (
+                    user
+                    + "\n\nFINALIZE: write the final answer now, cite [N]; "
+                    "do not describe your plan."
+                )
+                chat_system = (
+                    "Write the final answer now. Cite every claim with [N] "
+                    "from the numbered sources. Do not describe your plan. "
+                    "If the sources contain no relevant information, reply with exactly: "
+                    + ABSTAIN_SENTENCE
+                )
+                chat_temp = 0.0
+            result = self.llm.chat(chat_user, system=chat_system,
+                                   temperature=chat_temp, max_tokens=max_tokens)
             from .prompt import drop_reasoning_plan
             answer_text = drop_reasoning_plan(result.text)
 
@@ -677,8 +694,16 @@ class Generator:
                     _tr("decision", stage="abstain_reask", reason="model_abstained",
                         fired=fired)
                     continue
+                if attempt == 1:
+                    print(
+                        f"[generate] re-ask also model_abstained ({fired}); finalizing once",
+                        flush=True,
+                    )
+                    _tr("decision", stage="abstain_finalize", reason="model_abstained",
+                        fired=fired)
+                    continue
                 print(
-                    f"[generate] re-ask also model_abstained ({fired}); returning abstain",
+                    f"[generate] finalize also model_abstained ({fired}); returning abstain",
                     flush=True,
                 )
                 return GroundedAnswer(text=gosterim_metni, citations=citations,
