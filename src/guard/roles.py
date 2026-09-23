@@ -22,6 +22,8 @@ from dataclasses import dataclass, field
 from enum import Enum
 
 
+
+
 class Role(str, Enum):
     """Urun rol hiyerarsisi: parent < student < teacher < manager < admin.
 
@@ -89,7 +91,9 @@ def can_access(role_ctx: RoleContext | None, *, sinif: str, ders: str) -> bool:
         # kapsamli). ADMIN gibi kapsam-bagimsiz ALLOW; #43 ile eklendi.
         return True
     if role_ctx.scope_pairs is not None:
-        return any(_same_grade(p[0], sinif) and str(p[1]) == str(ders)
+        from ..bridge.subject_map import fold
+        return any(_same_grade(p[0], sinif) and
+                   fold(str(p[1])) == fold(str(ders))
                    for p in role_ctx.scope_pairs)
     if role_ctx.role in (Role.STUDENT, Role.TEACHER, Role.PARENT):
         if not role_ctx.ders_list:          # derse hiç atanmamış -> no-leak deny

@@ -183,6 +183,53 @@ class FoldInsensitiveScopeTests(unittest.TestCase):
         self.assertEqual(out["reason"], "role_required")
 
 
+class BackendScopePairsTests(unittest.TestCase):
+    """Backend-computed scope pairs grant only their exact class/course pair."""
+
+    def test_student_pair_grants_matching_corpus(self):
+        svc = _svc()
+        svc.doc.sinif = "10"
+        out = svc.summarize({
+            "scope": {"pages": [40], "sinif": "10", "ders": "Biyoloji"},
+            "role": {"role": "student"},
+            "scope_pairs": [["10", "Biyoloji"]],
+        })
+        self.assertFalse(out["abstained"])
+        self.assertTrue(svc.summarizer.called)
+
+    def test_teacher_pair_for_another_course_still_denied(self):
+        svc = _svc()
+        out = svc.summarize({
+            "scope": {"pages": [40], "sinif": "12", "ders": "biyoloji"},
+            "role": {"role": "teacher"},
+            "scope_pairs": [["12", "matematik"]],
+        })
+        self.assertTrue(out["abstained"])
+        self.assertEqual(out["reason"], "role_denied")
+        self.assertFalse(svc.summarizer.called)
+
+    def test_title_to_slug_fold_is_used_for_pair_grant(self):
+        svc = _svc()
+        svc.doc.ders = "cografya"
+        svc.ders = "cografya"
+        out = svc.generate_questions({
+            "scope": {"pages": [40], "sinif": "12", "ders": "Coğrafya"},
+            "role": {"role": "student"},
+            "scope_pairs": [["12", "Coğrafya"]],
+        })
+        self.assertFalse(out["abstained"])
+        self.assertTrue(svc.question_gen.called)
+
+    def test_missing_pairs_keeps_legacy_role_grant(self):
+        svc = _svc()
+        out = svc.summarize({
+            "scope": {"pages": [40], "sinif": "12", "ders": "biyoloji"},
+            "role": _ROL_12BIO,
+        })
+        self.assertFalse(out["abstained"])
+        self.assertTrue(svc.summarizer.called)
+
+
 class UnknownRoleFailClosedTests(unittest.TestCase):
     """SEC-02: rol çözülemezse erişim AÇILMAZ."""
 

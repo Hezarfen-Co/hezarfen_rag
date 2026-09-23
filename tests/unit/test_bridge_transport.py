@@ -223,7 +223,8 @@ class KopruTasimaTestleri(unittest.TestCase):
                         {"scope": {"sinif": "10", "ders": "biyoloji",
                                    "pages": [16, 17], "span_ids": [],
                                    "scope_label": "DNA"},
-                         "asker": "U-1", "asker_role": "teacher"})
+                         "asker": "U-1", "asker_role": "teacher",
+                         "scope_pairs": [["10", "Biyoloji"]]})
                     self.assertEqual(cevap["status"], "ok")
                     self.assertEqual(cevap["school"], "okul-a")
                     self.assertTrue(cevap["id"].startswith("FAKEREQ"))
@@ -238,6 +239,7 @@ class KopruTasimaTestleri(unittest.TestCase):
                     self.assertEqual(gelen["role"],
                                      {"role": "teacher", "sinif": "10",
                                       "ders_list": ["biyoloji"]})
+                    self.assertEqual(gelen["scope_pairs"], [["10", "Biyoloji"]])
                     self.assertEqual(gelen["scope"]["pages"], [16, 17])
                     self.assertEqual(gelen["scope"]["scope_label"], "DNA")
                     self.assertEqual(gelen["scope"]["sinif"], "10")

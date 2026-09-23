@@ -121,7 +121,7 @@ class RagOzetSoruTelBicimiTests(unittest.TestCase):
         self.assertEqual(p.to_wire(), {
             "scope": {"sinif": "10", "ders": "biyoloji", "pages": [16],
                       "span_ids": [], "scope_label": "DNA"},
-            "asker": "U-1", "asker_role": "teacher"})
+            "asker": "U-1", "asker_role": "teacher", "scope_pairs": []})
 
     def test_questions_request_defaults_and_keys(self):
         """`n`/`difficulty`nin varsayılanları vardır; eksik gövde

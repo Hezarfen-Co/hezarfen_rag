@@ -33,6 +33,9 @@ def scope_pairs(scope) -> list:
             if isinstance(p, dict) and p.get("ders"):
                 s = p.get("sinif")
                 out.append((str(s) if s not in (None, "") else None, str(p["ders"])))
+            elif isinstance(p, (list, tuple)) and len(p) == 2 and p[1]:
+                s = p[0]
+                out.append((str(s) if s not in (None, "") else None, str(p[1])))
             elif hasattr(p, "ders"):
                 out.append((p.sinif, p.ders))
         return out
@@ -90,12 +93,14 @@ def _role_ctx(role: dict | None, scope=None):
 # Çözüm: kapsamın sınıf/dersi YALNIZ sunucu gerçeğinden (`self.doc`) alınır;
 # istemcinin bildirdiği değer varsa DOĞRULAMA GİRDİSİ değil, sunucu gerçeğiyle
 # EŞLEŞME ŞARTI olarak kullanılır (uyuşmazsa red). Rol yoksa red.
-def _scope_denied(service, scope: dict, role: dict | None) -> str | None:
+def _scope_denied(service, scope: dict, role: dict | None,
+                  pairs=None) -> str | None:
     """Yetki reddi gerekçesi ya da None (erişim serbest).
 
-    Dönen değerler: "role_required" | "role_denied" | "scope_mismatch" | None
+    `pairs` backend'in hesapladığı grant listesidir. Boş veya eksik olması
+    legacy role kapsamını korur; istemcinin `scope` nesnesi grant değildir.
     """
-    role_ctx = _role_ctx(role)
+    role_ctx = _role_ctx(role, scope=pairs)
     if role_ctx is None:
         return "role_required"            # fail-CLOSED (#43)
     # SUNUCU GERÇEĞİ — istemci bunu değiştiremez (#42)
@@ -316,7 +321,8 @@ class RagService:
             return _unknown_school("ozet")
         # ERİŞİM YENİDEN DOĞRULAMA (API-CONTRACT §4) — #42/#43: karar YALNIZ
         # sunucu gerçeğinden; rol yoksa fail-closed.
-        denied = _scope_denied(self, scope, req.get("role"))
+        denied = _scope_denied(self, scope, req.get("role"),
+                               req.get("scope_pairs"))
         if denied:
             return {"text": "", "abstained": True, "reason": denied,
                     "citations": [], "scope_pages": [], "hierarchical": False, "cost_usd": 0.0}
@@ -364,7 +370,8 @@ class RagService:
             school = normalize_school(req.get("school"))
         except TenantError:
             return _unknown_school("soru")
-        denied = _scope_denied(self, scope, req.get("role"))
+        denied = _scope_denied(self, scope, req.get("role"),
+                               req.get("scope_pairs"))
         if denied:
             return {"items": [], "abstained": True, "reason": denied,
                     "span_ids": [], "pages": [], "cost_usd": 0.0}

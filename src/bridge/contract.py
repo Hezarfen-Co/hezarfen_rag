@@ -318,16 +318,21 @@ class RagSummarizeRequestPayload:
     scope: RagScope
     asker: str = ""
     asker_role: str = ""
+    # Backend'in çağıran için hesapladığı (sınıf, ders) grant'leri. Eski
+    # backend'ler bu alanı göndermez; boş liste legacy role alanlarına düşer.
+    scope_pairs: list = field(default_factory=list)
 
     @classmethod
     def from_wire(cls, d: dict) -> "RagSummarizeRequestPayload":
         return cls(scope=RagScope.from_wire(d.get("scope") or {}),
                    asker=str(d.get("asker") or ""),
-                   asker_role=str(d.get("asker_role") or ""))
+                   asker_role=str(d.get("asker_role") or ""),
+                   scope_pairs=list(d.get("scope_pairs") or []))
 
     def to_wire(self) -> dict:
         return {"scope": self.scope.to_wire(), "asker": self.asker,
-                "asker_role": self.asker_role}
+                "asker_role": self.asker_role,
+                "scope_pairs": list(self.scope_pairs)}
 
 
 @dataclass
@@ -339,19 +344,24 @@ class RagQuestionsRequestPayload:
     n: int = 5
     difficulty: str = "orta"
     seed_question: str | None = None
+    # Eski çağıranların konumsal `n`/`difficulty`/`seed_question` kullanımı
+    # bozulmasın; yeni alan sonradan eklenmiştir.
+    scope_pairs: list = field(default_factory=list)
 
     @classmethod
     def from_wire(cls, d: dict) -> "RagQuestionsRequestPayload":
         return cls(scope=RagScope.from_wire(d.get("scope") or {}),
                    asker=str(d.get("asker") or ""),
                    asker_role=str(d.get("asker_role") or ""),
+                   scope_pairs=list(d.get("scope_pairs") or []),
                    n=int(d.get("n") or 5),
                    difficulty=str(d.get("difficulty") or "orta"),
                    seed_question=d.get("seed_question"))
 
     def to_wire(self) -> dict:
         return {"scope": self.scope.to_wire(), "asker": self.asker,
-                "asker_role": self.asker_role, "n": self.n,
+                "asker_role": self.asker_role,
+                "scope_pairs": list(self.scope_pairs), "n": self.n,
                 "difficulty": self.difficulty, "seed_question": self.seed_question}
 
 

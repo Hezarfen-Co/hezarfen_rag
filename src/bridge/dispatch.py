@@ -157,10 +157,9 @@ class Dispatcher:
     def _govde_kapsam(self, req: BridgeRequest, okul: str) -> dict:
         """`rag.summarize`/`rag.questions` servis isteği — `rag.chat`ten AYRI.
 
-        NEDEN `role` `sinif`/`ders_list` taşır: servisin `_scope_denied`'ı bu
-        iki yolda `_role_ctx(role)`'ü ÇİFT listesi OLMADAN çağırır, yani
-        `can_access` doğrudan `role.sinif` + `role.ders_list` okur
-        (handler.py:45-110). `rag.chat` farklıdır (kapsamı çift listesidir).
+        `scope_pairs`, backend'in çağıran için hesapladığı grant listesidir ve
+        özet/soru yetki kapısına aynen aktarılır. Alanın boş olması eski
+        backend'lerin gönderdiği gövdelerde legacy role kapsamına düşürür.
         """
         from .contract import (RagQuestionsRequestPayload,
                                RagSummarizeRequestPayload)
@@ -174,6 +173,7 @@ class Dispatcher:
         return {"scope": p.scope.to_wire(), "user": p.asker or None,
                 "role": ({"role": p.asker_role, "sinif": p.scope.sinif,
                           "ders_list": [p.scope.ders]} if p.asker_role else None),
+                "scope_pairs": list(p.scope_pairs),
                 "school": okul, "deadline_ms": req.deadline_ms, **ek}
 
     def _rag_summarize(self, req: BridgeRequest, okul: str) -> dict:
