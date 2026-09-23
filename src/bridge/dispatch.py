@@ -170,11 +170,15 @@ class Dispatcher:
         else:
             p = RagSummarizeRequestPayload.from_wire(req.payload)
             ek = {}
-        return {"scope": p.scope.to_wire(), "user": p.asker or None,
-                "role": ({"role": p.asker_role, "sinif": p.scope.sinif,
-                          "ders_list": [p.scope.ders]} if p.asker_role else None),
-                "scope_pairs": list(p.scope_pairs),
-                "school": okul, "deadline_ms": req.deadline_ms, **ek}
+        govde = {"scope": p.scope.to_wire(), "user": p.asker or None,
+                 "role": ({"role": p.asker_role, "sinif": p.scope.sinif,
+                           "ders_list": [p.scope.ders]} if p.asker_role else None),
+                 "school": okul, "deadline_ms": req.deadline_ms, **ek}
+        # Preserve the old handler request shape for old backend frames that
+        # have no scope_pairs field; an explicit empty field still round-trips.
+        if "scope_pairs" in req.payload:
+            govde["scope_pairs"] = list(p.scope_pairs)
+        return govde
 
     def _rag_summarize(self, req: BridgeRequest, okul: str) -> dict:
         """`rag.summarize` → servis `summarize()` → backend'in `RagSummarizeReplyPayload`i."""
