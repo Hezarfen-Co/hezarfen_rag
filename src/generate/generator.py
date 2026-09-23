@@ -568,141 +568,161 @@ class Generator:
                                     "doc_id": getattr(ctx, "doc_id", "")}
 
         system, user = build_grounded_prompt(q, numbered_sources)
-        result = self.llm.chat(user, system=system, temperature=temperature,
-                               max_tokens=max_tokens)
-        from .prompt import drop_reasoning_plan
-        answer_text = drop_reasoning_plan(result.text)
+        # One bounded re-ask when the post-hoc detector says model_abstained.
+        # Prompt and params stay the same; the sampler is what varies. A second
+        # abstain is returned exactly as before. insufficient_data never reaches
+        # this loop. ungrounded_no_citations is not retried.
+        for attempt in range(2):
+            result = self.llm.chat(user, system=system, temperature=temperature,
+                                   max_tokens=max_tokens)
+            from .prompt import drop_reasoning_plan
+            answer_text = drop_reasoning_plan(result.text)
 
-        # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
-        # #57: kaynak sayısı VERİLİR → `[0,1]` gibi veri gösterimleri atıf sanılıp
-        # UYDURMA atıf üretmesin. Üç kova döner (bkz. generate/citations.py).
-        ham_ns, hayalet_ns, belirsiz_gruplar = parse_citations(answer_text,
-                                                               len(numbered_sources))
-        cited_ns = sorted(set(ham_ns))
-        citations = []
-        used_source_ids = []
-        invalid_citations = sorted(set(hayalet_ns))
-        for n in cited_ns:
-            src = source_lookup.get(n)
-            if src is None:                   # aralık denetimi sonrası olmamalı
-                invalid_citations.append(n)
-                continue
-            citations.append({"n": n, "chunk_id": src["chunk_id"],
-                              "span_ids": src["span_ids"], "pages": src["pages"],
-                              "ders": self.ders, "doc_id": src["doc_id"]})
-            used_source_ids.append(src["chunk_id"])
-        invalid_citations = sorted(set(invalid_citations))
-        # #62: hayalet `[N]` kullanıcıya gösterilen metinden KIRPILIR — eskiden
-        # metinde duruyor ama karşılığında tıklanabilir atıf kaydı olmuyordu.
-        # Belirsiz gruplar (`[0,1]`) kırpılmaz: onlar cümlenin içeriği olabilir.
-        gosterim_metni = strip_phantom(answer_text, invalid_citations)
+            # cevaptaki [N]/[N,M]/[N][M] atıflarını ayrıştır → gerçek kaynağa eşle (kaynak yer bulma)
+            # #57: kaynak sayısı VERİLİR → `[0,1]` gibi veri gösterimleri atıf sanılıp
+            # UYDURMA atıf üretmesin. Üç kova döner (bkz. generate/citations.py).
+            ham_ns, hayalet_ns, belirsiz_gruplar = parse_citations(answer_text,
+                                                                   len(numbered_sources))
+            cited_ns = sorted(set(ham_ns))
+            citations = []
+            used_source_ids = []
+            invalid_citations = sorted(set(hayalet_ns))
+            for n in cited_ns:
+                src = source_lookup.get(n)
+                if src is None:                   # aralık denetimi sonrası olmamalı
+                    invalid_citations.append(n)
+                    continue
+                citations.append({"n": n, "chunk_id": src["chunk_id"],
+                                  "span_ids": src["span_ids"], "pages": src["pages"],
+                                  "ders": self.ders, "doc_id": src["doc_id"]})
+                used_source_ids.append(src["chunk_id"])
+            invalid_citations = sorted(set(invalid_citations))
+            # #62: hayalet `[N]` kullanıcıya gösterilen metinden KIRPILIR — eskiden
+            # metinde duruyor ama karşılığında tıklanabilir atıf kaydı olmuyordu.
+            # Belirsiz gruplar (`[0,1]`) kırpılmaz: onlar cümlenin içeriği olabilir.
+            gosterim_metni = strip_phantom(answer_text, invalid_citations)
 
-        if invalid_citations and not citations:
-            reason = "all_citations_phantom"    # [N] var ama HİÇBİRİ geçerli değil
-        elif invalid_citations:
-            reason = "phantom_citation"         # bazıları geçerli, bazıları hayalet
-        else:
-            reason = ""
+            if invalid_citations and not citations:
+                reason = "all_citations_phantom"    # [N] var ama HİÇBİRİ geçerli değil
+            elif invalid_citations:
+                reason = "phantom_citation"         # bazıları geçerli, bazıları hayalet
+            else:
+                reason = ""
 
-        usd = pricing_cost_usd(result.model, result.usage)
-        # LLM GERÇEKTEN çağrıldı → maliyet gerçek; aşağıdaki post-hoc abstain kontrolü
-        # yalnız `abstained` bayrağını/`reason`'ı düzeltir, cost_usd'yi SIFIRLAMAZ.
-        self._record(module=self.module, model=result.model, usage=result.usage, items=1,
-                     config={"top_n": top_n, "candidate_n": candidate_n},
-                     note=f"grounded-answer: {len(citations)}/{len(contexts)} kaynak atıflandı")
+            usd = pricing_cost_usd(result.model, result.usage)
+            # LLM GERÇEKTEN çağrıldı → maliyet gerçek; aşağıdaki post-hoc abstain kontrolü
+            # yalnız `abstained` bayrağını/`reason`'ı düzeltir, cost_usd'yi SIFIRLAMAZ.
+            self._record(module=self.module, model=result.model, usage=result.usage, items=1,
+                         config={"top_n": top_n, "candidate_n": candidate_n},
+                         note=f"grounded-answer: {len(citations)}/{len(contexts)} kaynak atıflandı")
 
-        # GUARDRAIL (Faz 1.7b) — üretimden SONRA: girdi guard'ı geçse bile
-        # LLM'in ÜRETTİĞİ metin zararlı olabilir (ince ikinci savunma katmanı,
-        # bkz. src/guard/output_guard.py). LLM GERÇEKTEN çağrıldığı için
-        # usage/cost_usd GERÇEK kalır (sıfırlanmaz) — yalnız kullanıcıya
-        # gösterilecek metin + atıflar red mesajıyla değiştirilir.
-        output_verdict = check_output(result.text)
-        if output_verdict.action == "refuse":
-            return GroundedAnswer(text=output_verdict.message, citations=[],
-                                  used_source_ids=[], invalid_citations=[],
-                                  abstained=True, reason="guard_output",
-                                  usage=result.usage, cost_usd=usd,
-                                  latency_s=result.latency_s)
+            # GUARDRAIL (Faz 1.7b) — üretimden SONRA: girdi guard'ı geçse bile
+            # LLM'in ÜRETTİĞİ metin zararlı olabilir (ince ikinci savunma katmanı,
+            # bkz. src/guard/output_guard.py). LLM GERÇEKTEN çağrıldığı için
+            # usage/cost_usd GERÇEK kalır (sıfırlanmaz) — yalnız kullanıcıya
+            # gösterilecek metin + atıflar red mesajıyla değiştirilir.
+            output_verdict = check_output(result.text)
+            if output_verdict.action == "refuse":
+                return GroundedAnswer(text=output_verdict.message, citations=[],
+                                      used_source_ids=[], invalid_citations=[],
+                                      abstained=True, reason="guard_output",
+                                      usage=result.usage, cost_usd=usd,
+                                      latency_s=result.latency_s)
 
-        # #56: ATIF BÜTÜNLÜĞÜ. Ölçüm HER ZAMAN yapılır; politika env'den gelir.
-        kapsama = citation_coverage(gosterim_metni)
-        n_sent = kapsama["n_sentences"]
-        n_cited = kapsama["n_cited_sentences"]
-        dropped: list = []
-        if citations and SENTENCE_POLICY in ("trim", "abstain") and n_sent > n_cited:
-            if SENTENCE_POLICY == "abstain":
-                _tr("decision", stage="generate", abstained=True,
-                    reason="ungrounded_sentences", n_sentences=n_sent,
-                    n_cited_sentences=n_cited)
-                return GroundedAnswer(
-                    text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
-                    invalid_citations=invalid_citations, abstained=True,
-                    reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
-                    latency_s=result.latency_s, n_sentences=n_sent,
-                    n_cited_sentences=n_cited,
-                    dropped_sentences=kapsama["uncited_sentences"])
-            kirpilmis, dropped = drop_uncited(gosterim_metni)
-            if not kirpilmis.strip():
-                # Kırpma her şeyi götürdüyse sunulacak bir cevap kalmadı.
-                return GroundedAnswer(
-                    text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
-                    invalid_citations=invalid_citations, abstained=True,
-                    reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
-                    latency_s=result.latency_s, n_sentences=n_sent,
-                    n_cited_sentences=n_cited, dropped_sentences=dropped)
-            gosterim_metni = kirpilmis
-            # kırpma sonrası atıf listesini metinde GERÇEKTEN kalanlarla daralt
-            kalan_ns = set(parse_citation_ns(gosterim_metni, len(numbered_sources)))
-            citations = [c for c in citations if c["n"] in kalan_ns]
-            used_source_ids = [c["chunk_id"] for c in citations]
+            # #56: ATIF BÜTÜNLÜĞÜ. Ölçüm HER ZAMAN yapılır; politika env'den gelir.
             kapsama = citation_coverage(gosterim_metni)
-            n_sent, n_cited = kapsama["n_sentences"], kapsama["n_cited_sentences"]
+            n_sent = kapsama["n_sentences"]
+            n_cited = kapsama["n_cited_sentences"]
+            dropped: list = []
+            if citations and SENTENCE_POLICY in ("trim", "abstain") and n_sent > n_cited:
+                if SENTENCE_POLICY == "abstain":
+                    _tr("decision", stage="generate", abstained=True,
+                        reason="ungrounded_sentences", n_sentences=n_sent,
+                        n_cited_sentences=n_cited)
+                    return GroundedAnswer(
+                        text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                        invalid_citations=invalid_citations, abstained=True,
+                        reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
+                        latency_s=result.latency_s, n_sentences=n_sent,
+                        n_cited_sentences=n_cited,
+                        dropped_sentences=kapsama["uncited_sentences"])
+                kirpilmis, dropped = drop_uncited(gosterim_metni)
+                if not kirpilmis.strip():
+                    # Kırpma her şeyi götürdüyse sunulacak bir cevap kalmadı.
+                    return GroundedAnswer(
+                        text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                        invalid_citations=invalid_citations, abstained=True,
+                        reason="ungrounded_sentences", usage=result.usage, cost_usd=usd,
+                        latency_s=result.latency_s, n_sentences=n_sent,
+                        n_cited_sentences=n_cited, dropped_sentences=dropped)
+                gosterim_metni = kirpilmis
+                # kırpma sonrası atıf listesini metinde GERÇEKTEN kalanlarla daralt
+                kalan_ns = set(parse_citation_ns(gosterim_metni, len(numbered_sources)))
+                citations = [c for c in citations if c["n"] in kalan_ns]
+                used_source_ids = [c["chunk_id"] for c in citations]
+                kapsama = citation_coverage(gosterim_metni)
+                n_sent, n_cited = kapsama["n_sentences"], kapsama["n_cited_sentences"]
 
-        # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
-        # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
-        if _looks_like_abstain(answer_text) or (not citations and _is_effectively_empty(answer_text)):
-            return GroundedAnswer(text=gosterim_metni, citations=citations,
-                                  used_source_ids=used_source_ids,
-                                  invalid_citations=invalid_citations, abstained=True,
-                                  reason="model_abstained", usage=result.usage,
-                                  cost_usd=usd, latency_s=result.latency_s,
-                                  n_sentences=n_sent, n_cited_sentences=n_cited,
-                                  dropped_sentences=dropped)
-
-        # TEMELLENDİRME BÜTÜNLÜĞÜ (audit EXP-007 #C1): metin DOLU ama GEÇERLİ ATIF YOK
-        # (model [N] hiç emitmedi YA DA hepsi hayalet) → kaynağa bağlanamamış =
-        # temellendirilmemiş. Grounded RAG'de böyle bir cevabı kullanıcıya SUNMA;
-        # çekimser kal (kaynak-yok cümlesiyle). LLM çağrıldı → cost gerçek; CACHE'LENMEZ.
-        # Eskiden atıfsız-ama-dolu cevap "güvenli" sanılıp sunuluyordu.
-        if not citations:
-            r = "all_citations_phantom" if invalid_citations else "ungrounded_no_citations"
-            return GroundedAnswer(text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
-                                  invalid_citations=invalid_citations, abstained=True,
-                                  reason=r, usage=result.usage, cost_usd=usd,
-                                  latency_s=result.latency_s)
-
-        final_answer = GroundedAnswer(text=gosterim_metni, citations=citations,
+            # post-hoc abstain algılama: cevap kaynak-yok cümlesine çok yakın YA DA
+            # (geçerli atıf yok + cevap fiilen boş) → model aslında çekimser kaldı.
+            looks_abstain = _looks_like_abstain(answer_text)
+            empty_no_cite = not citations and _is_effectively_empty(answer_text)
+            if looks_abstain or empty_no_cite:
+                fired = "looks_like_abstain" if looks_abstain else "empty_no_citations"
+                if attempt == 0:
+                    print(
+                        f"[generate] model_abstained ({fired}); re-asking the LLM once",
+                        flush=True,
+                    )
+                    _tr("decision", stage="abstain_reask", reason="model_abstained",
+                        fired=fired)
+                    continue
+                print(
+                    f"[generate] re-ask also model_abstained ({fired}); returning abstain",
+                    flush=True,
+                )
+                return GroundedAnswer(text=gosterim_metni, citations=citations,
                                       used_source_ids=used_source_ids,
-                                      invalid_citations=invalid_citations, abstained=False,
-                                      reason=reason, usage=result.usage, cost_usd=usd,
-                                      latency_s=result.latency_s,
+                                      invalid_citations=invalid_citations, abstained=True,
+                                      reason="model_abstained", usage=result.usage,
+                                      cost_usd=usd, latency_s=result.latency_s,
                                       n_sentences=n_sent, n_cited_sentences=n_cited,
                                       dropped_sentences=dropped)
-        _tr("decision", stage="generate", abstained=False, reason=reason or "answer",
-            n_citations=len(citations), n_phantom=len(invalid_citations),
-            # #56: kapi A-03 bu ikisinden hesaplanir
-            n_sentences=n_sent, n_cited_sentences=n_cited,
-            # #57 telemetrisi: `[0,1]` gibi belirsiz gruplar atıf sayılmadı.
-            # Sıklığı bilinmeden kuralın doğru eşikte olduğu iddia EDİLEMEZ.
-            n_belirsiz_grup=len(belirsiz_gruplar),
-            cost_usd=round(usd, 6))
 
-        # Yalnız GERÇEK (abstained olmayan) cevaplar cache'e yazılır. FAIL-CLOSED
-        # abstain zaten LLM'i hiç çağırmadı (cache'lemenin maliyet kazancı yok);
-        # model_abstained/guard_output ise LLM ÇAĞRILDI ama sonuç kullanıcıya
-        # ret/çekimser olarak gösterildi — bunları cache'lemek "bu soru bir daha
-        # asla cevaplanamaz" diye DONDURUR (retrieval/index/eşik ileride değişebilir)
-        # -> BİLİNÇLİ OLARAK cache'lenmez (yalnız buradaki başarılı dönüş yazar).
-        if self.response_cache is not None and cache_kwargs is not None:
-            self.response_cache.set(final_answer, **cache_kwargs)
-        return final_answer
+            # TEMELLENDİRME BÜTÜNLÜĞÜ (audit EXP-007 #C1): metin DOLU ama GEÇERLİ ATIF YOK
+            # (model [N] hiç emitmedi YA DA hepsi hayalet) → kaynağa bağlanamamış =
+            # temellendirilmemiş. Grounded RAG'de böyle bir cevabı kullanıcıya SUNMA;
+            # çekimser kal (kaynak-yok cümlesiyle). LLM çağrıldı → cost gerçek; CACHE'LENMEZ.
+            # Eskiden atıfsız-ama-dolu cevap "güvenli" sanılıp sunuluyordu.
+            if not citations:
+                r = "all_citations_phantom" if invalid_citations else "ungrounded_no_citations"
+                return GroundedAnswer(text=ABSTAIN_SENTENCE, citations=[], used_source_ids=[],
+                                      invalid_citations=invalid_citations, abstained=True,
+                                      reason=r, usage=result.usage, cost_usd=usd,
+                                      latency_s=result.latency_s)
+
+            final_answer = GroundedAnswer(text=gosterim_metni, citations=citations,
+                                          used_source_ids=used_source_ids,
+                                          invalid_citations=invalid_citations, abstained=False,
+                                          reason=reason, usage=result.usage, cost_usd=usd,
+                                          latency_s=result.latency_s,
+                                          n_sentences=n_sent, n_cited_sentences=n_cited,
+                                          dropped_sentences=dropped)
+            _tr("decision", stage="generate", abstained=False, reason=reason or "answer",
+                n_citations=len(citations), n_phantom=len(invalid_citations),
+                # #56: kapi A-03 bu ikisinden hesaplanir
+                n_sentences=n_sent, n_cited_sentences=n_cited,
+                # #57 telemetrisi: `[0,1]` gibi belirsiz gruplar atıf sayılmadı.
+                # Sıklığı bilinmeden kuralın doğru eşikte olduğu iddia EDİLEMEZ.
+                n_belirsiz_grup=len(belirsiz_gruplar),
+                cost_usd=round(usd, 6))
+
+            # Yalnız GERÇEK (abstained olmayan) cevaplar cache'e yazılır. FAIL-CLOSED
+            # abstain zaten LLM'i hiç çağırmadı (cache'lemenin maliyet kazancı yok);
+            # model_abstained/guard_output ise LLM ÇAĞRILDI ama sonuç kullanıcıya
+            # ret/çekimser olarak gösterildi — bunları cache'lemek "bu soru bir daha
+            # asla cevaplanamaz" diye DONDURUR (retrieval/index/eşik ileride değişebilir)
+            # -> BİLİNÇLİ OLARAK cache'lenmez (yalnız buradaki başarılı dönüş yazar).
+            if self.response_cache is not None and cache_kwargs is not None:
+                self.response_cache.set(final_answer, **cache_kwargs)
+            return final_answer
