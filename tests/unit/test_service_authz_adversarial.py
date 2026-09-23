@@ -141,6 +141,48 @@ class ClientScopeSpoofingTests(unittest.TestCase):
         self.assertFalse(out["abstained"])
 
 
+
+class FoldInsensitiveScopeTests(unittest.TestCase):
+    """İstemci etiketi aynı dersin yazım varyantıysa (büyük harf / Türkçe
+    aksan) `fold` ile eşleşir; FARKLI ders katlanmış haliyle de RED."""
+
+    def test_title_case_ders_matches(self):
+        """Backend başlığı "Biyoloji" gönderir, korpus slug'ı "biyoloji"."""
+        svc = _svc()
+        out = svc.summarize({"scope": {"pages": [40], "sinif": "12",
+                                       "ders": "Biyoloji"},
+                             "role": _ROL_12BIO})
+        self.assertFalse(out["abstained"])
+        self.assertTrue(svc.summarizer.called)
+
+    def test_diacritic_variant_matches(self):
+        """"Coğrafya" (istemci) == "cografya" (korpus slug'ı)."""
+        svc = RagService(_GenStub(), doc=_Doc(), summarizer=_SumStub(),
+                         question_gen=_QGStub(), ders="cografya")
+        rol = {"role": "student", "sinif": "12", "ders_list": ["cografya"]}
+        out = svc.summarize({"scope": {"pages": [40], "sinif": "12",
+                                       "ders": "Coğrafya"},
+                             "role": rol})
+        self.assertFalse(out["abstained"])
+
+    def test_folded_but_different_ders_still_refused(self):
+        """Katlamak ders değiştirmez: "Matematik" ≠ "biyoloji" → RED."""
+        svc = _svc()
+        out = svc.summarize({"scope": {"pages": [40], "sinif": "12",
+                                       "ders": "Matematik"},
+                             "role": _ROL_12BIO})
+        self.assertEqual(out["reason"], "scope_mismatch")
+        self.assertFalse(svc.summarizer.called)
+
+    def test_fold_does_not_bypass_role_gate(self):
+        """Rol yoksa katlama da kapıyı açmaz (fail-CLOSED #43)."""
+        svc = _svc()
+        out = svc.summarize({"scope": {"pages": [40], "sinif": "12",
+                                       "ders": "Biyoloji"},
+                             "role": None})
+        self.assertEqual(out["reason"], "role_required")
+
+
 class UnknownRoleFailClosedTests(unittest.TestCase):
     """SEC-02: rol çözülemezse erişim AÇILMAZ."""
 

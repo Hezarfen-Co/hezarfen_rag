@@ -15,6 +15,7 @@ from ..providers.resilience import LlmUnavailable
 from ..guard.roles import RoleContext, Role, can_access
 from ..guard.tenant import TenantError, normalize_school
 from ..understand import Intent, analyze
+from ..bridge.subject_map import fold
 
 
 def scope_pairs(scope) -> list:
@@ -101,14 +102,25 @@ def _scope_denied(service, scope: dict, role: dict | None) -> str | None:
     srv_sinif = getattr(service.doc, "sinif", None)
     srv_ders = service.ders or getattr(service.doc, "ders", None)
     # İstemci kapsam etiketi gönderdiyse sunucu gerçeğiyle EŞLEŞMELİ; yoksa red.
+    # Birebir eşleşme önce; olmazsa Türkçe katlama (fold) — aynı dersin yazım
+    # varyantlarını ("Biyoloji"/"biyoloji", "Coğrafya"/"cografya") açar.
+    # Katlama yetkiyi GENİŞLETMEZ: farklı bir dersin katlanmış hali başka
+    # slug'a denk gelir, red kalır (fail-CLOSED).
     cli_sinif, cli_ders = scope.get("sinif"), scope.get("ders")
-    if cli_sinif is not None and str(cli_sinif) != str(srv_sinif):
+    if cli_sinif is not None and not _scope_match(cli_sinif, srv_sinif):
         return "scope_mismatch"
-    if cli_ders is not None and str(cli_ders) != str(srv_ders):
+    if cli_ders is not None and not _scope_match(cli_ders, srv_ders):
         return "scope_mismatch"
     if not can_access(role_ctx, sinif=srv_sinif, ders=srv_ders):
         return "role_denied"
     return None
+
+
+def _scope_match(cli, srv) -> bool:
+    """İstemci etiketi sunucu gerçeğiyle aynı mı? Önce birebir, sonra
+    `bridge.subject_map.fold` ile katlanmış karşılaştırma."""
+    a, b = str(cli), str(srv)
+    return a == b or fold(a) == fold(b)
 
 
 
