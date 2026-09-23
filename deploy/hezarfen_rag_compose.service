@@ -64,6 +64,13 @@ Wants=network-online.target
 [Service]
 Type=oneshot
 RemainAfterExit=yes
+# Başarısız ExecStart (açılışta compose up) 1500s sonra yeniden denenir, biri
+# başarılı olana kadar. systemd 259 Type=oneshot için Restart= uygular. Bağlı
+# `up` kullanılmaz: podman-compose 1.6 yalnız SIGINT'te down çalıştırır ve
+# konteyner başlatma hatasında 0 ile çıkar. 1500s, en uzun deploy sağlık
+# kapısından (960s) uzundur; arka plan denemesi geri almayı ezmez.
+Restart=on-failure
+RestartSec=1500s
 WorkingDirectory=%h/hezarfen_rag
 # Operatörün ayar dosyası unit'in ORTAMINA girer (0600). Dosya yoksa unit
 # BAŞLAMAZ — sessiz bir varsayılana düşmez. Anahtarlar (LLM_API_KEY,
