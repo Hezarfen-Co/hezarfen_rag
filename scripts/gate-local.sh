@@ -8,7 +8,7 @@
 # way). When you have run this script, commit the `Local-Gate:` trailer it
 # prints (`--amend` writes it for you) and the push carries proof: the
 # workflow's "Decide test gate" step verifies the trailer against HEAD^{tree}
-# and then skips the runner suite, so CI only builds, packs and uploads.
+# and then skips the runner suite, so CI only builds, packs, uploads and deploys this run's artifact.
 #
 # Default path (nothing here): push without a trailer and GitHub runs
 # everything, suite included. Nothing is mandatory; this is the fast lane.

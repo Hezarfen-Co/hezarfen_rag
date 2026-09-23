@@ -97,25 +97,31 @@ kapısı bu iki sayıyı compose'dan okur (koda ikinci kez yazılmaz).
 
 `.github/workflows/main.yml` kardeş servislerle aynı şekli taşır: `Validate`
 (derleme kontrolü) ∥ `Build and test` (`python -m pytest tests/unit -q` süiti +
-imaj + `release` artefaktı) → `Deploy` (SSH: imajı yükle, deploy sahipli
-`stack.env`'in
-`HEZARFEN_TAG`'ini çevir, unit'i kur, `/health` ve `/ready` kapılarını geçir,
-geçmezse önceki tag'e dön). Unit'in kendisi sürümle birlikte iner:
-`deploy/hezarfen_rag_compose.service`.
+imaj + `release` artefaktı) → `Deploy`. Yeşil bir `main` push'u **bu koşunun**
+artefaktını kendiliğinden alır: imajı yükle, deploy sahipli `stack.env`'in
+`HEZARFEN_TAG`'ini o artefakta çevir, unit'i kur, `/health` ve `/ready`
+kapılarını geçir, geçmezse önceki tag'e dön. Unit'in kendisi sürümle birlikte
+iner: `deploy/hezarfen_rag_compose.service`.
 
-**Deploy yalnız elle koşar** (`workflow_dispatch`) ve kapıda **kapasite ön
-kontrolü** vardır: eşikler `compose.yaml`'daki `x-rag-envelope` bloğundan
-okunur — RAM ≥ `mem_limit_mb` (**3072 MB**) ve disk ≥ **8 GB**; yetmezse
-nedeniyle birlikte reddeder. Gerekçe ölçülmüş: API gömme + API rerank ile
-yerel modeller hiç indirilmez (zarf 1,1–2,6 GB), yani eski 12 GB / 20 GB
-eşikleri model çağından kalmaydı. Ölçtüğümüz 7 GB'lık geliştirme sunucusu
-(6 466 MB boşta) bu kapıdan artık **geçer**.
+**Yeşil bir push servisi kendiliğinden günceller** (kullanıcı kararı
+2026-09-23; 2026-09-15'teki "yalnız `workflow_dispatch`" kapısı kalktı). Kapıda
+**kapasite ön kontrolü** durur ve değişmedi: eşikler `compose.yaml`'daki
+`x-rag-envelope` bloğundan okunur — RAM ≥ `mem_limit_mb` (**3072 MB**) ve
+disk ≥ **8 GB**; yetmezse nedeniyle birlikte reddeder, eşik gevşetilmez.
+Gerekçe ölçülmüş: API gömme + API rerank ile yerel modeller hiç indirilmez
+(zarf 1,1–2,6 GB), yani eski 12 GB / 20 GB eşikleri model çağından kalmaydı.
+Ölçtüğümüz 7 GB'lık geliştirme sunucusu (6 466 MB boşta) bu kapıdan artık
+**geçer**.
 
-Kapıyı açmak için: repo secret'larına `SSH_PRIVATE_KEY`/`SSH_HOST`/`SSH_USER`
+Elle yeniden deploy (`workflow_dispatch`, `tests: auto`/`skip`) süiti tekrar
+ödemeden en yeni yeşil build'in artefaktını alır. `tests: force` önce bu
+ref'i derler ve test eder, sonra o taze artefaktı deploy eder.
+
+İlk kurulum: repo secret'larına `SSH_PRIVATE_KEY`/`SSH_HOST`/`SSH_USER`
 ekle, sunucuya `~/hezarfen_rag/hezarfen_rag.env` (0600, şablon:
 `deploy/hezarfen_rag.env.example`) ve `~/hezarfen_rag/data/`
-(`<okul-uuid>/lise/<sınıf>/<ders>/kitap.pdf`, okul segmenti tireli uuid) korpusunu koy, sonra
-`workflow_dispatch` ile koş.
+(`<okul-uuid>/lise/<sınıf>/<ders>/kitap.pdf`, okul segmenti tireli uuid)
+korpusunu koy. Sonraki `main` push'u deploy'u kendisi koşar.
 
 ### GPU için tek seferlik ana makine kurulumu
 

@@ -5,8 +5,8 @@
 #
 #     git config core.hooksPath .githooks
 #
-# The default path is: push and let GitHub run the suite, build, pack and (on a
-# manual dispatch) deploy. An untested push is legitimate, so this hook does NOT
+# The default path is: push and let GitHub run the suite, build, pack and
+# deploy this run's artifact. An untested push is legitimate, so this hook does NOT
 # require a stamp. Its single job is to keep the opt-in fast lane honest.
 #
 # The fast lane is a commit carrying

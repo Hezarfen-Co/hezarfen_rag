@@ -98,7 +98,7 @@ ham veri + soru/cevap defteri: `outputs/EXP-009-model-karsilastirma/`), maliyet 
 - **Servis girişi (2026-09-17 durumu):** HTTP servisi VAR — `src/service/http_app.py`
   (FastAPI; `/rag/chat`, `/rag/summarize`, `/rag/questions`, `/health`, `/ready`),
   `compose.yaml` + `Containerfile` + `deploy/hezarfen_rag_compose.service` +
-  `.github/workflows/main.yml` (elle tetiklenen VPS deploy). Backend bu HTTP'yi
+  `.github/workflows/main.yml` (yeşil push'ta otomatik VPS deploy, 2026-09-23; kapasite kapısı `x-rag-envelope`'dan okunur). Backend bu HTTP'yi
   ÇAĞIRMAZ; gerçek entegrasyon QUIC `hab/2` köprüsüdür ve **taşıması yazıldı**
   (`src/bridge/transport.py`, ¶11.4) → `rag.chat` artık telden servis edilir;
   `rag.index` SUNULUR (2026-09-18): not + ekler indekslenir — ek baytları kendi

@@ -6,29 +6,42 @@
 #                      Containerfile'ından imaj (ENV bloğu dağıtım
 #                      varsayılanlarının TEK kaynağıdır) ve imaj tarball'ı +
 #                      compose dosyaları koşunun artefaktı olarak yüklenir.
-#   Deploy          —  SSH: kapasite ön kontrolü, imajı yükle, deploy sahipli
-#                      stack.env'in HEZARFEN_TAG'ini ona çevir, compose.yaml +
-#                      unit'i kur, stack'i yeniden başlat, `/health` ve
-#                      `/ready` kapılarını geçir, olmazsa önceki tag'e dön.
+#   Deploy          —  push'ta OTOMATIK: SSH ile kapasite ön kontrolü, imajı
+#                      yükle, deploy sahipli stack.env'in HEZARFEN_TAG'ini
+#                      BU KOŞUNUN artefaktına çevir, compose.yaml + unit'i
+#                      kur, stack'i yeniden başlat, `/health` ve `/ready`
+#                      kapılarını geçir, olmazsa önceki tag'e dön. Yani yeşil
+#                      bir push servisi kendiliğinden günceller.
 #
-# ⚠️ DEPLOY SADECE ELLE (workflow_dispatch) KOŞAR — bilinçli:
-#   Servis, aynı sunucuda koşan backend+postgres+frontend+chatbot'un YANINA
-#   eklenir; kapasite ön kontrolü olmadan otomatik başlatmak canlı stack'i RAM
-#   için sıkıştırırdı. Gömme ve rerank artık UZAK API'de (dağıtım varsayılanı
-#   = api) → yerel modeller (~4,5 GB) indirilmez; ölçülen zarf torch ~0,4 GB +
-#   0,53 GB/10k chunk = 1,1 GB (tek korpus) … 2,6 GB (3 korpus), bkz.
-#   PROJECT_STATE §11.2. Deploy işi eşiği compose.yaml'daki `x-rag-envelope`
-#   bloğundan OKUR — tek kaynak; sayıyı buraya ikinci kez yazmak, model
-#   çağından kalma 12 GB eşiğinin sessizce geri gelmesi demekti.
-#   Operatör yerel yola (RAG_EMBED_PROVIDER=local) dönerse zarf büyür ve
-#   GPU'suz makinede rerank 95,9 s sürer: ürün kapısı O-05 p50 <= 6 s GEÇİLMEZ
-#   — o yapılandırma için eşiği sunucuya elle yükseltmek gerekir.
+# KAPASİTE KAPISI DEĞİŞMEDİ (kullanıcı kararı 2026-09-23: yeşil push artık
+# kendiliğinden deploy eder; 2026-09-15'teki "yalnız elle" kararı kalktı).
+# Eşik hâlâ compose.yaml `x-rag-envelope` bloğundan OKUNUR — tek kaynak;
+# sayıyı buraya ikinci kez yazmak, model çağından kalma 12 GB eşiğinin
+# sessizce geri gelmesi demekti. Yetmezse deploy sayılarıyla reddeder,
+# eşiği gevşetmez. Gömme ve rerank UZAK API'de (dağıtım varsayılanı = api)
+# → yerel modeller (~4,5 GB) indirilmez; ölçülen zarf torch ~0,4 GB +
+# 0,53 GB/10k chunk = 1,1 GB (tek korpus) … 2,6 GB (3 korpus), bkz.
+# PROJECT_STATE §11.2.
+# Operatör yerel yola (RAG_EMBED_PROVIDER=local) dönerse zarf büyür ve
+# GPU'suz makinede rerank 95,9 s sürer: ürün kapısı O-05 p50 <= 6 s
+# GEÇİLMEZ — o yapılandırma için eşiği sunucuya elle yükseltmek gerekir.
+#
+# Validate ile Build and test paralel koşar; Deploy ikisi de yeşilse
+# çalışır ve BU KOŞUNUN artefaktını alır (en yeni yeşil araması değil).
+# Yeni bir push aynı ref'teki Validate/Build'i iptal eder; uçuştaki
+# Deploy'u ASLA iptal etmez (iki deploy iç içe girerse stack karışır).
+#
+# workflow_dispatch (Actions -> Run workflow, ya da
+# `gh workflow run main.yml --ref main`) süiti koşmadan en yeni yeşil
+# build'in artefaktını yeniden deploy eder. `tests: force` önce bu
+# ref'i derler ve test eder, sonra O KOŞUNUN taze artefaktını alır.
 #
 # TWO TEST PATHS — the default is the full one (same shape as hezarfen_backend):
 #
 #   DEFAULT   Push it and let GitHub do everything: suite, image, bundle,
-#             artifact. This is also the recovery path when the local machine
-#             is unavailable.
+#             artifact, and — when Validate and Build are both green —
+#             deploy of THIS run's artifact. This is also the recovery
+#             path when the local machine is unavailable.
 #   SPECIAL   Prove the suite on your own machine first (scripts/gate-local.sh
 #             — ~32 s here). The suite currently HANGS on the runner: run
 #             35297989416 sat at 7% for 73 minutes until it was cancelled by
@@ -36,7 +49,8 @@
 #             --amend, appends) a `Local-Gate: <tree> (<n> passed, <t>s)`
 #             trailer; the "Decide test gate" step verifies it against
 #             HEAD^{tree} and only then skips the runner suite — CI still
-#             builds the image, proves it API-only, stages and uploads.
+#             builds the image, proves it API-only, stages, uploads and
+#             deploys this run's artifact.
 #             A stale or copy-pasted trailer silently falls back to running
 #             the suite, so the fallback costs time, never verification.
 #             Opt the pre-push hook in per clone:
@@ -56,10 +70,10 @@ on:
   push:
     branches:
       - main
-  # Deploy'un TEK kapısı — yukarıdaki başlık yorumuna bakın.
-  # `tests` is the escape hatch of the manual door: auto/skip redeploy the
-  # newest green artifact (the suite is not paid again), force builds and
-  # tests the dispatched ref first and deploys that fresh artifact.
+  # Elle yeniden deploy kapısı — yukarıdaki başlık yorumuna bakın.
+  # auto/skip: en yeni yeşil artefaktı yeniden deploy eder (süit tekrar
+  # ödenmez). force: bu ref'i önce derler ve test eder, o taze artefaktı
+  # deploy eder.
   workflow_dispatch:
     inputs:
       tests:
@@ -302,20 +316,22 @@ jobs:
     concurrency:
       group: deploy
       cancel-in-progress: false
-    # Push'ta iki CI işi koşar ama deploy KOŞMAZ (kapı elle açılır);
-    # dispatch'te ikisi de atlanır ve `always()` bu atlamanın kapıyı
-    # geçmesini engeller.
+    # Push: yalnız validate VE build yeşilse — ikisi de sunucuyu kapılar;
+    # artefakt BU KOŞUNUNKİDİR (aşağıda needs.build.result == success).
+    # Dispatch: mevcut yol. auto/skip iki CI işini atlar ve en yeni yeşil
+    # build'i alır; tests=force build'i koşar ve bu koşunun artefaktını
+    # alır. `always()` atlamanın kapıdan geçmesini engeller.
     if: >-
       always() &&
-      github.event_name == 'workflow_dispatch' &&
-      (needs.validate.result == 'skipped' || needs.validate.result == 'success') &&
-      (needs.build.result == 'skipped' || needs.build.result == 'success')
+      ((needs.validate.result == 'success' && needs.build.result == 'success') ||
+       (github.event_name == 'workflow_dispatch' &&
+        (needs.validate.result == 'skipped' || needs.validate.result == 'success') &&
+        (needs.build.result == 'skipped' || needs.build.result == 'success')))
     runs-on: ubuntu-24.04
     steps:
-      # Elle deploy, BUILD işi yeşil olan en yeni koşuyu alır — ama yalnız bu
-      # koşuda build YOKSA: `tests: force` ile dispatch edildiğinde bu koşunun
-      # kendi taze artefaktı kullanılır (aşağıdaki adım), yoksa build edilen
-      # imaj hiçbir yere gitmezdi.
+      # Dispatch ve bu koşuda build YOKSA (auto/skip): BUILD işi yeşil olan
+      # en yeni push koşusunu alır. Push ve tests=force buraya düşmez —
+      # onların artefaktı aşağıdaki adımdır.
       - name: Find the newest green build
         if: needs.build.result == 'skipped'
         env:
@@ -345,7 +361,7 @@ jobs:
           run-id: ${{ env.run_id }}
           github-token: ${{ github.token }}
 
-      # tests=force: the artifact this very run built and gated.
+      # Push, ve tests=force: artefakt bu koşunun kendisinin ürettiği sürüm.
       - name: Fetch this run's release
         if: needs.build.result == 'success'
         uses: actions/download-artifact@v4
